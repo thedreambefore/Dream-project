@@ -1,17 +1,20 @@
 import { createContext, useContext, useState, useEffect } from 'react';
 import { createClient } from '@supabase/supabase-js';
 
-// 1. 初始化真正的雲端 Supabase 連線（會自動去讀取你的 .env 鑰匙）
+// 1. 初始化真正的雲端 Supabase 連線
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
 export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
-interface UserProfile {
+export interface UserProfile {
   id: string;
   real_name: string;
+  anonymous_nickname: string;
   role: 'user' | 'admin';
   is_phone_verified: boolean;
   wallet_balance: number;
+  phone?: string;
+  address?: string;
 }
 
 interface AuthContextType {
@@ -40,14 +43,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         .eq('id', userId)
         .single();
 
-if (error && error.code === 'PGRST116') {
+      if (error && error.code === 'PGRST116') {
         // 自動補建資料防禦線：完美對齊您的資料庫截圖欄位
         const { data: newProfile } = await supabase
           .from('users')
           .insert([{ 
             id: userId, 
             real_name: '新築夢者', 
-            anonymous_nickname: '匿名人士', // 補上這個欄位
+            anonymous_nickname: '匿名小五郎',
             role: 'user', 
             wallet_balance: 500, 
             is_phone_verified: false 
@@ -63,20 +66,31 @@ if (error && error.code === 'PGRST116') {
     }
   };
 
-  // 3. 監聽全站登入狀態（重新整理網頁免重複登入的秘密）
+  // 3. 監聽全站登入狀態（🌟 強制時間差解鎖：撈完資料才放行 loading！）
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      if (session?.user) {
-        fetchUserProfile(session.user.id).then(prof => setProfile(prof));
+    const initializeAuth = async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        setSession(session);
+        if (session?.user) {
+          const prof = await fetchUserProfile(session.user.id);
+          setProfile(prof);
+        }
+      } catch (err) {
+        console.error('初始化 Auth 遭遇異常:', err);
+      } finally {
+        setLoading(false); // 🔥 關鍵修正：等資料全部同步完了，才將載入狀態設為 false！
       }
-      setLoading(false);
-    });
+    };
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session);
-      if (session?.user) {
-        fetchUserProfile(session.user.id).then(prof => setProfile(prof));
+    initializeAuth();
+
+    // 全時廣播雷達監聽
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, currentSession) => {
+      setSession(currentSession);
+      if (currentSession?.user) {
+        const prof = await fetchUserProfile(currentSession.user.id);
+        setProfile(prof);
       } else {
         setProfile(null);
       }
@@ -86,7 +100,7 @@ if (error && error.code === 'PGRST116') {
     return () => subscription.unsubscribe();
   }, []);
 
-  // 4. 真實與雲端對接的【登入】
+    // 4. 真實與雲端對接的【登入】
   const login = async (emailInput: string, passwordInput: string) => {
     const { error } = await supabase.auth.signInWithPassword({
       email: emailInput,
@@ -112,7 +126,7 @@ if (error && error.code === 'PGRST116') {
     }
 
     if (data.user) {
-      // 註冊成功，立刻在真實的 users 資料表建置初始錢包與手機狀態
+      // 註冊成功，立刻在真實的 users 資料表建置初始錢包與暱稱狀態
       await supabase.from('users').insert([
         {
           id: data.user.id,
@@ -134,9 +148,12 @@ if (error && error.code === 'PGRST116') {
     setProfile(null);
   };
 
+  // 7. 主動手動同步雷達
   const refreshProfile = async () => {
-    if (session?.user) {
-      const prof = await fetchUserProfile(session.user.id);
+    // 核心安全確認：如果內部 session 一時來不及更新，直接從 Supabase 核心重新拿當前 User ID
+    const currentUserId = session?.user?.id || (await supabase.auth.getUser()).data.user?.id;
+    if (currentUserId) {
+      const prof = await fetchUserProfile(currentUserId);
       setProfile(prof);
     }
   };
@@ -148,11 +165,9 @@ if (error && error.code === 'PGRST116') {
   );
 }
 
-// ... 前面的程式碼保持不變 ...
-
 export function useAuth() {
   const context = useContext(AuthContext);
-  // 🌟 全防禦修正：如果 context 暫時不存在（初始化時間差），回傳一個安全的空物件與 loading 狀態，絕對不讓全站黑屏暴斃！
+  // 全防禦修正：如果 context 暫時不存在（初始化時間差），回傳安全的空物件與 loading 狀態，絕對不讓全站黑屏
   if (!context) {
     return {
       session: null,
@@ -166,3 +181,4 @@ export function useAuth() {
   }
   return context;
 }
+
