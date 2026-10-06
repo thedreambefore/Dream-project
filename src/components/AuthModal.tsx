@@ -6,7 +6,7 @@ import { useAuth } from '@/context/AuthContext';
 
 export function AuthModal({ onClose }: { onClose: () => void }) {
   const { refreshProfile } = useAuth();
-  const [mode, setMode] = useState<'login' | 'signup'>('signup');
+  const [mode, setMode] = useState<'login' | 'signup'>('login'); // 預設改為登入，方便測試
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -34,57 +34,26 @@ export function AuthModal({ onClose }: { onClose: () => void }) {
           password,
         });
         if (signUpError) throw signUpError;
+        alert('註冊成功！請直接切換到登入畫面進行登入。');
+        setMode('login');
       } else {
-        const { error: signInError } = await supabase.auth.signInWithPassword({
+        const { data, error: signInError } = await supabase.auth.signInWithPassword({
           email: authEmail,
           password,
         });
         if (signInError) throw signInError;
-      }
-      
-      // ---- 關鍵修正區 ----
-      try {
-        await refreshProfile();
-      } catch (profileErr) {
-        console.warn('Profile 刷新略過或失敗，將透過重整強制同步:', profileErr);
-      }
-      onClose();
-      window.location.reload(); // 🔥 強制重新整理，擊碎畫面凍結！
-      // --------------------
 
+        // 登入成功後，強制重整
+        if (data?.session) {
+          try { await refreshProfile(); } catch (pErr) { console.error(pErr); }
+          onClose();
+          window.location.reload(); 
+        }
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : '操作失敗，請重試');
-    } finally {
+    } fileGrown {
       setLoading(false);
-    }
-  };
-
-
-  const handleLineLogin = async () => {
-    setLoading(true);
-    setError('');
-    const randomEmail = `line_${Math.random().toString(36).slice(2, 10)}@dreamsand.tw`;
-    const randomPassword = Math.random().toString(36).slice(2, 14);
-    try {
-      const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
-        email: randomEmail,
-        password: randomPassword,
-      });
-      if (signInData.session) {
-        try { await refreshProfile(); } catch {}
-        onClose();
-        window.location.reload(); // 🔥 確保模擬登入後也會強制跳轉
-        return;
-      }
-      if (signInError) {
-        const { error: signUpError } = await supabase.auth.signUp({ email: randomEmail, password: randomPassword });
-        if (signUpError) throw signUpError;
-        try { await refreshProfile(); } catch {}
-        onClose();
-        window.location.reload(); // 🔥 確保模擬註冊後也會強制跳轉
-      }
-    } catch {
-      setError('模擬 LINE 登入失敗，請稍後再試');
     } finally {
       setLoading(false);
     }
@@ -96,7 +65,7 @@ export function AuthModal({ onClose }: { onClose: () => void }) {
       onClick={onClose}
     >
       <div
-        className="glass-strong rounded-3xl w-full max-w-md p-6 sm:p-8 glow-border"
+        className="glass-strong rounded-3xl w-full max-w-md p-6 sm:p-8 glow-border bg-zinc-950 border border-zinc-800"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between mb-6">
@@ -111,14 +80,14 @@ export function AuthModal({ onClose }: { onClose: () => void }) {
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-sm text-gray-300 mb-1.5">帳號（Email 或管理員帳號）</label>
+            <label className="block text-sm text-gray-300 mb-1.5">帳號 (Email)</label>
             <input
               type="text"
               autoComplete="username"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              placeholder="star@dreamsand.tw 或 admin"
-              className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-amber-400/50 focus:ring-1 focus:ring-amber-400/30 transition-all"
+              placeholder="請輸入您的 Email"
+              className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-amber-400/50"
             />
           </div>
           <div>
@@ -128,7 +97,7 @@ export function AuthModal({ onClose }: { onClose: () => void }) {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               placeholder="至少 6 位數"
-              className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-amber-400/50 focus:ring-1 focus:ring-amber-400/30 transition-all"
+              className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-amber-400/50"
             />
           </div>
 
@@ -145,27 +114,6 @@ export function AuthModal({ onClose }: { onClose: () => void }) {
           </button>
         </form>
 
-        <div className="flex items-center gap-3 my-5">
-          <div className="flex-1 h-px bg-white/10" />
-          <span className="text-xs text-gray-500">或</span>
-          <div className="flex-1 h-px bg-white/10" />
-        </div>
-
-        <button
-          onClick={handleLineLogin}
-          disabled={loading}
-          className="w-full touch-btn bg-green-500 hover:bg-green-400 text-white font-bold rounded-xl py-3.5 transition-all disabled:opacity-50 flex items-center justify-center gap-2 text-lg"
-        >
-          {loading ? (
-            <Loader2 className="w-5 h-5 animate-spin" />
-          ) : (
-            <>
-              <span className="text-2xl">💬</span>
-              模擬 LINE 一鍵登入 / 註冊
-            </>
-          )}
-        </button>
-
         <p className="text-center text-sm text-gray-400 mt-5">
           {mode === 'signup' ? '已有帳號？' : '還沒有帳號？'}
           <button
@@ -174,10 +122,6 @@ export function AuthModal({ onClose }: { onClose: () => void }) {
           >
             {mode === 'signup' ? '前往登入' : '立即註冊'}
           </button>
-        </p>
-
-        <p className="text-center text-xs text-gray-600 mt-3">
-          註冊即贈 100 星塵，可立即瀏覽與模擬儲值
         </p>
       </div>
     </div>
