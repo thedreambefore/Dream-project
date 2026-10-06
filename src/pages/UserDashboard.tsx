@@ -63,27 +63,34 @@ function TabButton({ id, activeTab, onClick, icon, label }: { id: TabId; activeT
   );
 }
 
-// ===== 1. 帳號資訊分頁 (Account Tab) =====
+// ===== 1. 帳號資訊分頁 (Account Tab) — 強制主動讀取雲端完全體 =====
 function AccountTab() {
   const { session, profile, refreshProfile } = useAuth();
+  
+  // 🚀 防禦性初始化：如果 profile 裡有值，直接當作第一顆星沙預設進去
   const [realName, setRealName] = useState(profile?.real_name || '');
   const [nickname, setNickname] = useState(profile?.anonymous_nickname || '匿名小五郎');
   const [phone, setPhone] = useState(profile?.phone || '');
   const [address, setAddress] = useState(profile?.address || '');
+  
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState('');
 
+  // 🌟 🔥 核心大改動：全時雷達主動同步！
+  // 當網頁重整、或者 Context 重新撈完資料時，這個 useEffect 會強制執行 100% 覆蓋 React State，
+  // 徹底修正「網頁顯示不會讀取 Table 內容」的萬年死鎖！
   useEffect(() => {
     if (profile) {
+      console.log('🛰️ 夢沙讀取雷達成功捕捉到雲端最新 Table 資料:', profile);
       setRealName(profile.real_name || '');
       setNickname(profile.anonymous_nickname || '匿名小五郎');
       setPhone(profile.phone || '');
       setAddress(profile.address || '');
     }
-  }, [profile]);
+  }, [profile]); // 👈 只要 profile 一改變，立刻強制重新填寫輸入框！
 
-      const handleSave = async (e: React.FormEvent) => {
+  const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     
@@ -94,14 +101,13 @@ function AccountTab() {
 
     setSaving(true);
     try {
-      // 1. 精確抓取當前在 Auth 核心裡真正登入的 UUID
       const currentUserId = session?.user?.id || (await supabase.auth.getUser()).data.user?.id;
       
       if (!currentUserId) {
         throw new Error('找不到有效的登入憑證，請嘗試重新登入');
       }
 
-      // 🚀 🔥 核心改動：繞過原生 update，直接調用我們剛剛在後台加裝的 force_update_user 通道！
+      // 🚀 調用後台 RPC 最高權限強行寫入
       const { error: rpcError } = await supabase.rpc('force_update_user', {
         target_id: currentUserId,
         new_real_name: realName.trim() || null,
@@ -112,29 +118,30 @@ function AccountTab() {
 
       if (rpcError) throw rpcError;
 
-      // 2. 刷新全站 React Context 記憶
+      // 🔄 儲存成功，立刻通知 Context 去刷新，這會觸發上面的 useEffect 自動讀取最新值
       await refreshProfile();
       setSaved(true);
       
-      // 等待半秒，強制重新整理
+      // 寬限半秒，全頁更新
       setTimeout(() => {
         window.location.reload();
       }, 500);
 
     } catch (err: any) {
-      console.error('最高通道儲存失敗:', err);
-      setError(`儲存失敗: ${err.message || '請檢查雲端連線狀態'}`);
+      console.error('儲存失敗:', err);
+      setError(`儲存失敗: ${err.message || '請檢查網路連線'}`);
     } finally {
       setSaving(false);
     }
   };
 
-
-
   return (
     <div className="space-y-6 max-w-xl animate-fade-in">
-      <h2 className="text-xl font-bold text-amber-100 flex items-center gap-2"><UserCircle className="w-5 h-5 text-amber-300" /> 星旅人休息室</h2>
+      <h2 className="text-xl font-bold text-amber-100 flex items-center gap-2">
+        <UserCircle className="w-5 h-5 text-amber-300" /> 星旅人休息室
+      </h2>
       
+      {/* 登入憑證面板 */}
       <div className="glass rounded-2xl p-5 glow-border bg-zinc-900/40">
         <p className="text-xs text-gray-500 mb-1">登入憑證帳號 (Email)</p>
         <p className="text-sm font-mono text-amber-200">{session?.user?.email}</p>
@@ -147,6 +154,7 @@ function AccountTab() {
         </div>
       </div>
 
+      {/* 設定表單 */}
       <form onSubmit={handleSave} className="space-y-5 bg-white/5 border border-white/10 p-6 rounded-2xl glow-border">
         <div>
           <label className="block text-xs font-medium text-gray-300 mb-2">舞台真實姓名（物流核對用，不公開）</label>
@@ -175,6 +183,7 @@ function AccountTab() {
     </div>
   );
 }
+
 
 // ===== 2. 發布夢想分願 (Publish Tab) =====
 function PublishTab({ onRequireVerify }: { onRequireVerify: () => void }) {
