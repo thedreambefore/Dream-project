@@ -63,30 +63,79 @@ function TabButton({ id, activeTab, onClick, icon, label }: { id: TabId; activeT
   );
 }
 
-// ===== 1. 帳號資訊分頁 (Account Tab) =====
+// ===== 1. 帳號資訊分頁 (Account Tab) — 補齊電話、地址與強行儲存完全體 =====
 function AccountTab() {
   const { session, profile, refreshProfile } = useAuth();
+  
+  // 🚀 完整宣告所有核心業務欄位，對齊您的資料庫
   const [realName, setRealName] = useState(profile?.real_name || '');
   const [nickname, setNickname] = useState(profile?.anonymous_nickname || '匿名小五郎');
+  const [phone, setPhone] = useState(profile?.phone || ''); // 🌟 新增手機號碼狀態
+  const [address, setAddress] = useState(profile?.address || ''); // 🌟 新增超商收件地址狀態
+  
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [error, setError] = useState('');
+
+  // 當 profile 從雲端非同步載入完成時，動態校正欄位預設值，防止留白
+  useEffect(() => {
+    if (profile) {
+      setRealName(profile.real_name || '');
+      setNickname(profile.anonymous_nickname || '匿名小五郎');
+      setPhone(profile.phone || '');
+      setAddress(profile.address || '');
+    }
+  }, [profile]);
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
+    setError('');
+    
+    if (!nickname.trim()) {
+      setError('匿名暱稱不能為空');
+      return;
+    }
+
+    // 驗證手機號碼基本格式（如果有填寫的話）
+    if (phone.trim() && !/^09\d{8}$/.test(phone.trim())) {
+      setError('請輸入正確的台灣手機號碼格式 (09xxxxxxxx)');
+      return;
+    }
+
     setSaving(true);
     try {
-      // 🚀 正確同步寫入小寫 users 資料表
-      const { error } = await supabase
-        .from('users')
-        .update({ real_name: realName.trim(), anonymous_nickname: nickname.trim() })
-        .eq('id', session?.user?.id);
+      // 核心安全確認：如果 Context 一時拿不到，直接從 Supabase 核心拿當前 User ID
+      const currentUserId = session?.user?.id || (await supabase.auth.getUser()).data.user?.id;
       
-      if (error) throw error;
+      if (!currentUserId) {
+        throw new Error('找不到您的登入憑證，請嘗試重新登入');
+      }
+
+      // 🚀 🔥 強行寫入真實小寫 users 資料表，完美打包所有欄位
+      const { data, error: updateError } = await supabase
+        .from('users')
+        .update({ 
+          real_name: realName.trim() || null, 
+          anonymous_nickname: nickname.trim(),
+          phone: phone.trim() || null,     // 🌟 儲存手機
+          address: address.trim() || null  // 🌟 儲存地址
+        })
+        .eq('id', currentUserId)
+        .select(); // 使用 select() 強制回傳，用來驗證有沒有寫入成功
+
+      if (updateError) throw updateError;
+      
+      if (!data || data.length === 0) {
+        throw new Error('資料庫未更新任何列，請確認您的帳號資料是否存在於 users 資料表中');
+      }
+
+      // 🔄 儲存成功，立刻轉動 Context 齒輪刷新全站雷達
       await refreshProfile();
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
-    } catch {
-      alert('資料儲存失敗，請檢查網路或與雲端連線狀態');
+    } catch (err: any) {
+      console.error('雲端儲存失敗原因:', err);
+      setError(err instanceof Error ? err.message : '儲存失敗，請檢查網路連線');
     } finally {
       setSaving(false);
     }
@@ -94,8 +143,11 @@ function AccountTab() {
 
   return (
     <div className="space-y-6 max-w-xl animate-fade-in">
-      <h2 className="text-xl font-bold text-amber-100 flex items-center gap-2"><UserCircle className="w-5 h-5 text-amber-300" /> 星旅人休息室</h2>
+      <h2 className="text-xl font-bold text-amber-100 flex items-center gap-2">
+        <UserCircle className="w-5 h-5 text-amber-300" /> 星旅人休息室
+      </h2>
       
+      {/* 登入憑證面板 */}
       <div className="glass rounded-2xl p-5 glow-border bg-zinc-900/40">
         <p className="text-xs text-gray-500 mb-1">登入憑證帳號 (Email)</p>
         <p className="text-sm font-mono text-amber-200">{session?.user?.email}</p>
@@ -103,23 +155,40 @@ function AccountTab() {
           {profile?.is_phone_verified ? (
             <span className="inline-flex items-center gap-1 text-xs px-3 py-1 rounded-full bg-green-500/10 border border-green-500/30 text-green-400">✓ 台灣手機強驗證已成功解鎖</span>
           ) : (
-            <span className="inline-flex items-center gap-1 text-xs px-3 py-1 rounded-full bg-zinc-800 border border-white/5 text-gray-400">⚠️ 手機未驗證（發布夢想功能受限）</span>
+            <span className="inline-flex items-center gap-1 text-xs px-3 py-1 rounded-full bg-zinc-800 border border-white/5 text-gray-400">⚠️ 手機未強驗證（發布夢想功能受限）</span>
           )}
         </div>
       </div>
 
+      {/* 設定表單 */}
       <form onSubmit={handleSave} className="space-y-5 bg-white/5 border border-white/10 p-6 rounded-2xl glow-border">
         <div>
-          <label className="block text-xs font-medium text-gray-300 mb-2">舞台真實姓名（僅供超商取貨代買核對，絕不對外公開）</label>
-          <input type="text" value={realName} onChange={(e) => setRealName(e.target.value)} placeholder="例如：王小明" className="w-full bg-zinc-900/80 border border-white/10 rounded-xl px-4 py-3 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-amber-400/50" />
+          <label className="block text-xs font-medium text-gray-300 mb-2">舞台真實姓名（物流代買核對用，不對外公開）</label>
+          <input type="text" value={realName} onChange={(e) => setRealName(e.target.value)} placeholder="例如：王小明" className="w-full bg-zinc-900/80 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-amber-400/50" />
         </div>
+        
         <div>
-          <label className="block text-xs font-medium text-gray-300 mb-2">匿名陌生人暱稱（全站漂流瓶、故事交易所顯示名稱）</label>
+          <label className="block text-xs font-medium text-gray-300 mb-2">匿名陌生人暱稱（全站平台顯示名稱）</label>
           <input type="text" value={nickname} onChange={(e) => setNickname(e.target.value)} className="w-full bg-zinc-900/80 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-amber-400/50" required />
         </div>
-        <button type="submit" disabled={saving} className="w-full bg-gradient-to-r from-amber-500 to-yellow-600 text-gray-950 font-black text-sm py-3 rounded-xl hover:from-amber-400 hover:to-yellow-500 transition-all flex items-center justify-center gap-2 shadow-lg shadow-amber-500/10">
+
+        {/* 🌟 新增手機號碼欄位 */}
+        <div>
+          <label className="block text-xs font-medium text-gray-300 mb-2">聯絡電話（台灣手機號碼）</label>
+          <input type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="例如：0912345678" maxLength={10} className="w-full bg-zinc-900/80 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-amber-400/50" />
+        </div>
+
+        {/* 🌟 新增收件地址欄位 */}
+        <div>
+          <label className="block text-xs font-medium text-gray-300 mb-2">超商收件門市 / 寄送地址（圓夢物資承諾配送用）</label>
+          <input type="text" value={address} onChange={(e) => setAddress(e.target.value)} placeholder="例如：7-11 夢沙門市 (店號xxxxxx) 或 台北市信義路..." className="w-full bg-zinc-900/80 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-amber-400/50" />
+        </div>
+
+        {error && <p className="text-red-400 text-xs bg-red-500/10 p-3 rounded-lg border border-red-500/20">{error}</p>}
+
+        <button type="submit" disabled={saving} className="w-full bg-gradient-to-r from-amber-500 to-yellow-600 text-gray-950 font-black text-sm py-3 rounded-xl hover:from-amber-400 hover:to-yellow-500 transition-all flex items-center justify-center gap-2">
           {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-          {saved ? '星沙印記更新成功！' : '儲存變更設定'}
+          {saved ? '星沙印記儲存成功！' : '儲存全站帳號設定'}
         </button>
       </form>
     </div>
