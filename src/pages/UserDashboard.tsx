@@ -83,40 +83,47 @@ function AccountTab() {
     }
   }, [profile]);
 
-  const handleSave = async (e: React.FormEvent) => {
+    const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+    
     if (!nickname.trim()) {
       setError('匿名暱稱不能為空');
       return;
     }
-    if (phone.trim() && !/^09\d{8}$/.test(phone.trim())) {
+    if (phone.trim() && !/^09\d{8}\$/.test(phone.trim())) {
       setError('請輸入正確的台灣手機號碼格式 (09xxxxxxxx)');
       return;
     }
 
     setSaving(true);
     try {
-      const { error } = await supabase
+      // 🚀 執行雲端更新
+      const { error: updateError } = await supabase
         .from('users')
         .update({ 
           real_name: realName.trim() || null, 
           anonymous_nickname: nickname.trim(),
-          phone: phone.trim() || null,
-          address: address.trim() || null
+          phone: phone.trim() || null,     // 💡 檢查點：請確認後台欄位是否叫 phone
+          address: address.trim() || null  // 💡 檢查點：請確認後台欄位是否叫 address
         })
         .eq('id', session?.user?.id);
       
-      if (error) throw error;
+      // 🌟 核心修正：如果 Supabase 報錯，不要吞掉它，直接丟出來！
+      if (updateError) throw updateError;
+      
       await refreshProfile();
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
-    } catch {
-      setError('資料儲存失敗，請檢查雲端連線狀態');
+    } catch (err: any) {
+      console.error('🔥 雲端儲存失敗的完整錯誤物件:', err);
+      // 🌟 核心修正：將資料庫回傳的真實英文錯誤（例如 "column 'phone' does not exist"）直接顯示在畫面上！
+      setError(`儲存失敗: ${err.message || '請檢查網路連線'}`);
     } finally {
       setSaving(false);
     }
   };
+
 
   return (
     <div className="space-y-6 max-w-xl animate-fade-in">
