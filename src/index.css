@@ -1,0 +1,240 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ===== Locked Dark Mode — prevents any auto-inversion ===== */
+:root {
+  color-scheme: dark;
+}
+
+html {
+  color-scheme: dark !important;
+  -webkit-text-size-adjust: 100%;
+}
+
+/* Block forced light mode / auto-inversion */
+@media (prefers-color-scheme: light) {
+  :root {
+    color-scheme: dark;
+  }
+  html {
+    color-scheme: dark !important;
+    background-color: #0a0a1a !important;
+  }
+}
+
+* {
+  -webkit-tap-highlight-color: transparent;
+}
+
+body {
+  margin: 0;
+  background: #0a0a1a;
+  color: #e8e6f0;
+  font-family: 'Noto Sans TC', 'PingFang TC', 'Microsoft JhengHei', sans-serif;
+  line-height: 1.5;
+  overflow-x: hidden;
+}
+
+/* ===== Deep Space Background ===== */
+.space-bg {
+  background:
+    radial-gradient(ellipse at 20% 0%, rgba(30, 20, 60, 0.6) 0%, transparent 50%),
+    radial-gradient(ellipse at 80% 100%, rgba(20, 30, 70, 0.5) 0%, transparent 50%),
+    radial-gradient(ellipse at 50% 50%, rgba(15, 10, 35, 0.8) 0%, transparent 70%),
+    #0a0a1a;
+  min-height: 100vh;
+}
+
+/* ===== Starfield Particle Layers ===== */
+.stars-layer {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  overflow: hidden;
+}
+
+.star {
+  position: absolute;
+  border-radius: 50%;
+  background: #fff;
+  opacity: 0;
+  animation: twinkle 4s infinite ease-in-out;
+}
+
+@keyframes twinkle {
+  0%, 100% { opacity: 0.2; transform: scale(1); }
+  50% { opacity: 1; transform: scale(1.3); box-shadow: 0 0 6px rgba(255, 215, 100, 0.8); }
+}
+
+@keyframes drift {
+  0% { transform: translateY(0) translateX(0); opacity: 0; }
+  10% { opacity: 0.6; }
+  90% { opacity: 0.6; }
+  100% { transform: translateY(-100vh) translateX(20px); opacity: 0; }
+}
+
+.dust-particle {
+  position: absolute;
+  bottom: -10px;
+  border-radius: 50%;
+  background: rgba(255, 215, 100, 0.6);
+  animation: drift 15s infinite linear;
+}
+
+/* ===== Glassmorphism ===== */
+.glass {
+  background: rgba(20, 18, 45, 0.55);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 215, 100, 0.12);
+}
+
+.glass-strong {
+  background: rgba(15, 12, 35, 0.85);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid rgba(255, 215, 100, 0.15);
+}
+
+.glow-border {
+  border: 1px solid rgba(255, 215, 100, 0.25);
+  box-shadow: 0 0 20px rgba(255, 215, 100, 0.08), inset 0 0 20px rgba(255, 215, 100, 0.03);
+}
+
+.glow-text {
+  text-shadow: 0 0 12px rgba(255, 215, 100, 0.5);
+}
+
+.glow-gold {
+  box-shadow: 0 0 15px rgba(255, 215, 100, 0.3), 0 0 30px rgba(255, 215, 100, 0.1);
+}
+
+/* ===== Stardust Progress (Hourglass) ===== */
+.stardust-bar {
+  height: 8px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  overflow: hidden;
+  position: relative;
+}
+
+.stardust-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #f59e0b, #fbbf24, #fde68a);
+  box-shadow: 0 0 10px rgba(251, 191, 36, 0.6);
+  transition: width 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+}
+
+.stardust-fill::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.4), transparent);
+  animation: shimmer 2.5s infinite;
+}
+
+@keyframes shimmer {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+
+/* ===== Hourglass animation for modals ===== */
+@keyframes hourglass-glow {
+  0%, 100% { filter: drop-shadow(0 0 8px rgba(255, 215, 100, 0.4)); transform: rotate(0deg); }
+  50% { filter: drop-shadow(0 0 20px rgba(255, 215, 100, 0.8)); transform: rotate(180deg); }
+}
+
+.hourglass-anim {
+  animation: hourglass-glow 3s infinite ease-in-out;
+}
+
+/* ===== Button minimum sizes (mobile-friendly) ===== */
+.touch-btn {
+  min-height: 44px;
+  min-width: 44px;
+}
+
+/* ===== Scrollbar ===== */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 215, 100, 0.2);
+  border-radius: 999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 215, 100, 0.4);
+}
+
+/* Hide scrollbar for horizontal tag scroll */
+.hide-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.hide-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* ===== Fade-in animation ===== */
+@keyframes fade-in-up {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.fade-in-up {
+  animation: fade-in-up 0.5s ease-out forwards;
+}
+
+@keyframes scale-in {
+  from { opacity: 0; transform: scale(0.9); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+.scale-in {
+  animation: scale-in 0.3s ease-out forwards;
+}
+
+/* ===== Pulse glow for special buttons ===== */
+@keyframes pulse-gold {
+  0%, 100% { box-shadow: 0 0 10px rgba(255, 215, 100, 0.4); }
+  50% { box-shadow: 0 0 25px rgba(255, 215, 100, 0.7), 0 0 40px rgba(255, 215, 100, 0.3); }
+}
+
+.pulse-gold {
+  animation: pulse-gold 2s infinite ease-in-out;
+}
+
+/* ===== Blurred cover for story cards ===== */
+.blurred-cover {
+  filter: blur(8px) brightness(0.6);
+  transition: filter 0.4s ease;
+}
+
+.story-card:hover .blurred-cover {
+  filter: blur(4px) brightness(0.7);
+}
+
+/* ===== Tag chip ===== */
+.tag-chip {
+  white-space: nowrap;
+  transition: all 0.2s ease;
+}
+
+.tag-chip-active {
+  background: linear-gradient(135deg, rgba(255, 215, 100, 0.25), rgba(255, 215, 100, 0.1));
+  border-color: rgba(255, 215, 100, 0.5);
+  color: #fde68a;
+}
+
+/* ===== Mobile bottom safe area ===== */
+.pb-safe {
+  padding-bottom: env(safe-area-inset-bottom);
+}
