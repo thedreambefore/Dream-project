@@ -81,7 +81,14 @@ function AppContent() {
             onOpenAuth={() => setShowAuth(true)}
             onOpenDashboard={handleOpenDashboard}
             onOpenAdmin={handleOpenAdmin}
-            announcement={announcement}
+            // 🌟 終極防爆線路：如果拿到的 announcement 是物件，自動去抓它裡面的 content 或 text 欄位；如果是純字串就直接用
+            announcement={
+              announcement 
+                ? (typeof announcement === 'object' 
+                    ? (announcement.content || announcement.text || JSON.stringify(announcement)) 
+                    : String(announcement))
+                : null
+            }
           />
           {/* 🛡️ 使用 SafeShield 牢牢包覆住首頁，就算內部 Realtime 報錯，首頁和導覽列也絕對不會死機 */}
           <SafeShield>
