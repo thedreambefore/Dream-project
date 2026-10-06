@@ -1,6 +1,5 @@
 import { useAuth } from '@/context/AuthContext';
 
-// 🌟 完美定義型別介面，徹底對齊 App.tsx 傳進來的所有 Props
 interface NavbarProps {
   onOpenAuth: () => void;
   onOpenDashboard: () => void;
@@ -9,22 +8,32 @@ interface NavbarProps {
 }
 
 export function Navbar({ onOpenAuth, onOpenDashboard, onOpenAdmin, announcement }: NavbarProps) {
-  // 🚀 從您的 AuthContext 中，精確拿取完全對齊的 session, profile 與小寫 logout
-  const { session, profile, logout } = useAuth();
+  // 🚀 引入雷達，確保在 loading 狀態下也有安全防禦
+  const { session, profile, logout, loading } = useAuth();
 
   const handleLogoutClick = async (e: React.MouseEvent) => {
-    e.stopPropagation(); // 防止觸發外層的點擊事件
+    e.stopPropagation(); // 阻斷冒泡，防止點擊登出卻誤觸開啟 Dashboard
     try {
       await logout(); 
-      window.location.reload(); // 強制全頁刷新，清空所有暫存
+      window.location.reload(); 
     } catch (err) {
       console.error('登出遭遇意外:', err);
     }
   };
 
+  // 🌟 防黑屏第一道防線：如果 Auth 核心還在載入，導覽列維持深色底，不進行任何危險的狀態渲染
+  if (loading) {
+    return (
+      <header className="w-full h-16 bg-zinc-950 border-b border-white/5 sticky top-0 flex items-center justify-between px-4">
+        <div className="text-lg font-bold text-zinc-600 select-none">⏳ 夢沙 DreamSand</div>
+        <div className="w-20 h-8 rounded-xl bg-zinc-900 animate-pulse" />
+      </header>
+    );
+  }
+
   return (
     <header className="w-full z-40 bg-zinc-950/80 backdrop-blur-md border-b border-white/5 sticky top-0">
-      {/* 跑馬燈公告（當有公告資料時動態亮起） */}
+      {/* 跑馬燈公告 */}
       {announcement && (
         <div className="bg-gradient-to-r from-amber-500/20 via-yellow-600/20 to-amber-500/20 text-amber-200 text-center py-1.5 text-xs border-b border-amber-500/10 font-medium">
           📢 {announcement}
@@ -32,7 +41,7 @@ export function Navbar({ onOpenAuth, onOpenDashboard, onOpenAdmin, announcement 
       )}
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-        {/* 左側標題：點擊可回首頁 */}
+        {/* 左側標題 */}
         <div className="flex items-center gap-2 cursor-pointer select-none">
           <span className="text-xl">⏳</span>
           <span className="text-lg font-bold bg-gradient-to-r from-amber-200 to-yellow-400 bg-clip-text text-transparent glow-text">
@@ -40,10 +49,10 @@ export function Navbar({ onOpenAuth, onOpenDashboard, onOpenAdmin, announcement 
           </span>
         </div>
 
-        {/* 右側按鈕控制區 */}
+        {/* 右側互動區 */}
         <div className="flex items-center gap-4">
           
-          {/* 🛠️ 管理員雷達：若 role 是 admin，亮起管理入口並對接 onOpenAdmin */}
+          {/* 管理員入口雷達 */}
           {profile?.role === 'admin' && (
             <button
               onClick={onOpenAdmin}
@@ -53,10 +62,10 @@ export function Navbar({ onOpenAuth, onOpenDashboard, onOpenAdmin, announcement 
             </button>
           )}
 
-          {/* 🔐 身分識別：根據雲端 session 是否存在來切換 */}
+          {/* 🔐 身分識別控制流 */}
           {session ? (
             <div className="flex items-center gap-4">
-              {/* 點擊整個區塊，順暢開啟 UserDashboard 畫面 */}
+              {/* 點擊整塊復原：開啟個人儀表板 (UserDashboard) */}
               <div 
                 onClick={onOpenDashboard}
                 className="flex items-center gap-3 cursor-pointer group select-none bg-white/5 border border-white/10 px-3 py-1.5 rounded-2xl hover:bg-white/10 transition-all"
@@ -70,13 +79,13 @@ export function Navbar({ onOpenAuth, onOpenDashboard, onOpenAdmin, announcement 
                   </p>
                 </div>
                 
-                {/* 漂亮的大頭貼視覺細節 */}
+                {/* 大頭貼視覺細節修正：採用極安全的字串擷取，絕不閃退 */}
                 <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-amber-400 to-orange-500 border border-amber-300/30 flex items-center justify-center text-gray-900 font-bold text-xs shadow-inner">
-                  {(profile?.real_name || '星')[0].toUpperCase()}
+                  {String(profile?.real_name || '星').substring(0, 1)}
                 </div>
               </div>
 
-              {/* 獨立登出按鈕 */}
+              {/* 登出按鈕 */}
               <button
                 onClick={handleLogoutClick}
                 className="text-xs text-zinc-500 hover:text-zinc-300 underline transition-colors"
@@ -85,7 +94,7 @@ export function Navbar({ onOpenAuth, onOpenDashboard, onOpenAdmin, announcement 
               </button>
             </div>
           ) : (
-            // 未登入狀態：開啟 AuthModal 彈窗
+            // 未登入：開啟點燃星塵彈窗
             <button
               onClick={onOpenAuth}
               className="touch-btn bg-gradient-to-r from-amber-500 to-yellow-600 text-gray-900 text-sm font-bold px-4 py-2 rounded-xl hover:from-amber-400 hover:to-yellow-500 transition-all shadow-lg shadow-amber-500/10"
