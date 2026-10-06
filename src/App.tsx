@@ -21,12 +21,19 @@ class SafeShield extends Component<Props, State> {
   public render() {
     if (this.state.hasError) {
       // 當底層因為 Realtime 鬧脾氣卡死時，這裡強制回傳「防禦性留空」的首頁，絕對不讓網站全黑死機！
-      return (
-        <div className="w-full text-center py-20 px-6">
-          <p className="text-amber-400 font-bold mb-2">✨ 正在與星空重新建立溫暖連線...</p>
-          <p className="text-slate-500 text-xs">請嘗試重新整理網頁，或點擊右上角進入您的個人休息室。</p>
-        </div>
-      );
+        return (
+    <div className="space-bg min-h-screen relative text-white p-24 text-center">
+      <h1 className="text-4xl">防爆排查測試中</h1>
+      <p>當前 Session 狀態: {session ? "已登入" : "未登入"}</p>
+      <p>當前 Profile 狀態: {profile ? "已有資料" : "沒有資料"}</p>
+      <p>當前 公告狀態: {typeof announcement === 'string' ? announcement : "公告是物件或為空"}</p>
+      
+      {/* 暫時把其他組件關閉，用來抓出是誰讓網站黑屏 */}
+      {/* <Starfield /> */}
+      {/* <Navbar ... /> */}
+      {/* <HomePage /> */}
+    </div>
+  );
     }
     return this.children;
   }
