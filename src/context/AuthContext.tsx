@@ -40,11 +40,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         .eq('id', userId)
         .single();
 
-      if (error && error.code === 'PGRST116') {
-        // 如果 auth 有帳號但 users 表還沒建好資料，自動幫他補一筆初始資料
+if (error && error.code === 'PGRST116') {
+        // 自動補建資料防禦線：完美對齊您的資料庫截圖欄位
         const { data: newProfile } = await supabase
           .from('users')
-          .insert([{ id: userId, real_name: '新築夢者', role: 'user', wallet_balance: 500, is_phone_verified: false }])
+          .insert([{ 
+            id: userId, 
+            real_name: '新築夢者', 
+            anonymous_nickname: '匿名人士', // 補上這個欄位
+            role: 'user', 
+            wallet_balance: 500, 
+            is_phone_verified: false 
+          }])
           .select()
           .single();
         return newProfile;
