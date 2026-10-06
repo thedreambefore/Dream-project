@@ -24,7 +24,7 @@ export function PhoneVerificationModal({ onClose, onVerified }: { onClose: () =>
 
   const handleSendCode = async () => {
     setError('');
-    const phonePattern = /^09\d{8}\$/;
+    const phonePattern = /^09\d{8}$/;
     if (!phonePattern.test(phone)) {
       setError('請輸入正確的台灣手機號碼 (09xxxxxxxx)');
       return;
