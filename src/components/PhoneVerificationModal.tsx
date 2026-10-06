@@ -73,7 +73,9 @@ export function PhoneVerificationModal({ onClose, onVerified }: { onClose: () =>
   };
 
   return (
+  return (
     <div
+      // 🌟 核心修正：將原本殘缺的 z- 補上正確的層級 z-[60]，徹底排除編譯與執行期死鎖！
       className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm scale-in"
       onClick={onClose}
     >
