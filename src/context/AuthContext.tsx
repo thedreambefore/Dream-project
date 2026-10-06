@@ -148,8 +148,21 @@ if (error && error.code === 'PGRST116') {
   );
 }
 
+// ... 前面的程式碼保持不變 ...
+
 export function useAuth() {
   const context = useContext(AuthContext);
-  if (!context) throw new Error('useAuth must be used within an AuthProvider');
+  // 🌟 全防禦修正：如果 context 暫時不存在（初始化時間差），回傳一個安全的空物件與 loading 狀態，絕對不讓全站黑屏暴斃！
+  if (!context) {
+    return {
+      session: null,
+      profile: null,
+      loading: true,
+      login: async () => false,
+      signUp: async () => false,
+      logout: async () => {},
+      refreshProfile: async () => {},
+    };
+  }
   return context;
 }
