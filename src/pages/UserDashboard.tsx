@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { X, Loader2, Wallet, BookOpen, Award, Plus, LogOut, UserCircle, Save, Sparkles, ShieldCheck } from 'lucide-react';
+import { useState, useEffect } from 'react'; // 🌟 核心修正：完美宣告進口 useEffect 防爆晶片！
+import { X, Loader2, Wallet, BookOpen, Award, Plus, LogOut, UserCircle, Save, Sparkles } from 'lucide-react';
 import { supabase } from '@/lib/supabaseClient';
 import { useAuth } from '@/context/AuthContext';
 import { PhoneVerificationModal } from '@/components/PhoneVerificationModal';
@@ -13,8 +13,8 @@ export function UserDashboard({ onClose, onGoHome, onOpenAdmin }: { onClose: () 
 
   return (
     <div className="fixed inset-0 z-50 space-bg overflow-y-auto bg-zinc-950 text-white select-none">
-      {/* 頂部導覽列 — 完美還原質感 */}
-      <div className="sticky top-0 z-10 glass-strong border-b border-amber-400/10 px-4 sm:px-6 h-16 flex items-center justify-between">
+      {/* 頂部導覽列 */}
+      <div className="sticky top-0 z-10 glass-strong border-b border-amber-400/10 px-4 sm:px-6 h-16 flex items-center justify-between bg-zinc-950/90 backdrop-blur-md">
         <button onClick={onGoHome} className="flex items-center gap-2 hover:opacity-80 transition-opacity">
           <span className="text-2xl">⏳</span>
           <span className="text-lg font-bold text-amber-100 glow-text">夢沙 DreamSand</span>
@@ -30,8 +30,8 @@ export function UserDashboard({ onClose, onGoHome, onOpenAdmin }: { onClose: () 
         </div>
       </div>
 
-      {/* 標籤切換列 — 原汁原味排版 */}
-      <div className="sticky top-16 z-10 glass border-b border-white/5 px-4 sm:px-6">
+      {/* 標籤切換列 */}
+      <div className="sticky top-16 z-10 glass border-b border-white/5 px-4 sm:px-6 bg-zinc-950/60 backdrop-blur-sm">
         <div className="flex gap-1 overflow-x-auto hide-scrollbar max-w-4xl mx-auto">
           <TabButton id="account" activeTab={activeTab} onClick={setActiveTab} icon={<UserCircle className="w-4 h-4" />} label="帳號資訊" />
           <TabButton id="publish" activeTab={activeTab} onClick={setActiveTab} icon={<Plus className="w-4 h-4" />} label="發布夢想" />
@@ -63,21 +63,17 @@ function TabButton({ id, activeTab, onClick, icon, label }: { id: TabId; activeT
   );
 }
 
-// ===== 1. 帳號資訊分頁 (Account Tab) — 補齊電話、地址與強行儲存完全體 =====
+// ===== 1. 帳號資訊分頁 (Account Tab) =====
 function AccountTab() {
   const { session, profile, refreshProfile } = useAuth();
-  
-  // 🚀 完整宣告所有核心業務欄位，對齊您的資料庫
   const [realName, setRealName] = useState(profile?.real_name || '');
   const [nickname, setNickname] = useState(profile?.anonymous_nickname || '匿名小五郎');
-  const [phone, setPhone] = useState(profile?.phone || ''); // 🌟 新增手機號碼狀態
-  const [address, setAddress] = useState(profile?.address || ''); // 🌟 新增超商收件地址狀態
-  
+  const [phone, setPhone] = useState(profile?.phone || '');
+  const [address, setAddress] = useState(profile?.address || '');
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState('');
 
-  // 當 profile 從雲端非同步載入完成時，動態校正欄位預設值，防止留白
   useEffect(() => {
     if (profile) {
       setRealName(profile.real_name || '');
@@ -90,13 +86,10 @@ function AccountTab() {
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
-    
     if (!nickname.trim()) {
       setError('匿名暱稱不能為空');
       return;
     }
-
-    // 驗證手機號碼基本格式（如果有填寫的話）
     if (phone.trim() && !/^09\d{8}$/.test(phone.trim())) {
       setError('請輸入正確的台灣手機號碼格式 (09xxxxxxxx)');
       return;
@@ -104,38 +97,22 @@ function AccountTab() {
 
     setSaving(true);
     try {
-      // 核心安全確認：如果 Context 一時拿不到，直接從 Supabase 核心拿當前 User ID
-      const currentUserId = session?.user?.id || (await supabase.auth.getUser()).data.user?.id;
-      
-      if (!currentUserId) {
-        throw new Error('找不到您的登入憑證，請嘗試重新登入');
-      }
-
-      // 🚀 🔥 強行寫入真實小寫 users 資料表，完美打包所有欄位
-      const { data, error: updateError } = await supabase
+      const { error } = await supabase
         .from('users')
         .update({ 
           real_name: realName.trim() || null, 
           anonymous_nickname: nickname.trim(),
-          phone: phone.trim() || null,     // 🌟 儲存手機
-          address: address.trim() || null  // 🌟 儲存地址
+          phone: phone.trim() || null,
+          address: address.trim() || null
         })
-        .eq('id', currentUserId)
-        .select(); // 使用 select() 強制回傳，用來驗證有沒有寫入成功
-
-      if (updateError) throw updateError;
+        .eq('id', session?.user?.id);
       
-      if (!data || data.length === 0) {
-        throw new Error('資料庫未更新任何列，請確認您的帳號資料是否存在於 users 資料表中');
-      }
-
-      // 🔄 儲存成功，立刻轉動 Context 齒輪刷新全站雷達
+      if (error) throw error;
       await refreshProfile();
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
-    } catch (err: any) {
-      console.error('雲端儲存失敗原因:', err);
-      setError(err instanceof Error ? err.message : '儲存失敗，請檢查網路連線');
+    } catch {
+      setError('資料儲存失敗，請檢查雲端連線狀態');
     } finally {
       setSaving(false);
     }
@@ -143,11 +120,8 @@ function AccountTab() {
 
   return (
     <div className="space-y-6 max-w-xl animate-fade-in">
-      <h2 className="text-xl font-bold text-amber-100 flex items-center gap-2">
-        <UserCircle className="w-5 h-5 text-amber-300" /> 星旅人休息室
-      </h2>
+      <h2 className="text-xl font-bold text-amber-100 flex items-center gap-2"><UserCircle className="w-5 h-5 text-amber-300" /> 星旅人休息室</h2>
       
-      {/* 登入憑證面板 */}
       <div className="glass rounded-2xl p-5 glow-border bg-zinc-900/40">
         <p className="text-xs text-gray-500 mb-1">登入憑證帳號 (Email)</p>
         <p className="text-sm font-mono text-amber-200">{session?.user?.email}</p>
@@ -160,28 +134,22 @@ function AccountTab() {
         </div>
       </div>
 
-      {/* 設定表單 */}
       <form onSubmit={handleSave} className="space-y-5 bg-white/5 border border-white/10 p-6 rounded-2xl glow-border">
         <div>
-          <label className="block text-xs font-medium text-gray-300 mb-2">舞台真實姓名（物流代買核對用，不對外公開）</label>
+          <label className="block text-xs font-medium text-gray-300 mb-2">舞台真實姓名（物流核對用，不公開）</label>
           <input type="text" value={realName} onChange={(e) => setRealName(e.target.value)} placeholder="例如：王小明" className="w-full bg-zinc-900/80 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-amber-400/50" />
         </div>
-        
         <div>
-          <label className="block text-xs font-medium text-gray-300 mb-2">匿名陌生人暱稱（全站平台顯示名稱）</label>
+          <label className="block text-xs font-medium text-gray-300 mb-2">匿名陌生人暱稱（平台顯示名稱）</label>
           <input type="text" value={nickname} onChange={(e) => setNickname(e.target.value)} className="w-full bg-zinc-900/80 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-amber-400/50" required />
         </div>
-
-        {/* 🌟 新增手機號碼欄位 */}
         <div>
           <label className="block text-xs font-medium text-gray-300 mb-2">聯絡電話（台灣手機號碼）</label>
-          <input type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="例如：0912345678" maxLength={10} className="w-full bg-zinc-900/80 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-amber-400/50" />
+          <input type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="09xxxxxxxx" maxLength={10} className="w-full bg-zinc-900/80 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-amber-400/50" />
         </div>
-
-        {/* 🌟 新增收件地址欄位 */}
         <div>
-          <label className="block text-xs font-medium text-gray-300 mb-2">超商收件門市 / 寄送地址（圓夢物資承諾配送用）</label>
-          <input type="text" value={address} onChange={(e) => setAddress(e.target.value)} placeholder="例如：7-11 夢沙門市 (店號xxxxxx) 或 台北市信義路..." className="w-full bg-zinc-900/80 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-amber-400/50" />
+          <label className="block text-xs font-medium text-gray-300 mb-2">超商收件門市 / 寄送地址</label>
+          <input type="text" value={address} onChange={(e) => setAddress(e.target.value)} placeholder="例如：7-11 夢沙門市 (店號xxxxxx)" className="w-full bg-zinc-900/80 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-amber-400/50" />
         </div>
 
         {error && <p className="text-red-400 text-xs bg-red-500/10 p-3 rounded-lg border border-red-500/20">{error}</p>}
