@@ -41,14 +41,24 @@ export function AuthModal({ onClose }: { onClose: () => void }) {
         });
         if (signInError) throw signInError;
       }
-      await refreshProfile();
+      
+      // ---- 關鍵修正區 ----
+      try {
+        await refreshProfile();
+      } catch (profileErr) {
+        console.warn('Profile 刷新略過或失敗，將透過重整強制同步:', profileErr);
+      }
       onClose();
+      window.location.reload(); // 🔥 強制重新整理，擊碎畫面凍結！
+      // --------------------
+
     } catch (err) {
       setError(err instanceof Error ? err.message : '操作失敗，請重試');
     } finally {
       setLoading(false);
     }
   };
+
 
   const handleLineLogin = async () => {
     setLoading(true);
@@ -61,15 +71,17 @@ export function AuthModal({ onClose }: { onClose: () => void }) {
         password: randomPassword,
       });
       if (signInData.session) {
-        await refreshProfile();
+        try { await refreshProfile(); } catch {}
         onClose();
+        window.location.reload(); // 🔥 確保模擬登入後也會強制跳轉
         return;
       }
       if (signInError) {
         const { error: signUpError } = await supabase.auth.signUp({ email: randomEmail, password: randomPassword });
         if (signUpError) throw signUpError;
-        await refreshProfile();
+        try { await refreshProfile(); } catch {}
         onClose();
+        window.location.reload(); // 🔥 確保模擬註冊後也會強制跳轉
       }
     } catch {
       setError('模擬 LINE 登入失敗，請稍後再試');
