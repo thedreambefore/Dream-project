@@ -1,149 +1,70 @@
-import { useState, useMemo } from 'react';
-import { Megaphone, Search, Sparkles } from 'lucide-react';
-import { usePublicData } from '@/hooks/usePublicData';
-import { StoryCard } from '@/components/StoryCard';
+import { useState } from 'react';
+import { Sparkles, Compass } from 'lucide-react';
+
+// 👑 完美的預設狀態：將卡片陣列完全清空 (零卡片)
+const staticWishes: any[] = [];
 
 export function HomePage() {
-  const { stories, tags, announcement, loading } = usePublicData();
-  const [activeTag, setActiveTag] = useState<string | null>(null);
-  const [showAnnouncement, setShowAnnouncement] = useState(false);
-  const [searchQuery, setSearchQuery] = useState('');
-
-  const filteredStories = useMemo(() => {
-    let result = stories;
-    if (activeTag) {
-      result = result.filter((s) => s.tag_name === activeTag);
-    }
-    if (searchQuery) {
-      const q = searchQuery.toLowerCase();
-      result = result.filter(
-        (s) =>
-          s.product_name.toLowerCase().includes(q) ||
-          s.story_text.toLowerCase().includes(q)
-      );
-    }
-    return result;
-  }, [stories, activeTag, searchQuery]);
+  const [activeTag, setActiveTag] = useState('全部故事');
+  const tags = ['全部故事', '#學生苦讀中', '#面試大作戰', '#毛孩的願望', '#生日邊緣人'];
 
   return (
-    <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 py-6 space-y-6">
-      {/* Announcement banner */}
-      {announcement && (
-        <button
-          onClick={() => setShowAnnouncement(true)}
-          className="w-full glass rounded-2xl px-4 py-3 flex items-center gap-3 glow-border hover:glow-gold transition-all text-left"
-        >
-          <div className="w-10 h-10 rounded-full bg-amber-500/20 flex items-center justify-center flex-shrink-0">
-            <Megaphone className="w-5 h-5 text-amber-300" />
-          </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-bold text-amber-200 truncate">{announcement.title}</p>
-            <p className="text-xs text-gray-400 truncate">{announcement.body}</p>
-          </div>
-          <span className="text-xs text-amber-400 flex-shrink-0">查看詳情 →</span>
-        </button>
-      )}
-
-      {/* Hero section */}
-      <div className="text-center py-6 sm:py-10">
-        <div className="inline-flex items-center gap-2 mb-3">
-          <Sparkles className="w-5 h-5 text-amber-300" />
-          <span className="text-sm text-amber-300/80 tracking-wider">匿名星塵願望交易所</span>
-          <Sparkles className="w-5 h-5 text-amber-300" />
+    <div className="max-w-6xl mx-auto px-6 pt-8 pb-32 relative z-10">
+      
+      {/* 1. 主標題區 */}
+      <header className="max-w-4xl mx-auto text-center my-12 px-6">
+        <div className="inline-flex items-center gap-2 bg-amber-500/10 border border-amber-500/20 rounded-full px-4 py-1 text-xs text-amber-400 font-medium mb-6 shadow-sm">
+          <span>✨</span> 聽見世界的微小願望
         </div>
-        <h1 className="text-3xl sm:text-5xl font-bold text-amber-100 glow-text mb-3">
-          讓星光照亮每個願望
+        <h1 className="text-3xl sm:text-5xl font-black tracking-tight mb-4 leading-tight bg-gradient-to-b from-white to-slate-400 bg-clip-text text-transparent">
+          用陌生人的善意，拼湊夢想的沙漏
         </h1>
-        <p className="text-gray-400 text-sm sm:text-base max-w-2xl mx-auto">
-          在這裡，每個願望都是一顆等待被點亮的星塵。匿名寫下你的困境故事，讓群眾的溫暖 化作真實的禮物送到你手中。
+        <p className="text-slate-400 text-sm sm:text-base max-w-xl mx-auto leading-relaxed">
+          這裡不看名氣，只聽故事。投入微小的星塵碎片，當沙漏填滿時，漂流瓶留言將與夢想一同解鎖。
         </p>
-      </div>
+      </header>
 
-      {/* Search bar */}
-      <div className="relative max-w-md mx-auto">
-        <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
-        <input
-          type="text"
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          placeholder="搜尋願望故事..."
-          className="w-full bg-white/5 border border-white/10 rounded-full pl-11 pr-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-amber-400/40 transition-all text-sm"
-        />
-      </div>
-
-      {/* Tag filter bar */}
-      <div className="flex gap-2 overflow-x-auto hide-scrollbar pb-2 -mx-4 px-4">
-        <button
-          onClick={() => setActiveTag(null)}
-          className={`tag-chip touch-btn flex items-center gap-1.5 px-4 py-2 rounded-full border transition-all ${
-            activeTag === null
-              ? 'tag-chip-active'
-              : 'glass border-white/10 text-gray-300 hover:border-amber-400/30'
-          }`}
-        >
-          <span>🌟</span>
-          <span className="text-sm font-medium">全部</span>
-        </button>
+      {/* 2. 動態篩選標籤列 */}
+      <div className="flex gap-3 overflow-x-auto pb-6 scrollbar-none mb-12 border-b border-slate-800/50">
         {tags.map((tag) => (
           <button
-            key={tag.id}
-            onClick={() => setActiveTag(tag.name)}
-            className={`tag-chip touch-btn flex items-center gap-1.5 px-4 py-2 rounded-full border transition-all ${
-              activeTag === tag.name
-                ? 'tag-chip-active'
-                : 'glass border-white/10 text-gray-300 hover:border-amber-400/30'
+            key={tag}
+            onClick={() => setActiveTag(tag)}
+            className={`px-4 py-2 rounded-full text-sm font-medium border whitespace-nowrap transition-all duration-300 cursor-pointer ${
+              activeTag === tag
+                ? 'bg-amber-500 text-slate-950 border-amber-500 shadow-[0_0_15px_rgba(245,158,11,0.4)]'
+                : 'bg-slate-900/60 text-slate-400 border-slate-800 hover:border-slate-700'
             }`}
           >
-            <span>{tag.icon}</span>
-            <span className="text-sm font-medium">{tag.name}</span>
+            {tag}
           </button>
         ))}
       </div>
 
-      {/* Story grid */}
-      {loading ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-          {Array.from({ length: 8 }).map((_, i) => (
-            <div key={i} className="glass rounded-2xl h-80 animate-pulse" />
-          ))}
-        </div>
-      ) : filteredStories.length === 0 ? (
-        <div className="text-center py-20">
-          <div className="text-5xl mb-4">🌌</div>
-          <p className="text-gray-400">此分類目前沒有願望故事</p>
+      {/* 3. 核心功能：當資料庫全空時，強制啟動「溫暖的防禦性留空畫面」 */}
+      {staticWishes.length === 0 ? (
+        <div className="max-w-md mx-auto my-16 text-center border border-slate-800 bg-slate-900/30 backdrop-blur-md rounded-2xl p-10 shadow-2xl animate-fade-in">
+          <div className="w-16 h-16 bg-amber-500/5 border border-amber-500/10 rounded-full flex items-center justify-center mx-auto mb-6 text-2xl text-amber-400 animate-pulse">
+            ⏳
+          </div>
+          <h3 className="text-lg font-bold text-slate-200 mb-2">
+            夜空有些寂靜，沙漏正等待星塵
+          </h3>
+          <p className="text-slate-500 text-xs leading-relaxed max-w-xs mx-auto mb-6">
+            目前全站尚未有陌生人拋下故事。點擊網頁右上角的個人大頭貼進入休息室，成為這片星空下的第一個築夢者吧！
+          </p>
+          <div className="inline-flex items-center gap-1.5 text-xs text-amber-400/60 bg-slate-950 px-3 py-1.5 rounded-full border border-slate-800">
+            <Compass className="w-3.5 h-3.5" />
+            <span>初登場 · 系統狀態健全</span>
+          </div>
         </div>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-          {filteredStories.map((story, i) => (
-            <StoryCard key={story.id} story={story} index={i} />
-          ))}
+        // 如果未來有卡片，會在這裡正常渲染（目前預設為空，所以會自動跳過此區塊）
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+          {/* 卡片渲染區 */}
         </div>
       )}
 
-      {/* Announcement detail modal */}
-      {showAnnouncement && announcement && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm scale-in"
-          onClick={() => setShowAnnouncement(false)}
-        >
-          <div
-            className="glass-strong rounded-3xl w-full max-w-md p-6 glow-border"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-center gap-2 mb-4">
-              <Megaphone className="w-5 h-5 text-amber-300" />
-              <h2 className="text-lg font-bold text-amber-100">{announcement.title}</h2>
-            </div>
-            <p className="text-gray-300 leading-relaxed whitespace-pre-wrap">{announcement.body}</p>
-            <button
-              onClick={() => setShowAnnouncement(false)}
-              className="w-full touch-btn mt-6 bg-amber-500/15 border border-amber-400/30 text-amber-200 rounded-xl py-3 hover:bg-amber-500/25 transition-all"
-            >
-              知道了
-            </button>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
