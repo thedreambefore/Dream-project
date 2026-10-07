@@ -519,16 +519,43 @@ function PublishTab({ onRequireVerify }: { onRequireVerify: () => void }) {
 
 function WalletTab() {
   const { profile } = useAuth();
+  const contribution = profile?.wallet_balance ?? 0;
+
+  // 榮譽稱號評級
+  const getRank = (val: number) => {
+    if (val >= 5000) return { title: '🌌 傳奇星河守護者', color: 'text-amber-300' };
+    if (val >= 2000) return { title: '✨ 璀璨星宿築夢人', color: 'text-yellow-300' };
+    if (val >= 500) return { title: '🌟 溫暖微光星旅人', color: 'text-emerald-300' };
+    return { title: '🌱 初生星塵探索者', color: 'text-zinc-400' };
+  };
+
+  const rank = getRank(contribution);
+
   return (
     <div className="max-w-xl space-y-5 animate-fade-in">
       <h2 className="text-xl font-bold text-amber-100 flex items-center gap-2">
-        <Wallet className="w-5 h-5 text-amber-300" /> 星塵錢包
+        <Award className="w-5 h-5 text-amber-300" /> 星光貢獻榮譽館
       </h2>
+
       <div className="bg-gradient-to-br from-amber-500/10 via-zinc-900 to-zinc-950 border border-amber-500/20 p-6 rounded-3xl relative overflow-hidden shadow-2xl glow-border">
-        <p className="text-zinc-400 text-xs font-medium tracking-wider mb-1">當前星塵餘額</p>
-        <h4 className="text-3xl font-black text-amber-300 font-mono">
-          ✨ {profile?.wallet_balance ?? 0} <span className="text-xs text-zinc-500 font-normal">星塵</span>
+        <p className="text-zinc-400 text-xs font-medium tracking-wider mb-1">
+          TOTAL CONTRIBUTION · 累計心願燃料貢獻
+        </p>
+        <h4 className="text-3xl font-black text-amber-300 font-mono tracking-tight flex items-baseline gap-1">
+          <span>✨</span>
+          <span>{contribution.toLocaleString()}</span>
+          <span className="text-xs text-zinc-500 font-normal ml-1">星塵榮譽點數</span>
         </h4>
+
+        <div className="mt-4 pt-4 border-t border-white/5 flex items-center justify-between">
+          <div>
+            <p className="text-[11px] text-zinc-500">當前榮譽稱號</p>
+            <p className={`text-sm font-bold ${rank.color}`}>{rank.title}</p>
+          </div>
+          <span className="text-xs text-zinc-400 bg-white/5 border border-white/10 px-3 py-1.5 rounded-full">
+            每資助 1 元即可累積 1 點
+          </span>
+        </div>
       </div>
     </div>
   );
