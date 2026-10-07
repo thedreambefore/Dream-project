@@ -66,7 +66,6 @@ function TabButton({ id, activeTab, onClick, icon, label }: { id: TabId; activeT
 function AccountTab() {
   const { session, profile, refreshProfile } = useAuth();
 
-  // 受控狀態管理
   const [realName, setRealName] = useState('');
   const [nickname, setNickname] = useState('');
   const [phone, setPhone] = useState('');
@@ -77,45 +76,50 @@ function AccountTab() {
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState('');
 
-  // 1. 同步雲端資料到受控狀態中
+  // 1. 強讀並同步
   useEffect(() => {
     let isMounted = true;
-    const currentUserId = session?.user?.id;
-    if (!currentUserId) {
-      setLoadingData(false);
-      return;
-    }
 
     const loadUserData = async () => {
-      setLoadingData(true);
+      // 雙重保險：如果 Context 的 session 還沒吐出來，直接向 Supabase 核心索取
+      const { data: authData } = await supabase.auth.getUser();
+      const currentUserId = session?.user?.id || authData?.user?.id;
+
+      if (!currentUserId) {
+        if (isMounted) setLoadingData(false);
+        return;
+      }
+
       try {
+        console.log('🔍 正在讀取用戶 UUID:', currentUserId);
         const { data, error: fetchError } = await supabase
           .from('users')
-          .select('id, real_name, anonymous_nickname, phone, address')
+          .select('*')
           .eq('id', currentUserId)
           .maybeSingle();
 
-        if (fetchError) throw fetchError;
+        if (fetchError) {
+          console.error('Fetch users error:', fetchError);
+          throw fetchError;
+        }
 
         if (data && isMounted) {
-          setRealName(data.real_name || '');
-          setNickname(data.anonymous_nickname || '匿名小五郎');
-          setPhone(data.phone || '');
-          setAddress(data.address || '');
-        } else if (profile && isMounted) {
-          setRealName(profile.real_name || '');
-          setNickname(profile.anonymous_nickname || '匿名小五郎');
-          setPhone(profile.phone || '');
-          setAddress(profile.address || '');
+          console.log('✅ 成功從 Table 讀取到最新數據:', data);
+          setRealName(data.real_name ?? '');
+          setNickname(data.anonymous_nickname ?? '匿名小五郎');
+          setPhone(data.phone ?? '');
+          setAddress(data.address ?? '');
+        } else if (isMounted) {
+          console.log('⚠️ 該 auth.uid 在 public.users 尚無資料，嘗試以 Context 回填');
+          if (profile) {
+            setRealName(profile.real_name ?? '');
+            setNickname(profile.anonymous_nickname ?? '匿名小五郎');
+            setPhone(profile.phone ?? '');
+            setAddress(profile.address ?? '');
+          }
         }
       } catch (err) {
-        console.warn('⚠️ 讀取用戶資料失敗，退回使用 Context 快取:', err);
-        if (profile && isMounted) {
-          setRealName(profile.real_name || '');
-          setNickname(profile.anonymous_nickname || '匿名小五郎');
-          setPhone(profile.phone || '');
-          setAddress(profile.address || '');
-        }
+        console.warn('⚠️ 讀取失敗，使用現有 Profile 快取:', err);
       } finally {
         if (isMounted) setLoadingData(false);
       }
@@ -126,22 +130,27 @@ function AccountTab() {
     return () => {
       isMounted = false;
     };
-  }, [session?.user?.id, profile]);
+  }, [session?.user?.id]);
 
+  // 2. 儲存時採用 upsert（有就更新，沒有就新增，絕對不會寫入失敗）
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     setSaved(false);
+
+    const { data: authData } = await supabase.auth.getUser();
+    const currentUserId = session?.user?.id || authData?.user?.id;
+
+    if (!currentUserId) {
+      setError('找不到登入憑證，請重新登入');
+      return;
+    }
 
     const targetNickname = nickname.trim() || '匿名小五郎';
     const targetRealName = realName.trim();
     const targetPhone = phone.trim();
     const targetAddress = address.trim();
 
-    if (!targetNickname) {
-      setError('匿名暱稱不能為空');
-      return;
-    }
     if (targetPhone && !/^09\d{8}$/.test(targetPhone)) {
       setError('請輸入正確的台灣手機號碼格式 (09xxxxxxxx)');
       return;
@@ -149,39 +158,31 @@ function AccountTab() {
 
     setSaving(true);
     try {
-      const currentUserId = session?.user?.id;
-      if (!currentUserId) throw new Error('找不到有效的登入憑證，請重新登入');
+      console.log('💾 正在寫入 public.users，目標 ID:', currentUserId);
 
-      // 優先使用 Supabase 直接 update，同時相容 RPC 呼叫
-      const { error: updateError } = await supabase
+      // 使用 upsert，徹底防止 ID 找不到的問題
+      const { error: upsertError } = await supabase
         .from('users')
-        .update({
+        .upsert({
+          id: currentUserId,
           real_name: targetRealName,
           anonymous_nickname: targetNickname,
           phone: targetPhone,
           address: targetAddress,
-        })
-        .eq('id', currentUserId);
+        }, { onConflict: 'id' });
 
-      if (updateError) {
-        // 如果有設定特殊的 RPC，作二次嘗試
-        const { error: rpcError } = await supabase.rpc('force_update_user', {
-          target_id: currentUserId,
-          new_real_name: targetRealName,
-          new_nickname: targetNickname,
-          new_phone: targetPhone,
-          new_address: targetAddress,
-        });
-        if (rpcError) throw updateError;
+      if (upsertError) {
+        console.error('Upsert failed:', upsertError);
+        throw upsertError;
       }
 
-      // 同步刷新 Context 中的 profile 狀態
+      console.log('✨ 寫入成功！正在刷新 Context Profile...');
       await refreshProfile();
       setSaved(true);
       setTimeout(() => setSaved(false), 2500);
     } catch (err: any) {
       console.error('儲存失敗:', err);
-      setError(`儲存失敗: ${err.message || '請檢查資料庫連線或權限'}`);
+      setError(`儲存失敗: ${err.message || '請確認 Supabase 權限或網路'}`);
     } finally {
       setSaving(false);
     }
@@ -196,6 +197,8 @@ function AccountTab() {
     );
   }
 
+  const userEmail = session?.user?.email;
+
   return (
     <div className="space-y-6 max-w-xl animate-fade-in">
       <h2 className="text-xl font-bold text-amber-100 flex items-center gap-2">
@@ -205,7 +208,7 @@ function AccountTab() {
       {/* 憑證資訊面板 */}
       <div className="glass rounded-2xl p-5 glow-border bg-zinc-900/40">
         <p className="text-xs text-gray-500 mb-1">登入憑證帳號 (Email)</p>
-        <p className="text-sm font-mono text-amber-200">{session?.user?.email}</p>
+        <p className="text-sm font-mono text-amber-200">{userEmail || '載入中...'}</p>
         <div className="mt-3">
           {profile?.is_phone_verified ? (
             <span className="inline-flex items-center gap-1 text-xs px-3 py-1 rounded-full bg-green-500/10 border border-green-500/30 text-green-400">
