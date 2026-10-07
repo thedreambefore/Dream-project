@@ -45,15 +45,14 @@ export function AuthModal({ onClose }: { onClose: () => void }) {
           setError('註冊失敗，該帳號可能已被註冊。');
         }
       } else {
-        // 🚀 呼叫 Context 的登入
-        isSuccess = await login(authEmail, password);
-        if (isSuccess) {
-          onClose(); // 1. 關閉彈窗
-          window.location.reload(); // 2. 🔥 強制重整！讓全站 Navbar 瞬間抓到 Session 亮起頭貼！
-        } else {
-          setError('登入失敗，請檢查您的帳號與密碼。');
-        }
-      }
+         // 🚀 呼叫 Context 的登入
+  isSuccess = await login(authEmail, password);
+  if (isSuccess) {
+    onClose(); // 直接關閉彈窗，不 reload！
+  } else {
+    setError('登入失敗，請檢查您的帳號與密碼。');
+  }
+}
     } catch (err) {
       setError(err instanceof Error ? err.message : '操作失敗，請重試');
     } finally {
