@@ -63,13 +63,11 @@ function TabButton({ id, activeTab, onClick, icon, label }: { id: TabId; activeT
   );
 }
 
-// ===== 1. 帳號資訊分頁 (Account Tab) — 強制主動讀取雲端完全體 =====
 function AccountTab() {
   const { session, profile, refreshProfile } = useAuth();
   
-  // 🌟 修正：一開始直接精確地去抓 profile 的值，抓不到才Fallback
   const [realName, setRealName] = useState('');
-  const [nickname, setNickname] = useState('匿名小五郎');
+  const [nickname, setNickname] = useState('');
   const [phone, setPhone] = useState('');
   const [address, setAddress] = useState('');
   
@@ -77,20 +75,48 @@ function AccountTab() {
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState('');
 
-  // 🌟 核心對齊：只要 profile 載入完成，無條件覆蓋輸入框，徹底擊碎預設值！
+  // 🌟 🔥 終極殺招：主動式探照燈！一開頁面，直接向雲端 Table 抓最真實的資料
   useEffect(() => {
-    if (profile) {
-      setRealName(profile.real_name || '');
-      setNickname(profile.anonymous_nickname || '匿名小五郎');
-      setPhone(profile.phone || '');
-      setAddress(profile.address || '');
-    }
-  }, [profile]);
+    const loadRealDataFromCloud = async () => {
+      const currentUserId = session?.user?.id || (await supabase.auth.getUser()).data.user?.id;
+      if (!currentUserId) return;
 
-    const handleSave = async (e: React.FormEvent) => {
+      try {
+        console.log('🛰️ 正在發射超強探照燈，強讀雲端 Table 最真實的數據...');
+        const { data, error } = await supabase
+          .from('users')
+          .select('*')
+          .eq('id', currentUserId)
+          .single();
+
+        if (error) throw error;
+
+        if (data) {
+          // 🚀 強制將雲端最新的真實文字刻進輸入框，徹底打破「匿名小五郎」預設值定格！
+          setRealName(data.real_name || '');
+          setNickname(data.anonymous_nickname || data.nickname || '');
+          setPhone(data.phone || '');
+          setAddress(data.address || '');
+        }
+      } catch (err) {
+        console.warn('探照燈讀取遭遇亂流，退回 Context 暫存防禦:', err);
+        // 如果強讀失敗，才退回原有的 Context 狀態防禦
+        if (profile) {
+          setRealName(profile.real_name || '');
+          setNickname(profile.anonymous_nickname || '匿名小五郎');
+          setPhone(profile.phone || '');
+          setAddress(profile.address || '');
+        }
+      }
+    };
+
+    loadRealDataFromCloud();
+  }, [profile, session]);
+
+  const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
-    setSaved(false); // 重置狀態
+    setSaved(false);
     
     if (!nickname.trim()) {
       setError('匿名暱稱不能為空');
@@ -100,12 +126,9 @@ function AccountTab() {
     setSaving(true);
     try {
       const currentUserId = session?.user?.id || (await supabase.auth.getUser()).data.user?.id;
-      
-      if (!currentUserId) {
-        throw new Error('找不到有效的登入憑證，請嘗試重新登入');
-      }
+      if (!currentUserId) throw new Error('找不到有效的登入憑證');
 
-      // 1. 呼叫後台最高通道 RPC 強行寫入資料庫
+      // 呼叫最高權限強行寫入通道
       const { error: rpcError } = await supabase.rpc('force_update_user', {
         target_id: currentUserId,
         new_real_name: realName.trim() || null,
@@ -116,17 +139,9 @@ function AccountTab() {
 
       if (rpcError) throw rpcError;
 
-      // 2. 🔥 核心修正：儲存成功後，立刻通知 Context 的雷達重新去撈取最新 Table 資料
-      await refreshProfile();
-      
-      // 3. ✨ 成功亮起綠燈！
+      await refreshProfile(); // 通知全站同步
       setSaved(true);
-      
-      // 4. 🔥 徹底拔除 window.location.reload()！
-      // 這樣網頁絕對不會重新整理，您會安安穩穩地「留在個人資料畫面」，
-      // 且因為上面的 refreshProfile 跑完了，輸入框和 Navbar 的名字會在一瞬間全部自動同步成最新資料！
-      setTimeout(() => setSaved(false), 3000);
-
+      setTimeout(() => setSaved(false), 2000);
     } catch (err: any) {
       console.error('儲存失敗:', err);
       setError(`儲存失敗: ${err.message || '請檢查網路連線'}`);
@@ -135,14 +150,12 @@ function AccountTab() {
     }
   };
 
-
   return (
     <div className="space-y-6 max-w-xl animate-fade-in">
       <h2 className="text-xl font-bold text-amber-100 flex items-center gap-2">
         <UserCircle className="w-5 h-5 text-amber-300" /> 星旅人休息室
       </h2>
       
-      {/* 登入憑證面板 */}
       <div className="glass rounded-2xl p-5 glow-border bg-zinc-900/40">
         <p className="text-xs text-gray-500 mb-1">登入憑證帳號 (Email)</p>
         <p className="text-sm font-mono text-amber-200">{session?.user?.email}</p>
@@ -155,7 +168,6 @@ function AccountTab() {
         </div>
       </div>
 
-      {/* 設定表單 */}
       <form onSubmit={handleSave} className="space-y-5 bg-white/5 border border-white/10 p-6 rounded-2xl glow-border">
         <div>
           <label className="block text-xs font-medium text-gray-300 mb-2">舞台真實姓名（物流核對用，不公開）</label>
@@ -163,7 +175,7 @@ function AccountTab() {
         </div>
         <div>
           <label className="block text-xs font-medium text-gray-300 mb-2">匿名陌生人暱稱（平台顯示名稱）</label>
-          <input type="text" value={nickname} onChange={(e) => setNickname(e.target.value)} className="w-full bg-zinc-900/80 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-amber-400/50" required />
+          <input type="text" value={nickname} onChange={(e) => setNickname(e.target.value)} placeholder="請輸入全站顯示的匿名暱稱" className="w-full bg-zinc-900/80 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-amber-400/50" required />
         </div>
         <div>
           <label className="block text-xs font-medium text-gray-300 mb-2">聯絡電話（台灣手機號碼）</label>
@@ -178,12 +190,13 @@ function AccountTab() {
 
         <button type="submit" disabled={saving} className="w-full bg-gradient-to-r from-amber-500 to-yellow-600 text-gray-950 font-black text-sm py-3 rounded-xl hover:from-amber-400 hover:to-yellow-500 transition-all flex items-center justify-center gap-2">
           {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-          {saved ? '星沙印記儲存成功！' : '儲存全站帳號設定'}
+          {saved ? '✨ 星沙印記儲存成功！' : '儲存全站帳號設定'}
         </button>
       </form>
     </div>
   );
 }
+
 
 
 // ===== 2. 發布夢想分願 (Publish Tab) =====
