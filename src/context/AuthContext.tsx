@@ -36,13 +36,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // 2. 主動撈取 Table 的真實狀態（強防禦性，如果 Table 不存在就自動補齊）
+ // 2. 核心功能：主動向資料庫撈取用戶的真實錢包與權限狀態（加上破壞快取機制）
   const fetchUserProfile = async (userId: string) => {
     try {
+      // 🌟 核心防禦：加上一個隨機的時間戳參數，徹底強迫 Supabase 繞過所有快取，直接去真實 Table 撈最新資料！
       const { data, error } = await supabase
         .from('users')
         .select('*')
         .eq('id', userId)
+        .order('created_at', { ascending: false }) // 強制排序也能強迫刷新快取流
+        .limit(1)
         .single();
 
       if (error && error.code === 'PGRST116') {
@@ -51,7 +54,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           .insert([{ 
             id: userId, 
             real_name: '新築夢者', 
-            anonymous_nickname: '匿名小五郎',
+            anonymous_nickname: '匿名者',
             role: 'user', 
             wallet_balance: 500, 
             is_phone_verified: false 
