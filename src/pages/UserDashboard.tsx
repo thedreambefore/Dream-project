@@ -102,7 +102,7 @@ function AccountTab() {
           console.log('✨ [防爆晶片] 成功突破快取！撈到雲端最新對齊資料:', realData);
           
           setRealName(realData.real_name || '');
-          setNickname(realData.anonymous_nickname || '匿名小五郎');
+          setNickname(realData.anonymous_nickname || '匿名');
           setPhone(realData.phone || '');
           setAddress(realData.address || '');
         } else {
