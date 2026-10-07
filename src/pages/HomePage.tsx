@@ -1,154 +1,317 @@
-import { useState, useEffect } from 'react';
-import { Compass, Sparkles, Loader2 } from 'lucide-react';
-import { StoryCard } from '@/components/StoryCard';
-import { fetchPublicWishes } from '@/lib/backend';
+import { useState, useMemo } from 'react';
+import { X, Lock, Loader2, Heart, Sparkles } from 'lucide-react';
 import { supabase, type Story } from '@/lib/supabase';
+import { useAuth } from '@/context/AuthContext';
+import { AuthModal } from './AuthModal';
+import { updateWish } from '@/lib/backend';
 
-// 🌟 精心設計的「經典示範願望卡片」：當雲端資料庫全空時自動登場，讓首頁隨時保持活力且可直接測試付款
-const DEMO_STORY: Story = {
-  id: 'demo-story-001',
-  user_id: 'demo-user',
-  product_name: 'Acer 輕薄教育用筆電 (含三年保固)',
-  product_price: 18000,
-  current_stardust: 14200, // 約 78% 進度
-  tag_name: '學生苦讀中',
-  cover_emoji: '💻',
-  story_text: '在偏鄉課輔班帶孩子們學習 Python 已有一年，孩子們總是輪流共用一台容易當機的舊主機。希望能在新學期替課輔教室添購一台穩定的新筆電，讓對程式有熱情的孩子不用再等待輪流上機的時間。',
-  promise_text: '若願望達成，將在偏鄉舉辦一場成果發表會，並公開孩子們親手寫出的第一款小遊戲成果與開箱感謝信！',
-  status: 'approved',
-  block_reason: null,
-  created_at: new Date().toISOString(),
-};
+export function InvestModal({ story, onClose }: { story: Story; onClose: () => void }) {
+  const { session } = useAuth();
+  const [amount, setAmount] = useState<number>(100);
+  const [customInput, setCustomInput] = useState<string>('');
+  const [message, setMessage] = useState('');
+  const [paymentMethod, setPaymentMethod] = useState<'ecpay' | 'linepay'>('ecpay');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState(false);
+  const [showAuth, setShowAuth] = useState(false);
 
-export function HomePage() {
-  const [activeTag, setActiveTag] = useState('全部故事');
-  const [wishes, setWishes] = useState<Story[]>([]);
-  const [loading, setLoading] = useState(true);
+  // 🧮 三段式動態服務費計算引擎
+  const feeDetails = useMemo(() => {
+    const validAmount = Math.max(0, amount || 0);
+    if (validAmount < 10) {
+      return { fee: 0, total: validAmount, label: '最低資助金額為 10 元', tier: 'invalid' };
+    }
+    if (validAmount <= 99) {
+      return {
+        fee: 5,
+        total: validAmount + 5,
+        label: '系統與技術維護費 (固定 $5)',
+        tier: 'explore',
+      };
+    }
+    if (validAmount <= 499) {
+      const fee = Math.round(validAmount * 0.05);
+      return {
+        fee,
+        total: validAmount + fee,
+        label: '系統與技術維護費 (5%)',
+        tier: 'standard',
+      };
+    }
+    const fee = Math.round(validAmount * 0.04);
+    return {
+      fee,
+      total: validAmount + fee,
+      label: '系統與技術維護費 (大戶特惠 4%)',
+      tier: 'vip',
+    };
+  }, [amount]);
 
-  const tags = ['全部故事', '#學生苦讀中', '#面試大作戰', '#毛孩的願望', '#生日邊緣人'];
+  const handleSelectPreset = (val: number) => {
+    setAmount(val);
+    setCustomInput('');
+    setError('');
+  };
 
-  // 1. 撈取真實願望資料
-  const loadWishes = async () => {
+  const handleCustomChange = (val: string) => {
+    setCustomInput(val);
+    const parsed = parseInt(val, 10);
+    if (!isNaN(parsed)) {
+      setAmount(parsed);
+    } else {
+      setAmount(0);
+    }
+    setError('');
+  };
+
+  const handleCheckout = async () => {
+    setError('');
+    if (!session?.user) {
+      setShowAuth(true);
+      return;
+    }
+    if (amount < 10) {
+      setError('最低心願資助金額為 NT$ 10 元');
+      return;
+    }
+    if (message.length > 50) {
+      setError('溫暖留言不得超過 50 字');
+      return;
+    }
+
+    setLoading(true);
     try {
-      const realWishes = await fetchPublicWishes();
-      setWishes(realWishes);
-    } catch (err) {
-      console.warn('載入願望失敗，採用保底模式:', err);
+      const { error: investError } = await supabase.from('investments').insert({
+        user_id: session.user.id,
+        story_id: story.id,
+        amount: amount,
+        message: message.trim() || null,
+        is_anonymous: true,
+      });
+      if (investError) console.warn('investments 寫入提示:', investError);
+
+      const newTotal = (story.current_stardust || 0) + amount;
+      const newStatus = newTotal >= story.product_price ? 'fulfilled' : 'approved';
+      await updateWish(story.id, { current_stardust: newTotal, status: newStatus });
+
+      setSuccess(true);
+      setTimeout(() => onClose(), 2200);
+    } catch (err: any) {
+      setError(err.message || '付款連線失敗，請稍後重試');
     } finally {
       setLoading(false);
     }
   };
 
-  useEffect(() => {
-    loadWishes();
-
-    // 2. ⚡ 重啟 Supabase Realtime 監聽器：進度條與留言即時跳動
-    const channel = supabase
-      .channel('public-wishes-realtime')
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'wishes' },
-        () => loadWishes()
-      )
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'stories' },
-        () => loadWishes()
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, []);
-
-  // 3. 整合真實資料與示範資料
-  // 若資料庫內無任何公開卡片，自動由示範卡片頂替
-  const displayWishes = wishes.length > 0 ? wishes : [DEMO_STORY];
-
-  // 4. 根據標籤進行前端動態過濾
-  const filteredWishes = displayWishes.filter((item) => {
-    if (activeTag === '全部故事') return true;
-    const cleanTag = activeTag.replace('#', '');
-    return item.tag_name?.includes(cleanTag);
-  });
+  const remainingChars = 50 - message.length;
 
   return (
-    <div className="max-w-6xl mx-auto px-6 pt-8 pb-32 relative z-10 animate-fade-in">
-      
-      {/* 1. 主標題區 */}
-      <header className="max-w-4xl mx-auto text-center my-12 px-6">
-        <div className="inline-flex items-center gap-2 bg-amber-500/10 border border-amber-500/20 rounded-full px-4 py-1 text-xs text-amber-400 font-medium mb-6 shadow-sm">
-          <Sparkles className="w-3.5 h-3.5 text-amber-300" />
-          <span>聽見世界的微小願望 · 匿名星塵交易所</span>
-        </div>
-        <h1 className="text-3xl sm:text-5xl font-black tracking-tight mb-4 leading-tight bg-gradient-to-b from-white via-slate-100 to-slate-400 bg-clip-text text-transparent">
-          用陌生人的善意，拼湊夢想的沙漏
-        </h1>
-        <p className="text-slate-400 text-sm sm:text-base max-w-xl mx-auto leading-relaxed">
-          這裡不看名氣，只聽故事。投入微小的心願燃料，當沙漏填滿時，漂流瓶留言將與夢想終章一同解鎖。
-        </p>
-      </header>
+    <>
+      <div
+        className="fixed inset-0 z-[55] flex items-center justify-center p-4 bg-black/75 backdrop-blur-md scale-in overflow-y-auto"
+        onClick={onClose}
+      >
+        <div
+          className="glass-strong rounded-3xl w-full max-w-lg p-6 sm:p-7 glow-border bg-zinc-950/95 border border-amber-400/25 shadow-2xl my-auto"
+          onClick={(e) => e.stopPropagation()}
+        >
+          {success ? (
+            <div className="text-center py-10 scale-in">
+              <div className="text-5xl mb-4 hourglass-anim inline-block">⏳</div>
+              <h3 className="text-xl font-bold text-amber-200 mb-2">付款完成 · 留言已加密封存！</h3>
+              <p className="text-gray-400 text-sm flex items-center justify-center gap-1.5">
+                <Heart className="w-4 h-4 text-amber-400 fill-amber-400" />
+                您的 NT$ {amount} 心願燃料已推進沙漏進度
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-5">
+              <div className="flex items-center justify-between border-b border-white/10 pb-3.5">
+                <div>
+                  <h2 className="text-lg font-bold text-amber-100 flex items-center gap-2">
+                    <Sparkles className="w-5 h-5 text-amber-300" />
+                    贊助心願燃料 · 漂流瓶封存
+                  </h2>
+                  <p className="text-xs text-gray-400 mt-0.5">
+                    目標：{story.product_name}（目前 {story.current_stardust.toLocaleString()} / {story.product_price.toLocaleString()}）
+                  </p>
+                </div>
+                <button
+                  onClick={onClose}
+                  className="touch-btn rounded-full hover:bg-white/10 flex items-center justify-center text-gray-400 hover:text-white transition-colors"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
 
-      {/* 2. 動態篩選標籤列 */}
-      <div className="flex gap-2.5 overflow-x-auto pb-4 hide-scrollbar mb-10 border-b border-white/5">
-        {tags.map((tag) => (
-          <button
-            key={tag}
-            onClick={() => setActiveTag(tag)}
-            className={`px-4 py-2 rounded-full text-xs sm:text-sm font-medium border whitespace-nowrap transition-all duration-300 cursor-pointer ${
-              activeTag === tag
-                ? 'bg-amber-500 text-slate-950 border-amber-400 shadow-[0_0_15px_rgba(245,158,11,0.35)] font-bold'
-                : 'bg-zinc-900/60 text-slate-400 border-white/10 hover:border-amber-400/30 hover:text-slate-200'
-            }`}
-          >
-            {tag}
-          </button>
-        ))}
-      </div>
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <label className="text-sm font-bold text-amber-100 flex items-center gap-1.5">
+                    <span>✍️</span> 封存您的 50 字溫暖留言
+                  </label>
+                  <span className="text-xs text-amber-300/80 font-mono">
+                    (剩餘 {remainingChars} 字)
+                  </span>
+                </div>
+                <textarea
+                  value={message}
+                  onChange={(e) => setMessage(e.target.value)}
+                  placeholder="請輸入您想對故事主角說的話... 當進度條 100% 達標時將解鎖公開"
+                  maxLength={50}
+                  rows={2}
+                  className="w-full bg-zinc-900/90 border border-white/15 rounded-xl px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-amber-400/60 transition-all resize-none text-sm"
+                />
+              </div>
 
-      {/* 3. 卡片展示牆 */}
-      {loading ? (
-        <div className="py-24 text-center">
-          <Loader2 className="w-8 h-8 text-amber-300 animate-spin mx-auto mb-3" />
-          <p className="text-gray-400 text-xs tracking-wider">正在搜尋星空中的願望故事...</p>
-        </div>
-      ) : filteredWishes.length === 0 ? (
-        /* 當篩選條件下沒有對應卡片時的溫暖留空提示 */
-        <div className="max-w-md mx-auto my-12 text-center border border-slate-800 bg-slate-900/30 backdrop-blur-md rounded-2xl p-10 shadow-2xl scale-in">
-          <div className="w-14 h-14 bg-amber-500/10 border border-amber-500/20 rounded-full flex items-center justify-center mx-auto mb-4 text-2xl text-amber-400">
-            ⏳
-          </div>
-          <h3 className="text-base font-bold text-slate-200 mb-2">
-            該標籤下的沙漏正等待點燃
-          </h3>
-          <p className="text-slate-500 text-xs leading-relaxed max-w-xs mx-auto mb-5">
-            目前這個分類下尚無星旅人拋下故事，您可以嘗試切換其他標籤瀏覽。
-          </p>
-          <button
-            onClick={() => setActiveTag('全部故事')}
-            className="text-xs text-amber-300 border border-amber-400/30 px-3.5 py-1.5 rounded-full hover:bg-amber-500/10 transition-all cursor-pointer"
-          >
-            返回全部故事
-          </button>
-        </div>
-      ) : (
-        /* 卡片網格渲染 */
-        <div>
-          {wishes.length === 0 && (
-            <div className="mb-4 inline-flex items-center gap-1.5 text-xs text-amber-300/80 bg-amber-500/10 border border-amber-500/20 px-3 py-1 rounded-full">
-              <Compass className="w-3.5 h-3.5" />
-              <span>示範探索模式 · 點擊下方卡片即可測試結帳流程</span>
+              <hr className="border-white/10" />
+
+              <div>
+                <label className="block text-sm font-bold text-amber-100 mb-3 flex items-center gap-1.5">
+                  <span>✨</span> 選擇您的心願燃料金額
+                </label>
+
+                <div className="grid grid-cols-3 gap-2.5 mb-3">
+                  <button
+                    type="button"
+                    onClick={() => handleSelectPreset(30)}
+                    className={`p-3 rounded-2xl border text-center transition-all cursor-pointer flex flex-col items-center justify-center gap-1 ${
+                      amount === 30 && customInput === ''
+                        ? 'bg-amber-500/20 border-amber-400 text-amber-200 shadow-[0_0_15px_rgba(245,158,11,0.25)] scale-[1.02]'
+                        : 'bg-white/5 border-white/10 text-gray-300 hover:border-amber-400/30'
+                    }`}
+                  >
+                    <span className="text-base font-black font-mono text-amber-300">NT$ 30</span>
+                    <span className="text-[11px] text-gray-400">遞一罐熱咖啡</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleSelectPreset(100)}
+                    className={`p-3 rounded-2xl border text-center transition-all cursor-pointer flex flex-col items-center justify-center gap-1 relative ${
+                      amount === 100 && customInput === ''
+                        ? 'bg-amber-500/25 border-amber-400 text-amber-100 shadow-[0_0_20px_rgba(245,158,11,0.35)] scale-[1.03]'
+                        : 'bg-white/5 border-white/10 text-gray-300 hover:border-amber-400/30'
+                    }`}
+                  >
+                    <span className="text-base font-black font-mono text-amber-300 flex items-center gap-1">
+                      ⭐️ NT$ 100
+                    </span>
+                    <span className="text-[11px] text-amber-200/90 font-medium">進度條大補給</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleSelectPreset(500)}
+                    className={`p-3 rounded-2xl border text-center transition-all cursor-pointer flex flex-col items-center justify-center gap-1 ${
+                      amount === 500 && customInput === ''
+                        ? 'bg-amber-500/20 border-amber-400 text-amber-200 shadow-[0_0_15px_rgba(245,158,11,0.25)] scale-[1.02]'
+                        : 'bg-white/5 border-white/10 text-gray-300 hover:border-amber-400/30'
+                    }`}
+                  >
+                    <span className="text-base font-black font-mono text-amber-300">NT$ 500</span>
+                    <span className="text-[11px] text-gray-400">光速清空清單</span>
+                  </button>
+                </div>
+
+                <div className="flex items-center gap-2 bg-zinc-900/90 border border-white/10 rounded-xl px-3.5 py-2.5 focus-within:border-amber-400/50 transition-all">
+                  <span className="text-xs text-gray-300 whitespace-nowrap">✍️ 自訂其他資助金額：</span>
+                  <input
+                    type="number"
+                    min={10}
+                    value={customInput}
+                    onChange={(e) => handleCustomChange(e.target.value)}
+                    placeholder="輸入金額"
+                    className="w-full bg-transparent text-amber-300 font-mono font-bold text-sm focus:outline-none text-right pr-1"
+                  />
+                  <span className="text-xs text-gray-400 whitespace-nowrap">元 (最低 10 元)</span>
+                </div>
+              </div>
+
+              <hr className="border-white/10" />
+
+              <div className="bg-zinc-900/70 border border-amber-400/15 rounded-2xl p-4 space-y-2">
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-xs font-bold text-amber-200 flex items-center gap-1.5">
+                    📊 結帳明細
+                  </span>
+                  {feeDetails.tier === 'vip' && (
+                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-400/30">
+                      ✨ 已享大戶感恩 4% 優惠
+                    </span>
+                  )}
+                </div>
+
+                <div className="flex justify-between text-xs text-gray-300">
+                  <span>• 願望資助金額：</span>
+                  <span className="font-mono">NT$ {amount.toLocaleString()}</span>
+                </div>
+                <div className="flex justify-between text-xs text-gray-400">
+                  <span>• {feeDetails.label}：</span>
+                  <span className="font-mono">NT$ {feeDetails.fee.toLocaleString()}</span>
+                </div>
+                <div className="border-t border-white/10 pt-2 flex justify-between items-baseline text-sm font-bold text-amber-300">
+                  <span>• 您今日實付總金額：</span>
+                  <span className="text-lg font-mono glow-text">NT$ {feeDetails.total.toLocaleString()}</span>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-center gap-3 text-xs">
+                <button
+                  type="button"
+                  onClick={() => setPaymentMethod('ecpay')}
+                  className={`px-3 py-1.5 rounded-lg border transition-all cursor-pointer ${
+                    paymentMethod === 'ecpay'
+                      ? 'border-amber-400/50 bg-amber-500/15 text-amber-200 font-bold'
+                      : 'border-white/10 bg-white/5 text-gray-400'
+                  }`}
+                >
+                  💳 綠界科技 ECPay
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPaymentMethod('linepay')}
+                  className={`px-3 py-1.5 rounded-lg border transition-all cursor-pointer ${
+                    paymentMethod === 'linepay'
+                      ? 'border-emerald-400/50 bg-emerald-500/15 text-emerald-200 font-bold'
+                      : 'border-white/10 bg-white/5 text-gray-400'
+                  }`}
+                >
+                  🟢 LINE Pay
+                </button>
+              </div>
+
+              {error && (
+                <p className="text-red-400 text-xs bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2 text-center">
+                  {error}
+                </p>
+              )}
+
+              <div className="space-y-2 pt-1">
+                <button
+                  onClick={handleCheckout}
+                  disabled={loading || amount < 10}
+                  className="w-full touch-btn bg-gradient-to-r from-amber-500 to-yellow-600 hover:from-amber-400 hover:to-yellow-500 text-gray-950 font-black rounded-xl py-3.5 transition-all disabled:opacity-50 flex items-center justify-center gap-2 shadow-lg shadow-amber-500/15 cursor-pointer text-sm"
+                >
+                  {loading ? (
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                  ) : (
+                    <>
+                      <Lock className="w-4 h-4" />
+                      付款並加密封存我的留言 (NT$ {feeDetails.total})
+                    </>
+                  )}
+                </button>
+                <p className="text-center text-[11px] text-gray-500">
+                  點擊後將安全導向 {paymentMethod === 'ecpay' ? '綠界金流' : 'LINE Pay'} 加密結帳頁面 · 全程匿名保護
+                </p>
+              </div>
             </div>
           )}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {filteredWishes.map((story, index) => (
-              <StoryCard key={story.id} story={story} index={index} />
-            ))}
-          </div>
         </div>
-      )}
+      </div>
 
-    </div>
+      {showAuth && <AuthModal onClose={() => setShowAuth(false)} />}
+    </>
   );
 }
