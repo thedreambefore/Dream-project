@@ -75,40 +75,45 @@ function AccountTab() {
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState('');
 
-    // 🌟 🔥 終極合流：破壞快取探照燈完全體！
+      // 🌟 🔥 終極合流修正：全防禦不短路探照燈！
   useEffect(() => {
-    const loadRealDataWithNoCache = async () => {
-      const currentUserId = session?.user?.id || (await supabase.auth.getUser()).data.user?.id;
-      if (!currentUserId) return;
+    // 確切抓出當前字串型態的 ID
+    const currentUserId = session?.user?.id;
+    if (!currentUserId) {
+      console.log('🛰️ 探照燈提示：目前尚未拿到有效的 User ID，暫緩發射。');
+      return;
+    }
 
+    const loadRealDataWithNoCache = async () => {
       try {
-        console.log('🛰️ 正在發射破壞快取射線，強讀真實 Table 資料...');
+        console.log('🛰️ [防爆晶片] 正在向雲端真實 Table 讀取最新狀態，ID:', currentUserId);
         
-        // 🚀 核心防禦：在 select 中明確撈取欄位，並加上 limit(1) 強迫 Supabase 直接去真實資料庫撈最新值！
         const { data, error } = await supabase
           .from('users')
           .select('id, real_name, anonymous_nickname, phone, address, wallet_balance')
           .eq('id', currentUserId)
-          .limit(1); // 💡 改用 limit(1) 拿陣列，比 .single() 更能防範快取死鎖！
+          .limit(1);
 
         if (error) throw error;
 
-        // 陣列防禦性解構
+        // 🌟 核心修正：精確判斷陣列是否存在，並用 [0] 進行單筆資料解構！
         if (data && data.length > 0) {
-          const realData = data[0];
-          console.log('✨ 破壞快取成功！成功撈到雲端最新對齊資料:', realData);
+          const realData = data[0]; 
+          console.log('✨ [防爆晶片] 成功突破快取！撈到雲端最新對齊資料:', realData);
           
           setRealName(realData.real_name || '');
-          // 支援兩種欄位名稱防禦
-          setNickname(realData.anonymous_nickname || realData.nickname || '匿名小五郎');
+          setNickname(realData.anonymous_nickname || '匿名小五郎');
           setPhone(realData.phone || '');
           setAddress(realData.address || '');
+        } else {
+          console.warn('⚠️ 雲端資料庫回傳成功，但該 UID 在 users 表格中內容為空列！');
         }
       } catch (err) {
-        console.error('快取探照燈遭遇亂流:', err);
+        console.error('❌ 快取探照燈遭遇致命亂流:', err);
+        // 保留最底層 Context 狀態當防禦
         if (profile) {
           setRealName(profile.real_name || '');
-          setNickname(profile.anonymous_nickname || '匿名小五郎');
+          setNickname(profile.anonymous_nickname || '匿名');
           setPhone(profile.phone || '');
           setAddress(profile.address || '');
         }
@@ -116,7 +121,11 @@ function AccountTab() {
     };
 
     loadRealDataWithNoCache();
-  }, [profile, session]);
+    
+    // 🌟 終極修正：依賴項「千萬不要放 profile 或 session 物件」！
+    // 我們只綁定當前登入的實體 UUID 字串（session?.user?.id），
+    // 這樣在打開休息室時，它就只會乾淨俐落地跑「一次」，絕對不會引發背景狂刷造成的無聲失敗！
+  }, [session?.user?.id]); 
 
 
   const handleSave = async (e: React.FormEvent) => {
