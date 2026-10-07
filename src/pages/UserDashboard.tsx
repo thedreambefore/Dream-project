@@ -87,9 +87,10 @@ function AccountTab() {
     }
   }, [profile]);
 
-  const handleSave = async (e: React.FormEvent) => {
+    const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+    setSaved(false); // 重置狀態
     
     if (!nickname.trim()) {
       setError('匿名暱稱不能為空');
@@ -104,7 +105,7 @@ function AccountTab() {
         throw new Error('找不到有效的登入憑證，請嘗試重新登入');
       }
 
-      // 🚀 調用後台 RPC 最高權限強行寫入
+      // 1. 呼叫後台最高通道 RPC 強行寫入資料庫
       const { error: rpcError } = await supabase.rpc('force_update_user', {
         target_id: currentUserId,
         new_real_name: realName.trim() || null,
@@ -115,14 +116,16 @@ function AccountTab() {
 
       if (rpcError) throw rpcError;
 
-      // 🔄 儲存成功，立刻通知 Context 去刷新，這會觸發上面的 useEffect 自動讀取最新值
+      // 2. 🔥 核心修正：儲存成功後，立刻通知 Context 的雷達重新去撈取最新 Table 資料
       await refreshProfile();
+      
+      // 3. ✨ 成功亮起綠燈！
       setSaved(true);
       
-      // 寬限半秒，全頁更新
-      setTimeout(() => {
-        window.location.reload();
-      }, 500);
+      // 4. 🔥 徹底拔除 window.location.reload()！
+      // 這樣網頁絕對不會重新整理，您會安安穩穩地「留在個人資料畫面」，
+      // 且因為上面的 refreshProfile 跑完了，輸入框和 Navbar 的名字會在一瞬間全部自動同步成最新資料！
+      setTimeout(() => setSaved(false), 3000);
 
     } catch (err: any) {
       console.error('儲存失敗:', err);
@@ -131,6 +134,7 @@ function AccountTab() {
       setSaving(false);
     }
   };
+
 
   return (
     <div className="space-y-6 max-w-xl animate-fade-in">
