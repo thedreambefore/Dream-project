@@ -113,8 +113,7 @@ function AccountTab() {
     };
 
     loadRealDataWithNoCache();
-  }, [session?.user?.id, profile]); // 🌟 綁定這兩個最安全的狀態變更
-
+  }, [session?.user?.id]); 
 
 
   const handleSave = async (e: React.FormEvent) => {
