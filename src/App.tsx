@@ -9,7 +9,7 @@ import { AdminConsole } from '@/pages/AdminConsole';
 import { usePublicData } from '@/hooks/usePublicData';
 import { Shield } from 'lucide-react';
 
-// 🛡️ 建立大廠標準的防禦性 Error Boundary (錯誤安全盾牌)
+// 🛡️ 錯誤防護盾牌 (Error Boundary) - 修正：移除未定義的變數引用
 interface Props { children: ReactNode; }
 interface State { hasError: boolean; }
 class SafeShield extends Component<Props, State> {
@@ -20,22 +20,20 @@ class SafeShield extends Component<Props, State> {
   }
   public render() {
     if (this.state.hasError) {
-      // 當底層因為 Realtime 鬧脾氣卡死時，這裡強制回傳「防禦性留空」的首頁，絕對不讓網站全黑死機！
-        return (
-    <div className="space-bg min-h-screen relative text-white p-24 text-center">
-      <h1 className="text-4xl">防爆排查測試中</h1>
-      <p>當前 Session 狀態: {session ? "已登入" : "未登入"}</p>
-      <p>當前 Profile 狀態: {profile ? "已有資料" : "沒有資料"}</p>
-      <p>當前 公告狀態: {typeof announcement === 'string' ? announcement : "公告是物件或為空"}</p>
-      
-      {/* 暫時把其他組件關閉，用來抓出是誰讓網站黑屏 */}
-      {/* <Starfield /> */}
-      {/* <Navbar ... /> */}
-      {/* <HomePage /> */}
-    </div>
-  );
+      return (
+        <div className="space-bg min-h-screen relative text-white p-24 text-center">
+          <h1 className="text-3xl font-bold text-amber-200 mb-4">星空微光調校中</h1>
+          <p className="text-gray-400 text-sm mb-6">部分星塵資料正在同步，請稍候重新載入。</p>
+          <button
+            onClick={() => window.location.reload()}
+            className="px-4 py-2 bg-amber-500/20 border border-amber-400/40 text-amber-200 rounded-xl text-sm"
+          >
+            重新連結星空
+          </button>
+        </div>
+      );
     }
-    return this.children;
+    return this.props.children;
   }
 }
 
@@ -44,7 +42,6 @@ type View = 'home' | 'dashboard' | 'admin';
 function AppContent() {
   const { loading, session, profile } = useAuth();
   
-  // 雙重保險：如果 usePublicData 內部因為 Realtime 崩潰，我們用 try-catch 防禦
   let announcement = { title: "歡迎來到夢沙 DreamSand" };
   try {
     const publicData = usePublicData();
@@ -88,16 +85,14 @@ function AppContent() {
             onOpenAuth={() => setShowAuth(true)}
             onOpenDashboard={handleOpenDashboard}
             onOpenAdmin={handleOpenAdmin}
-            // 🌟 終極防爆線路：如果拿到的 announcement 是物件，自動去抓它裡面的 content 或 text 欄位；如果是純字串就直接用
             announcement={
               announcement 
                 ? (typeof announcement === 'object' 
-                    ? (announcement.content || announcement.text || JSON.stringify(announcement)) 
+                    ? ((announcement as any).content || (announcement as any).text || (announcement as any).title || JSON.stringify(announcement)) 
                     : String(announcement))
                 : null
             }
           />
-          {/* 🛡️ 使用 SafeShield 牢牢包覆住首頁，就算內部 Realtime 報錯，首頁和導覽列也絕對不會死機 */}
           <SafeShield>
             <HomePage />
           </SafeShield>
