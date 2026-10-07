@@ -1,7 +1,7 @@
 import { supabase } from '@/lib/supabaseClient';
 import type { Story } from '@/lib/supabase';
 
-const WISH_TABLES = ['wishes', 'stories'] as const;
+const WISH_TABLES = ['wishes'] as const;
 
 export function isBlockedStatus(status: string | null | undefined): boolean {
   return status === '已封鎖' || status === 'blocked';
