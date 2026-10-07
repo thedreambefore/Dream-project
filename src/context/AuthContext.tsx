@@ -1,10 +1,5 @@
 import { createContext, useContext, useState, useEffect } from 'react';
-import { createClient } from '@supabase/supabase-js';
-
-// 1. 初始化雲端 Supabase 連線
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
-export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+import { supabase } from '@/lib/supabaseClient';
 
 export interface UserProfile {
   id: string;
