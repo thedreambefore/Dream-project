@@ -124,18 +124,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return true;
   };
 
-  const signUp = async (emailInput: string, passwordInput: string, nameInput: string) => {
+const signUp = async (emailInput: string, passwordInput: string, nameInput: string) => {
     const { data, error } = await supabase.auth.signUp({ email: emailInput, password: passwordInput });
     if (error) { alert(`註冊失敗: ${error.message}`); return false; }
     if (data.user) {
-      await supabase.from('users').insert([{
+      const chosenName = nameInput.trim() || '新星旅人';
+      await supabase.from('users').upsert([{
         id: data.user.id,
-        real_name: nameInput || '築夢者',
-        anonymous_nickname: '匿名',
+        real_name: chosenName,
+        anonymous_nickname: chosenName, // 🌟 核心修正：將註冊暱稱同步寫入全站暱稱！
         role: 'user',
-        wallet_balance: 0,
+        wallet_balance: 0, // 🌟 預設 0 榮譽星光
         is_phone_verified: false
-      }]);
+      }], { onConflict: 'id' });
     }
     return true;
   };
