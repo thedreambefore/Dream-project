@@ -1,20 +1,20 @@
 import { useState, useEffect } from 'react';
-import { Compass, Sparkles, Loader2 } from 'lucide-react';
+import { Compass, Sparkles, Loader2, Heart } from 'lucide-react';
 import { StoryCard } from '@/components/StoryCard';
 import { fetchPublicWishes } from '@/lib/backend';
 import { supabase, type Story } from '@/lib/supabase';
 
-// 🌟 示範卡片：完整符合 Story 型別所有必要欄位
-const DEMO_STORY: Story = {
-  id: 'demo-story-001',
-  user_id: 'demo-user',
-  product_name: 'Acer 輕薄教育用筆電 (含三年保固)',
-  product_price: 18000,
-  current_stardust: 14200,
-  tag_name: '學生苦讀中',
-  cover_emoji: '💻',
-  story_text: '在偏鄉課輔班帶孩子們學習 Python 已有一年，孩子們總是輪流共用一台容易當機的舊主機。希望能在新學期替課輔教室添購一台穩定的新筆電，讓對程式有熱情的孩子不用再等待輪流上機的時間。',
-  promise_text: '若願望達成，將在偏鄉舉辦一場成果發表會，並公開孩子們親手寫出的第一款小遊戲成果與開箱感謝信！',
+// 💖 官方常駐置頂贊助卡片（合法 UUID，可真正寫入贊助紀錄且進度無上限）
+const OFFICIAL_SPONSOR_STORY: Story = {
+  id: '00000000-0000-0000-0000-000000000001', // 標準合規 UUID
+  user_id: '00000000-0000-0000-0000-000000000000',
+  product_name: '💖 守護夢沙星空 · 平台伺服器與營運基金',
+  product_price: 999999, // 象徵性無上限
+  current_stardust: 36800,
+  tag_name: '官方營運支持',
+  cover_emoji: '🪐',
+  story_text: '夢沙 DreamSand 致力於打造一個完全匿名、無詐騙的溫暖心願避風港。您的每一筆微小心願燃料，都將全數投入伺服器雲端維護、防詐驗證模組與公益物流補貼，讓這片星空永不熄滅。',
+  promise_text: '平台將持續以零抽成、全匿名運作，每月定期公開伺服器營運透明報表與重大更新。',
   status: 'approved',
   block_reason: null,
   created_at: '2025-01-01T00:00:00.000Z',
@@ -25,14 +25,16 @@ export function HomePage() {
   const [wishes, setWishes] = useState<Story[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const tags = ['全部故事', '#學生苦讀中', '#面試大作戰', '#毛孩的願望', '#生日邊緣人'];
+  const tags = ['全部故事', '#官方營運支持', '#學生苦讀中', '#面試大作戰', '#毛孩的願望', '#生日邊緣人'];
 
   const loadWishes = async () => {
     try {
       const realWishes = await fetchPublicWishes();
-      setWishes(realWishes || []);
+      // 官方贊助卡片固定置頂於最前方，後面接著用戶真實願望
+      setWishes([OFFICIAL_SPONSOR_STORY, ...realWishes]);
     } catch (err) {
       console.warn('載入願望異常，使用保底模式:', err);
+      setWishes([OFFICIAL_SPONSOR_STORY]);
     } finally {
       setLoading(false);
     }
@@ -41,28 +43,21 @@ export function HomePage() {
   useEffect(() => {
     loadWishes();
 
-    // ⚡ 實時監聽器
-    try {
-      const channel = supabase
-        .channel('public-wishes-realtime')
-        .on(
-          'postgres_changes',
-          { event: '*', schema: 'public', table: 'wishes' },
-          () => loadWishes()
-        )
-        .subscribe();
+    const channel = supabase
+      .channel('public-wishes-realtime')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'wishes' },
+        () => loadWishes()
+      )
+      .subscribe();
 
-      return () => {
-        supabase.removeChannel(channel);
-      };
-    } catch (e) {
-      console.warn('Realtime 監聽器降級處理');
-    }
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, []);
 
-  const displayWishes = wishes.length > 0 ? wishes : [DEMO_STORY];
-
-  const filteredWishes = displayWishes.filter((item) => {
+  const filteredWishes = wishes.filter((item) => {
     if (activeTag === '全部故事') return true;
     const cleanTag = activeTag.replace('#', '');
     return (item.tag_name || '').includes(cleanTag);
@@ -70,7 +65,6 @@ export function HomePage() {
 
   return (
     <div className="max-w-6xl mx-auto px-6 pt-8 pb-32 relative z-10 animate-fade-in">
-      {/* 主標題區 */}
       <header className="max-w-4xl mx-auto text-center my-12 px-6">
         <div className="inline-flex items-center gap-2 bg-amber-500/10 border border-amber-500/20 rounded-full px-4 py-1 text-xs text-amber-400 font-medium mb-6 shadow-sm">
           <Sparkles className="w-3.5 h-3.5 text-amber-300" />
@@ -84,7 +78,7 @@ export function HomePage() {
         </p>
       </header>
 
-      {/* 標籤篩選列 */}
+      {/* 標籤列 */}
       <div className="flex gap-2.5 overflow-x-auto pb-4 hide-scrollbar mb-10 border-b border-white/5">
         {tags.map((tag) => (
           <button
@@ -101,41 +95,16 @@ export function HomePage() {
         ))}
       </div>
 
-      {/* 內容區塊 */}
       {loading ? (
         <div className="py-24 text-center">
           <Loader2 className="w-8 h-8 text-amber-300 animate-spin mx-auto mb-3" />
           <p className="text-gray-400 text-xs tracking-wider">正在搜尋星空中的願望故事...</p>
         </div>
-      ) : filteredWishes.length === 0 ? (
-        <div className="max-w-md mx-auto my-12 text-center border border-slate-800 bg-slate-900/30 backdrop-blur-md rounded-2xl p-10 shadow-2xl scale-in">
-          <div className="w-14 h-14 bg-amber-500/10 border border-amber-500/20 rounded-full flex items-center justify-center mx-auto mb-4 text-2xl text-amber-400">
-            ⏳
-          </div>
-          <h3 className="text-base font-bold text-slate-200 mb-2">該標籤下的沙漏正等待點燃</h3>
-          <p className="text-slate-500 text-xs leading-relaxed max-w-xs mx-auto mb-5">
-            目前這個分類下尚無星旅人拋下故事。
-          </p>
-          <button
-            onClick={() => setActiveTag('全部故事')}
-            className="text-xs text-amber-300 border border-amber-400/30 px-3.5 py-1.5 rounded-full hover:bg-amber-500/10 transition-all cursor-pointer"
-          >
-            返回全部故事
-          </button>
-        </div>
       ) : (
-        <div>
-          {wishes.length === 0 && (
-            <div className="mb-4 inline-flex items-center gap-1.5 text-xs text-amber-300/80 bg-amber-500/10 border border-amber-500/20 px-3 py-1 rounded-full">
-              <Compass className="w-3.5 h-3.5" />
-              <span>示範探索模式 · 點擊下方卡片即可測試結帳流程</span>
-            </div>
-          )}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {filteredWishes.map((story, index) => (
-              <StoryCard key={story.id} story={story} index={index} />
-            ))}
-          </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {filteredWishes.map((story, index) => (
+            <StoryCard key={story.id} story={story} index={index} />
+          ))}
         </div>
       )}
     </div>
