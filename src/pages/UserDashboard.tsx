@@ -65,173 +65,212 @@ function TabButton({ id, activeTab, onClick, icon, label }: { id: TabId; activeT
 
 function AccountTab() {
   const { session, profile, refreshProfile } = useAuth();
-  
-  // 🚀 核心優化：將 React 內部 State 只作為「使用者輸入時的暫存器」
+
+  // 受控狀態管理
   const [realName, setRealName] = useState('');
   const [nickname, setNickname] = useState('');
   const [phone, setPhone] = useState('');
   const [address, setAddress] = useState('');
-  
+
+  const [loadingData, setLoadingData] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState('');
 
-  // 🛰️ 【全防禦讀取雷達】：字串級別精確綁定，徹底解開非同步二次覆蓋死鎖
+  // 1. 同步雲端資料到受控狀態中
   useEffect(() => {
+    let isMounted = true;
     const currentUserId = session?.user?.id;
-    if (!currentUserId) return;
+    if (!currentUserId) {
+      setLoadingData(false);
+      return;
+    }
 
-    const loadRealDataWithNoCache = async () => {
+    const loadUserData = async () => {
+      setLoadingData(true);
       try {
-        console.log('🛰️ [夢沙雷達開機] 正在強讀雲端 Table 最真實的數據...');
         const { data, error: fetchError } = await supabase
           .from('users')
           .select('id, real_name, anonymous_nickname, phone, address')
           .eq('id', currentUserId)
-          .single();
+          .maybeSingle();
 
         if (fetchError) throw fetchError;
 
-        if (data) {
-          console.log('✨ [雷達解鎖成功] 成功捕捉到雲端最新 Table 資料:', data);
-          // 強制將真實內容填入 React 本地暫存狀態
+        if (data && isMounted) {
           setRealName(data.real_name || '');
           setNickname(data.anonymous_nickname || '匿名小五郎');
           setPhone(data.phone || '');
           setAddress(data.address || '');
-        }
-      } catch (err) {
-        console.warn('❌ 讀取雷達遭遇亂流，使用 Context 備用防線:', err);
-        if (profile) {
+        } else if (profile && isMounted) {
           setRealName(profile.real_name || '');
           setNickname(profile.anonymous_nickname || '匿名小五郎');
           setPhone(profile.phone || '');
           setAddress(profile.address || '');
         }
+      } catch (err) {
+        console.warn('⚠️ 讀取用戶資料失敗，退回使用 Context 快取:', err);
+        if (profile && isMounted) {
+          setRealName(profile.real_name || '');
+          setNickname(profile.anonymous_nickname || '匿名小五郎');
+          setPhone(profile.phone || '');
+          setAddress(profile.address || '');
+        }
+      } finally {
+        if (isMounted) setLoadingData(false);
       }
     };
 
-    loadRealDataWithNoCache();
-  }, [session?.user?.id, profile?.id]); // 🌟 核心修正：只鎖定純字串 ID 的變更，絕對不放 profile 物件，徹底斬斷無限重刷與二次覆蓋！
+    loadUserData();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [session?.user?.id, profile]);
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     setSaved(false);
-    
-    // 取得即時填寫的內容（如果使用者沒動過輸入框，則自動沿用雲端現有的真實內容）
-    const targetNickname = nickname.trim() || profile?.anonymous_nickname || '匿名小五郎';
-    const targetRealName = realName.trim() || profile?.real_name || '';
-    const targetPhone = phone.trim() || profile?.phone || '';
-    const targetAddress = address.trim() || profile?.address || '';
 
-    if (!targetNickname.trim()) {
+    const targetNickname = nickname.trim() || '匿名小五郎';
+    const targetRealName = realName.trim();
+    const targetPhone = phone.trim();
+    const targetAddress = address.trim();
+
+    if (!targetNickname) {
       setError('匿名暱稱不能為空');
       return;
     }
-    if (targetPhone && !/^09\d{8}\$/.test(targetPhone)) {
+    if (targetPhone && !/^09\d{8}$/.test(targetPhone)) {
       setError('請輸入正確的台灣手機號碼格式 (09xxxxxxxx)');
       return;
     }
 
     setSaving(true);
     try {
-      const currentUserId = session?.user?.id || (await supabase.auth.getUser()).data.user?.id;
-      if (!currentUserId) throw new Error('找不到有效的登入憑證，請嘗試重新登入');
+      const currentUserId = session?.user?.id;
+      if (!currentUserId) throw new Error('找不到有效的登入憑證，請重新登入');
 
-      // 🚀 呼叫我們在後台加裝的最高權限強行寫入通道
-      const { error: rpcError } = await supabase.rpc('force_update_user', {
-        target_id: currentUserId,
-        new_real_name: targetRealName,
-        new_nickname: targetNickname,
-        new_phone: targetPhone,
-        new_address: targetAddress
-      });
+      // 優先使用 Supabase 直接 update，同時相容 RPC 呼叫
+      const { error: updateError } = await supabase
+        .from('users')
+        .update({
+          real_name: targetRealName,
+          anonymous_nickname: targetNickname,
+          phone: targetPhone,
+          address: targetAddress,
+        })
+        .eq('id', currentUserId);
 
-      if (rpcError) throw rpcError;
+      if (updateError) {
+        // 如果有設定特殊的 RPC，作二次嘗試
+        const { error: rpcError } = await supabase.rpc('force_update_user', {
+          target_id: currentUserId,
+          new_real_name: targetRealName,
+          new_nickname: targetNickname,
+          new_phone: targetPhone,
+          new_address: targetAddress,
+        });
+        if (rpcError) throw updateError;
+      }
 
-      // 🔄 同步核心：通知全站 Context 雷達去更新
+      // 同步刷新 Context 中的 profile 狀態
       await refreshProfile();
       setSaved(true);
-      
-      // 🌟 徹底拔除 window.location.reload()！安穩留在原地，且數據瞬間對齊！
       setTimeout(() => setSaved(false), 2500);
-
     } catch (err: any) {
       console.error('儲存失敗:', err);
-      setError(`儲存失敗: ${err.message || '請檢查雲端連線狀態'}`);
+      setError(`儲存失敗: ${err.message || '請檢查資料庫連線或權限'}`);
     } finally {
       setSaving(false);
     }
   };
+
+  if (loadingData) {
+    return (
+      <div className="py-16 text-center">
+        <Loader2 className="w-8 h-8 text-amber-300 animate-spin mx-auto mb-3" />
+        <p className="text-gray-400 text-sm">正在從星海同步您的旅人資訊...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6 max-w-xl animate-fade-in">
       <h2 className="text-xl font-bold text-amber-100 flex items-center gap-2">
         <UserCircle className="w-5 h-5 text-amber-300" /> 星旅人休息室
       </h2>
-      
+
       {/* 憑證資訊面板 */}
       <div className="glass rounded-2xl p-5 glow-border bg-zinc-900/40">
         <p className="text-xs text-gray-500 mb-1">登入憑證帳號 (Email)</p>
         <p className="text-sm font-mono text-amber-200">{session?.user?.email}</p>
         <div className="mt-3">
           {profile?.is_phone_verified ? (
-            <span className="inline-flex items-center gap-1 text-xs px-3 py-1 rounded-full bg-green-500/10 border border-green-500/30 text-green-400">✓ 台灣手機強驗證已成功解鎖</span>
+            <span className="inline-flex items-center gap-1 text-xs px-3 py-1 rounded-full bg-green-500/10 border border-green-500/30 text-green-400">
+              ✓ 台灣手機強驗證已成功解鎖
+            </span>
           ) : (
-            <span className="inline-flex items-center gap-1 text-xs px-3 py-1 rounded-full bg-zinc-800 border border-white/5 text-gray-400">⚠️ 手機未強驗證（發布夢想功能受限）</span>
+            <span className="inline-flex items-center gap-1 text-xs px-3 py-1 rounded-full bg-zinc-800 border border-white/5 text-gray-400">
+              ⚠️ 手機未強驗證（發布夢想功能受限）
+            </span>
           )}
         </div>
       </div>
 
-      {/* 🌟 核心防護外殼：在 form 掛載唯一的 key。當 profile 加載完畢時，強制整顆表單刷新，徹底擊碎非同步定格死鎖！ */}
-      <form onSubmit={handleSave} key={profile?.id || 'loading'} className="space-y-5 bg-white/5 border border-white/10 p-6 rounded-2xl glow-border">
+      {/* 完全受控表單 */}
+      <form onSubmit={handleSave} className="space-y-5 bg-white/5 border border-white/10 p-6 rounded-2xl glow-border">
         <div>
           <label className="block text-xs font-medium text-gray-300 mb-2">舞台真實姓名（物流核對用，不公開）</label>
-          <input 
-            type="text" 
-            defaultValue={profile?.real_name || ''} 
-            onChange={(e) => setRealName(e.target.value)} 
-            placeholder="例如：王小明" 
-            className="w-full bg-zinc-900/80 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-amber-400/50" 
+          <input
+            type="text"
+            value={realName}
+            onChange={(e) => setRealName(e.target.value)}
+            placeholder="例如：王小明"
+            className="w-full bg-zinc-900/80 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-amber-400/50 transition-all"
           />
         </div>
         <div>
           <label className="block text-xs font-medium text-gray-300 mb-2">匿名陌生人暱稱（平台顯示名稱）</label>
-          <input 
-            type="text" 
-            defaultValue={profile?.anonymous_nickname || '匿名小五郎'} 
-            onChange={(e) => setNickname(e.target.value)} 
-            placeholder="請輸入全站顯示的匿名暱稱" 
-            className="w-full bg-zinc-900/80 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-amber-400/50" 
-            required 
+          <input
+            type="text"
+            value={nickname}
+            onChange={(e) => setNickname(e.target.value)}
+            placeholder="請輸入全站顯示的匿名暱稱"
+            className="w-full bg-zinc-900/80 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-amber-400/50 transition-all"
+            required
           />
         </div>
         <div>
           <label className="block text-xs font-medium text-gray-300 mb-2">聯絡電話（台灣手機號碼）</label>
-          <input 
-            type="tel" 
-            defaultValue={profile?.phone || ''} 
-            onChange={(e) => setPhone(e.target.value)} 
-            placeholder="09xxxxxxxx" 
-            maxLength={10} 
-            className="w-full bg-zinc-900/80 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-amber-400/50" 
+          <input
+            type="tel"
+            value={phone}
+            onChange={(e) => setPhone(e.target.value)}
+            placeholder="09xxxxxxxx"
+            maxLength={10}
+            className="w-full bg-zinc-900/80 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-amber-400/50 transition-all"
           />
         </div>
         <div>
           <label className="block text-xs font-medium text-gray-300 mb-2">超商收件門市 / 寄送地址</label>
-          <input 
-            type="text" 
-            defaultValue={profile?.address || ''} 
-            onChange={(e) => setAddress(e.target.value)} 
-            placeholder="例如：7-11 夢沙門市 (店號xxxxxx)" 
-            className="w-full bg-zinc-900/80 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-amber-400/50" 
+          <input
+            type="text"
+            value={address}
+            onChange={(e) => setAddress(e.target.value)}
+            placeholder="例如：7-11 夢沙門市 (店號xxxxxx)"
+            className="w-full bg-zinc-900/80 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-amber-400/50 transition-all"
           />
         </div>
 
         {error && <p className="text-red-400 text-xs bg-red-500/10 p-3 rounded-lg border border-red-500/20">{error}</p>}
 
-        <button type="submit" disabled={saving} className="w-full bg-gradient-to-r from-amber-500 to-yellow-600 text-gray-950 font-black text-sm py-3 rounded-xl hover:from-amber-400 hover:to-yellow-500 transition-all flex items-center justify-center gap-2">
+        <button
+          type="submit"
+          disabled={saving}
+          className="w-full bg-gradient-to-r from-amber-500 to-yellow-600 text-gray-950 font-black text-sm py-3 rounded-xl hover:from-amber-400 hover:to-yellow-500 transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+        >
           {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
           {saved ? '✨ 星沙印記儲存成功！' : '儲存全站帳號設定'}
         </button>
@@ -239,7 +278,6 @@ function AccountTab() {
     </div>
   );
 }
-
 
 // ===== 2. 發布夢想分願 (Publish Tab) =====
 function PublishTab({ onRequireVerify }: { onRequireVerify: () => void }) {
