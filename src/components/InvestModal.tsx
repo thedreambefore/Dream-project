@@ -7,7 +7,7 @@ import { updateWish } from '@/lib/backend';
 
 export function InvestModal({ story, onClose }: { story: Story; onClose: () => void }) {
   const { session } = useAuth();
-  const [amount, setAmount] = useState<number>(100); // 預設亮起 NT$ 100
+  const [amount, setAmount] = useState<number>(100);
   const [customInput, setCustomInput] = useState<string>('');
   const [message, setMessage] = useState('');
   const [paymentMethod, setPaymentMethod] = useState<'ecpay' | 'linepay'>('ecpay');
@@ -16,18 +16,6 @@ export function InvestModal({ story, onClose }: { story: Story; onClose: () => v
   const [success, setSuccess] = useState(false);
   const [showAuth, setShowAuth] = useState(false);
 
-  /* ============================================================================
-   * 📦 [預付錢包架構封存區] — 未來金流審核通過後若要恢復儲值扣款，可解開此段註解
-   * ============================================================================
-   * const [walletBalance, setWalletBalance] = useState<number | null>(null);
-   * useEffect(() => {
-   *   if (session?.user?.id) {
-   *     supabase.from('users').select('wallet_balance').eq('id', session.user.id).maybeSingle()
-   *       .then(({ data }) => { if (data) setWalletBalance(data.wallet_balance); });
-   *   }
-   * }, [session]);
-   * ============================================================================ */
-
   // 🧮 三段式動態服務費計算引擎
   const feeDetails = useMemo(() => {
     const validAmount = Math.max(0, amount || 0);
@@ -35,7 +23,6 @@ export function InvestModal({ story, onClose }: { story: Story; onClose: () => v
       return { fee: 0, total: validAmount, label: '最低資助金額為 10 元', tier: 'invalid' };
     }
     if (validAmount <= 99) {
-      // 低價探索區 (10 ~ 99)：固定加收 5 元
       return {
         fee: 5,
         total: validAmount + 5,
@@ -44,7 +31,6 @@ export function InvestModal({ story, onClose }: { story: Story; onClose: () => v
       };
     }
     if (validAmount <= 499) {
-      // 標準主力區 (100 ~ 499)：加收 5%
       const fee = Math.round(validAmount * 0.05);
       return {
         fee,
@@ -53,7 +39,6 @@ export function InvestModal({ story, onClose }: { story: Story; onClose: () => v
         tier: 'standard',
       };
     }
-    // 大戶感恩區 (500 以上)：特惠加收 4%
     const fee = Math.round(validAmount * 0.04);
     return {
       fee,
@@ -63,14 +48,12 @@ export function InvestModal({ story, onClose }: { story: Story; onClose: () => v
     };
   }, [amount]);
 
-  // 選擇預設卡片金額
   const handleSelectPreset = (val: number) => {
     setAmount(val);
     setCustomInput('');
     setError('');
   };
 
-  // 輸入自訂金額
   const handleCustomChange = (val: string) => {
     setCustomInput(val);
     const parsed = parseInt(val, 10);
@@ -82,7 +65,6 @@ export function InvestModal({ story, onClose }: { story: Story; onClose: () => v
     setError('');
   };
 
-  // 核心付款與推進進度條邏輯
   const handleCheckout = async () => {
     setError('');
     if (!session?.user) {
@@ -100,21 +82,15 @@ export function InvestModal({ story, onClose }: { story: Story; onClose: () => v
 
     setLoading(true);
     try {
-      // 💡 [未來真實金流串接點]
-      // 在此呼叫後端 API 建立綠界 ECPay 或 LINE Pay 訂單，帶入實付總額 `feeDetails.total`
-      // 付款成功 Webhook 回調後執行以下資料表寫入：
-
-      // 1. 寫入贊助與漂流瓶留言紀錄
       const { error: investError } = await supabase.from('investments').insert({
         user_id: session.user.id,
         story_id: story.id,
-        amount: amount, // 故事實際獲得的願望資助額（不含手續費）
+        amount: amount,
         message: message.trim() || null,
         is_anonymous: true,
       });
       if (investError) console.warn('investments 寫入提示:', investError);
 
-      // 2. 更新該願望故事的進度條與狀態
       const newTotal = (story.current_stardust || 0) + amount;
       const newStatus = newTotal >= story.product_price ? 'fulfilled' : 'approved';
       await updateWish(story.id, { current_stardust: newTotal, status: newStatus });
@@ -151,7 +127,6 @@ export function InvestModal({ story, onClose }: { story: Story; onClose: () => v
             </div>
           ) : (
             <div className="space-y-5">
-              {/* 頂部標題與目標願望摘要 */}
               <div className="flex items-center justify-between border-b border-white/10 pb-3.5">
                 <div>
                   <h2 className="text-lg font-bold text-amber-100 flex items-center gap-2">
@@ -170,7 +145,6 @@ export function InvestModal({ story, onClose }: { story: Story; onClose: () => v
                 </button>
               </div>
 
-              {/* 區塊 1：封存 50 字溫暖留言 */}
               <div>
                 <div className="flex items-center justify-between mb-2">
                   <label className="text-sm font-bold text-amber-100 flex items-center gap-1.5">
@@ -192,15 +166,12 @@ export function InvestModal({ story, onClose }: { story: Story; onClose: () => v
 
               <hr className="border-white/10" />
 
-              {/* 區塊 2：選擇心願燃料金額 */}
               <div>
                 <label className="block text-sm font-bold text-amber-100 mb-3 flex items-center gap-1.5">
                   <span>✨</span> 選擇您的心願燃料金額
                 </label>
 
-                {/* 三大預設卡片 */}
                 <div className="grid grid-cols-3 gap-2.5 mb-3">
-                  {/* NT$ 30 */}
                   <button
                     type="button"
                     onClick={() => handleSelectPreset(30)}
@@ -214,7 +185,6 @@ export function InvestModal({ story, onClose }: { story: Story; onClose: () => v
                     <span className="text-[11px] text-gray-400">遞一罐熱咖啡</span>
                   </button>
 
-                  {/* ⭐️ NT$ 100 (預設亮起) */}
                   <button
                     type="button"
                     onClick={() => handleSelectPreset(100)}
@@ -230,7 +200,6 @@ export function InvestModal({ story, onClose }: { story: Story; onClose: () => v
                     <span className="text-[11px] text-amber-200/90 font-medium">進度條大補給</span>
                   </button>
 
-                  {/* NT$ 500 */}
                   <button
                     type="button"
                     onClick={() => handleSelectPreset(500)}
@@ -245,7 +214,6 @@ export function InvestModal({ story, onClose }: { story: Story; onClose: () => v
                   </button>
                 </div>
 
-                {/* 自訂其他資助金額 */}
                 <div className="flex items-center gap-2 bg-zinc-900/90 border border-white/10 rounded-xl px-3.5 py-2.5 focus-within:border-amber-400/50 transition-all">
                   <span className="text-xs text-gray-300 whitespace-nowrap">✍️ 自訂其他資助金額：</span>
                   <input
@@ -255,3 +223,95 @@ export function InvestModal({ story, onClose }: { story: Story; onClose: () => v
                     onChange={(e) => handleCustomChange(e.target.value)}
                     placeholder="輸入金額"
                     className="w-full bg-transparent text-amber-300 font-mono font-bold text-sm focus:outline-none text-right pr-1"
+                  />
+                  <span className="text-xs text-gray-400 whitespace-nowrap">元 (最低 10 元)</span>
+                </div>
+              </div>
+
+              <hr className="border-white/10" />
+
+              <div className="bg-zinc-900/70 border border-amber-400/15 rounded-2xl p-4 space-y-2">
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-xs font-bold text-amber-200 flex items-center gap-1.5">
+                    📊 結帳明細
+                  </span>
+                  {feeDetails.tier === 'vip' && (
+                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-400/30">
+                      ✨ 已享大戶感恩 4% 優惠
+                    </span>
+                  )}
+                </div>
+
+                <div className="flex justify-between text-xs text-gray-300">
+                  <span>• 願望資助金額：</span>
+                  <span className="font-mono">NT$ {amount.toLocaleString()}</span>
+                </div>
+                <div className="flex justify-between text-xs text-gray-400">
+                  <span>• {feeDetails.label}：</span>
+                  <span className="font-mono">NT$ {feeDetails.fee.toLocaleString()}</span>
+                </div>
+                <div className="border-t border-white/10 pt-2 flex justify-between items-baseline text-sm font-bold text-amber-300">
+                  <span>• 您今日實付總金額：</span>
+                  <span className="text-lg font-mono glow-text">NT$ {feeDetails.total.toLocaleString()}</span>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-center gap-3 text-xs">
+                <button
+                  type="button"
+                  onClick={() => setPaymentMethod('ecpay')}
+                  className={`px-3 py-1.5 rounded-lg border transition-all cursor-pointer ${
+                    paymentMethod === 'ecpay'
+                      ? 'border-amber-400/50 bg-amber-500/15 text-amber-200 font-bold'
+                      : 'border-white/10 bg-white/5 text-gray-400'
+                  }`}
+                >
+                  💳 綠界科技 ECPay
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPaymentMethod('linepay')}
+                  className={`px-3 py-1.5 rounded-lg border transition-all cursor-pointer ${
+                    paymentMethod === 'linepay'
+                      ? 'border-emerald-400/50 bg-emerald-500/15 text-emerald-200 font-bold'
+                      : 'border-white/10 bg-white/5 text-gray-400'
+                  }`}
+                >
+                  🟢 LINE Pay
+                </button>
+              </div>
+
+              {error && (
+                <p className="text-red-400 text-xs bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2 text-center">
+                  {error}
+                </p>
+              )}
+
+              <div className="space-y-2 pt-1">
+                <button
+                  onClick={handleCheckout}
+                  disabled={loading || amount < 10}
+                  className="w-full touch-btn bg-gradient-to-r from-amber-500 to-yellow-600 hover:from-amber-400 hover:to-yellow-500 text-gray-950 font-black rounded-xl py-3.5 transition-all disabled:opacity-50 flex items-center justify-center gap-2 shadow-lg shadow-amber-500/15 cursor-pointer text-sm"
+                >
+                  {loading ? (
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                  ) : (
+                    <>
+                      <Lock className="w-4 h-4" />
+                      付款並加密封存我的留言 (NT$ {feeDetails.total})
+                    </>
+                  )}
+                </button>
+                <p className="text-center text-[11px] text-gray-500">
+                  點擊後將安全導向 {paymentMethod === 'ecpay' ? '綠界金流' : 'LINE Pay'} 加密結帳頁面 · 全程匿名保護
+                </p>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {showAuth && <AuthModal onClose={() => setShowAuth(false)} />}
+    </>
+  );
+}
