@@ -7,11 +7,11 @@ import { blockWish, fetchAllWishesForAdmin, isBlockedStatus, unblockWish } from 
 type AdminTab = 'announcements' | 'tags' | 'moderation';
 
 export function AdminConsole({ onClose, onGoHome }: { onClose: () => void; onGoHome: () => void }) {
-  const { profile, signOut } = useAuth();
+  const { profile, logout } = useAuth();
   const [activeTab, setActiveTab] = useState<AdminTab>('moderation');
 
   const handleSignOut = async () => {
-    await signOut();
+    await logout();
     onClose();
   };
 
