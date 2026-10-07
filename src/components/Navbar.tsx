@@ -73,19 +73,23 @@ export function Navbar({ onOpenAuth, onOpenDashboard, onOpenAdmin, announcement 
                 className="flex items-center gap-3 cursor-pointer group select-none bg-white/5 border border-white/10 px-3 py-1.5 rounded-2xl hover:bg-white/10 transition-all"
               >
                 <div className="text-right">
-                  {/* 🌟 嚴格防爆：確保背後渲染的是純文字（.real_name）或數字（.wallet_balance），絕對不直接塞 profile */}
-                  <p className="text-zinc-200 text-sm font-medium group-hover:text-amber-300 transition-colors">
-                    {typeof profile?.real_name === 'string' ? profile.real_name : '星旅人'}
-                  </p>
-                  <p className="text-amber-400 text-xs font-mono">
-                    ✨ {typeof profile?.wallet_balance === 'number' ? profile.wallet_balance : 0} 星塵
-                  </p>
-                </div>
-                
-                {/* 大頭貼 */}
-                <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-amber-400 to-orange-500 border border-amber-300/30 flex items-center justify-center text-gray-900 font-bold text-xs shadow-inner">
-                  {typeof profile?.real_name === 'string' ? profile.real_name.substring(0, 1) : '星'}
-                </div>
+                  {/* 🌟 匿名防護：首頁只顯示匿名暱稱，保障隱私 */}
+<p className="text-zinc-200 text-sm font-medium group-hover:text-amber-300 transition-colors">
+  {typeof profile?.anonymous_nickname === 'string' && profile.anonymous_nickname.trim()
+    ? profile.anonymous_nickname
+    : '匿名星旅人'}
+</p>
+<p className="text-amber-400 text-xs font-mono">
+  ✨ {typeof profile?.wallet_balance === 'number' ? profile.wallet_balance : 0} 星塵
+</p>
+</div>
+
+{/* 大頭貼：改取匿名暱稱的第一個字 */}
+<div className="w-8 h-8 rounded-full bg-gradient-to-tr from-amber-400 to-orange-500 border border-amber-300/30 flex items-center justify-center text-gray-900 font-bold text-xs shadow-inner">
+  {typeof profile?.anonymous_nickname === 'string' && profile.anonymous_nickname.trim()
+    ? profile.anonymous_nickname.substring(0, 1)
+    : '星'}
+</div>
               </div>
 
               {/* 登出按鈕 */}
