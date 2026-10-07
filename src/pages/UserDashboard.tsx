@@ -171,22 +171,60 @@ function AccountTab() {
         </div>
       </div>
 
-      <form onSubmit={handleSave} className="space-y-5 bg-white/5 border border-white/10 p-6 rounded-2xl glow-border">
+      <form onSubmit={handleSave} key={profile?.id || 'loading'} className="space-y-5 bg-white/5 border border-white/10 p-6 rounded-2xl glow-border">
+        
+        {/* 1. 舞台真實姓名 */}
         <div>
           <label className="block text-xs font-medium text-gray-300 mb-2">舞台真實姓名（物流核對用，不公開）</label>
-          <input type="text" value={realName} onChange={(e) => setRealName(e.target.value)} placeholder="例如：王小明" className="w-full bg-zinc-900/80 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-amber-400/50" />
+          <input 
+            type="text" 
+            // 🌟 核心修正：拋棄危險的 value，改用最穩固的 defaultValue，直接強讀 Context 的真實資料！
+            defaultValue={profile?.real_name || ''} 
+            onChange={(e) => setRealName(e.target.value)} 
+            placeholder="例如：王小明" 
+            className="w-full bg-zinc-900/80 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-amber-400/50" 
+          />
         </div>
+        
+        {/* 2. 匿名陌生人暱稱 */}
         <div>
           <label className="block text-xs font-medium text-gray-300 mb-2">匿名陌生人暱稱（平台顯示名稱）</label>
-          <input type="text" value={nickname} onChange={(e) => setNickname(e.target.value)} placeholder="請輸入全站顯示的匿名暱稱" className="w-full bg-zinc-900/80 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-amber-400/50" required />
+          <input 
+            type="text" 
+            // 🌟 核心修正：
+            defaultValue={profile?.anonymous_nickname || '匿名小五郎'} 
+            onChange={(e) => setNickname(e.target.value)} 
+            placeholder="請輸入全站顯示的匿名暱稱" 
+            className="w-full bg-zinc-900/80 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-amber-400/50" 
+            required 
+          />
         </div>
+
+        {/* 3. 聯絡電話 */}
         <div>
           <label className="block text-xs font-medium text-gray-300 mb-2">聯絡電話（台灣手機號碼）</label>
-          <input type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="09xxxxxxxx" maxLength={10} className="w-full bg-zinc-900/80 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-amber-400/50" />
+          <input 
+            type="tel" 
+            // 🌟 核心修正：
+            defaultValue={profile?.phone || ''} 
+            onChange={(e) => setPhone(e.target.value)} 
+            placeholder="09xxxxxxxx" 
+            maxLength={10} 
+            className="w-full bg-zinc-900/80 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-amber-400/50" 
+          />
         </div>
+
+        {/* 4. 超商收件門市 / 寄送地址 */}
         <div>
           <label className="block text-xs font-medium text-gray-300 mb-2">超商收件門市 / 寄送地址</label>
-          <input type="text" value={address} onChange={(e) => setAddress(e.target.value)} placeholder="例如：7-11 夢沙門市 (店號xxxxxx)" className="w-full bg-zinc-900/80 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-amber-400/50" />
+          <input 
+            type="text" 
+            // 🌟 核心修正：
+            defaultValue={profile?.address || ''} 
+            onChange={(e) => setAddress(e.target.value)} 
+            placeholder="例如：7-11 夢沙門市 (店號xxxxxx)" 
+            className="w-full bg-zinc-900/80 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-amber-400/50" 
+          />
         </div>
 
         {error && <p className="text-red-400 text-xs bg-red-500/10 p-3 rounded-lg border border-red-500/20">{error}</p>}
