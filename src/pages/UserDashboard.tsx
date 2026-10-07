@@ -66,6 +66,7 @@ function TabButton({ id, activeTab, onClick, icon, label }: { id: TabId; activeT
 function AccountTab() {
   const { session, profile, refreshProfile } = useAuth();
   
+  // 🚀 核心優化：將 React 內部 State 只作為「使用者輸入時的暫存器」
   const [realName, setRealName] = useState('');
   const [nickname, setNickname] = useState('');
   const [phone, setPhone] = useState('');
@@ -75,37 +76,35 @@ function AccountTab() {
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState('');
 
-  // 🌟 🔥 終極合流：強推物件探照燈（配合修復後的 AuthContext）
+  // 🛰️ 【全防禦讀取雷達】：字串級別精確綁定，徹底解開非同步二次覆蓋死鎖
   useEffect(() => {
     const currentUserId = session?.user?.id;
     if (!currentUserId) return;
 
     const loadRealDataWithNoCache = async () => {
       try {
-        console.log('🛰️ [探照燈啟動] 正在向雲端強讀真實單筆 Object 物件...');
-        
-        // 🚀 核心防禦：使用最純粹的 .single()，直接回傳單一物件
-        const { data, error } = await supabase
+        console.log('🛰️ [夢沙雷達開機] 正在強讀雲端 Table 最真實的數據...');
+        const { data, error: fetchError } = await supabase
           .from('users')
-          .select('id, real_name, anonymous_nickname, phone, address, wallet_balance')
+          .select('id, real_name, anonymous_nickname, phone, address')
           .eq('id', currentUserId)
           .single();
 
-        if (error) throw error;
+        if (fetchError) throw fetchError;
 
-        // 🌟 核心修正：此時 data 已經被我們校正為真實物件，直接進行安全讀取！
         if (data) {
-          console.log('✨ [探照燈成功] 順利抓到對齊的雲端 Table 資料:', data);
+          console.log('✨ [雷達解鎖成功] 成功捕捉到雲端最新 Table 資料:', data);
+          // 強制將真實內容填入 React 本地暫存狀態
           setRealName(data.real_name || '');
           setNickname(data.anonymous_nickname || '匿名小五郎');
           setPhone(data.phone || '');
           setAddress(data.address || '');
         }
       } catch (err) {
-        console.warn('❌ 探照燈物件解構失敗，將啟動 Context 備用狀態防禦:', err);
+        console.warn('❌ 讀取雷達遭遇亂流，使用 Context 備用防線:', err);
         if (profile) {
           setRealName(profile.real_name || '');
-          setNickname(profile.anonymous_nickname || '匿名');
+          setNickname(profile.anonymous_nickname || '匿名小五郎');
           setPhone(profile.phone || '');
           setAddress(profile.address || '');
         }
@@ -113,41 +112,54 @@ function AccountTab() {
     };
 
     loadRealDataWithNoCache();
-  }, [session?.user?.id]); 
-
+  }, [session?.user?.id, profile?.id]); // 🌟 核心修正：只鎖定純字串 ID 的變更，絕對不放 profile 物件，徹底斬斷無限重刷與二次覆蓋！
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     setSaved(false);
     
-    if (!nickname.trim()) {
+    // 取得即時填寫的內容（如果使用者沒動過輸入框，則自動沿用雲端現有的真實內容）
+    const targetNickname = nickname.trim() || profile?.anonymous_nickname || '匿名小五郎';
+    const targetRealName = realName.trim() || profile?.real_name || '';
+    const targetPhone = phone.trim() || profile?.phone || '';
+    const targetAddress = address.trim() || profile?.address || '';
+
+    if (!targetNickname.trim()) {
       setError('匿名暱稱不能為空');
+      return;
+    }
+    if (targetPhone && !/^09\d{8}\$/.test(targetPhone)) {
+      setError('請輸入正確的台灣手機號碼格式 (09xxxxxxxx)');
       return;
     }
 
     setSaving(true);
     try {
       const currentUserId = session?.user?.id || (await supabase.auth.getUser()).data.user?.id;
-      if (!currentUserId) throw new Error('找不到有效的登入憑證');
+      if (!currentUserId) throw new Error('找不到有效的登入憑證，請嘗試重新登入');
 
-      // 呼叫最高權限強行寫入通道
+      // 🚀 呼叫我們在後台加裝的最高權限強行寫入通道
       const { error: rpcError } = await supabase.rpc('force_update_user', {
         target_id: currentUserId,
-        new_real_name: realName.trim() || null,
-        new_nickname: nickname.trim(),
-        new_phone: phone.trim() || null,
-        new_address: address.trim() || null
+        new_real_name: targetRealName,
+        new_nickname: targetNickname,
+        new_phone: targetPhone,
+        new_address: targetAddress
       });
 
       if (rpcError) throw rpcError;
 
-      await refreshProfile(); // 通知全站同步
+      // 🔄 同步核心：通知全站 Context 雷達去更新
+      await refreshProfile();
       setSaved(true);
-      setTimeout(() => setSaved(false), 2000);
+      
+      // 🌟 徹底拔除 window.location.reload()！安穩留在原地，且數據瞬間對齊！
+      setTimeout(() => setSaved(false), 2500);
+
     } catch (err: any) {
       console.error('儲存失敗:', err);
-      setError(`儲存失敗: ${err.message || '請檢查網路連線'}`);
+      setError(`儲存失敗: ${err.message || '請檢查雲端連線狀態'}`);
     } finally {
       setSaving(false);
     }
@@ -159,6 +171,7 @@ function AccountTab() {
         <UserCircle className="w-5 h-5 text-amber-300" /> 星旅人休息室
       </h2>
       
+      {/* 憑證資訊面板 */}
       <div className="glass rounded-2xl p-5 glow-border bg-zinc-900/40">
         <p className="text-xs text-gray-500 mb-1">登入憑證帳號 (Email)</p>
         <p className="text-sm font-mono text-amber-200">{session?.user?.email}</p>
@@ -171,27 +184,22 @@ function AccountTab() {
         </div>
       </div>
 
+      {/* 🌟 核心防護外殼：在 form 掛載唯一的 key。當 profile 加載完畢時，強制整顆表單刷新，徹底擊碎非同步定格死鎖！ */}
       <form onSubmit={handleSave} key={profile?.id || 'loading'} className="space-y-5 bg-white/5 border border-white/10 p-6 rounded-2xl glow-border">
-        
-        {/* 1. 舞台真實姓名 */}
         <div>
           <label className="block text-xs font-medium text-gray-300 mb-2">舞台真實姓名（物流核對用，不公開）</label>
           <input 
             type="text" 
-            // 🌟 核心修正：拋棄危險的 value，改用最穩固的 defaultValue，直接強讀 Context 的真實資料！
             defaultValue={profile?.real_name || ''} 
             onChange={(e) => setRealName(e.target.value)} 
             placeholder="例如：王小明" 
             className="w-full bg-zinc-900/80 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-amber-400/50" 
           />
         </div>
-        
-        {/* 2. 匿名陌生人暱稱 */}
         <div>
           <label className="block text-xs font-medium text-gray-300 mb-2">匿名陌生人暱稱（平台顯示名稱）</label>
           <input 
             type="text" 
-            // 🌟 核心修正：
             defaultValue={profile?.anonymous_nickname || '匿名小五郎'} 
             onChange={(e) => setNickname(e.target.value)} 
             placeholder="請輸入全站顯示的匿名暱稱" 
@@ -199,13 +207,10 @@ function AccountTab() {
             required 
           />
         </div>
-
-        {/* 3. 聯絡電話 */}
         <div>
           <label className="block text-xs font-medium text-gray-300 mb-2">聯絡電話（台灣手機號碼）</label>
           <input 
             type="tel" 
-            // 🌟 核心修正：
             defaultValue={profile?.phone || ''} 
             onChange={(e) => setPhone(e.target.value)} 
             placeholder="09xxxxxxxx" 
@@ -213,13 +218,10 @@ function AccountTab() {
             className="w-full bg-zinc-900/80 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-amber-400/50" 
           />
         </div>
-
-        {/* 4. 超商收件門市 / 寄送地址 */}
         <div>
           <label className="block text-xs font-medium text-gray-300 mb-2">超商收件門市 / 寄送地址</label>
           <input 
             type="text" 
-            // 🌟 核心修正：
             defaultValue={profile?.address || ''} 
             onChange={(e) => setAddress(e.target.value)} 
             placeholder="例如：7-11 夢沙門市 (店號xxxxxx)" 
@@ -237,7 +239,6 @@ function AccountTab() {
     </div>
   );
 }
-
 
 
 // ===== 2. 發布夢想分願 (Publish Tab) =====
