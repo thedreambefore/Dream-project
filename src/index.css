@@ -238,3 +238,27 @@ body {
 .pb-safe {
   padding-bottom: env(safe-area-inset-bottom);
 }
+/* ===== 3D Card Flip Engine ===== */
+.perspective-1000 {
+  perspective: 1000px;
+}
+
+.transform-style-3d {
+  transform-style: preserve-3d;
+}
+
+.backface-hidden {
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+}
+
+.rotate-y-180 {
+  transform: rotateY(180deg);
+}
+
+/* 桌機懸停翻轉 (若裝置支援 hover 且非手動鎖定狀態) */
+@media (hover: hover) and (pointer: fine) {
+  .group:hover .group-hover-flip {
+    transform: rotateY(180deg);
+  }
+}
