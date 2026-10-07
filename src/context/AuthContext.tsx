@@ -36,36 +36,40 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
 
- // 2. 核心功能：主動向資料庫撈取用戶的真實錢包與權限狀態（加上破壞快取機制）
+   // 2. 核心功能：主動向資料庫撈取用戶的真實錢包與權限狀態（徹底修正 limit 與 single 衝突）
   const fetchUserProfile = async (userId: string) => {
     try {
-      // 🌟 核心防禦：加上一個隨機的時間戳參數，徹底強迫 Supabase 繞過所有快取，直接去真實 Table 撈最新資料！
+      // 🌟 核心修正：拿掉會衝突的 .limit(1)，改用最純粹的 .single() 去抓那一列 UUID 物件
       const { data, error } = await supabase
         .from('users')
         .select('*')
         .eq('id', userId)
-        .order('created_at', { ascending: false }) // 強制排序也能強迫刷新快取流
-        .limit(1)
         .single();
 
+      // 如果發現錯位或沒資料（PGRST116），自動補建一筆
       if (error && error.code === 'PGRST116') {
-        const { data: newProfile } = await supabase
+        console.log('🛰️ 發現 users 資料表無此 ID，啟動防禦性補建機制...');
+        const { data: newProfile, error: insertError } = await supabase
           .from('users')
           .insert([{ 
             id: userId, 
-            real_name: '新築夢者', 
-            anonymous_nickname: '匿名者',
+            real_name: '', 
+            anonymous_nickname: '匿名小五郎',
             role: 'user', 
             wallet_balance: 500, 
             is_phone_verified: false 
           }])
           .select()
           .single();
+          
+        if (insertError) throw insertError;
         return newProfile;
       }
+
+      if (error) throw error;
       return data;
     } catch (e) {
-      console.error("撈取用戶 Profile 失敗", e);
+      console.error("❌ 雲端資料庫撈取用戶 Profile 發生致命攔截:", e);
       return null;
     }
   };
