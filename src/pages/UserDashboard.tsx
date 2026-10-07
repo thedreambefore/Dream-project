@@ -196,41 +196,339 @@ function AccountTab() {
   );
 }
 
+// ===== 2. 發布夢想分頁 (Publish Tab) =====
 function PublishTab({ onRequireVerify }: { onRequireVerify: () => void }) {
-  const { profile } = useAuth();
+  const { session, profile } = useAuth();
+
   const [title, setTitle] = useState('');
   const [story, setStory] = useState('');
+  const [promise, setPromise] = useState('');
+  const [productPrice, setProductPrice] = useState<number>(500);
+  const [productUrl, setProductUrl] = useState('');
+  const [tagName, setTagName] = useState('學生苦讀中');
+  const [coverEmoji, setCoverEmoji] = useState('✨');
+  
+  // 圖片上傳與壓縮預覽
+  const [imageBase64, setImageBase64] = useState<string | null>(null);
+  const [compressing, setCompressing] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState(false);
 
-  const handlePublishClick = (e: React.FormEvent) => {
+  const tags = ['學生苦讀中', '面試大作戰', '毛孩的願望', '生日邊緣人', '創作旅途', '日常微光'];
+  const emojis = ['✨', '💻', '📚', '🐾', '🎨', '🎵', '☕', '👟', '🎒', '🌱'];
+
+  // 📷 客戶端圖片壓縮引擎 (降畫質、壓至小尺寸，免佔伺服器空間)
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      alert('請上傳圖片格式檔案 (JPG / PNG / WebP)');
+      return;
+    }
+
+    setCompressing(true);
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const img = new Image();
+      img.onload = () => {
+        // 設定最大解析度為 800px (維持清晰同時檔案極小)
+        const maxWidth = 800;
+        let width = img.width;
+        let height = img.height;
+
+        if (width > maxWidth) {
+          height = Math.round((height * maxWidth) / width);
+          width = maxWidth;
+        }
+
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          ctx.drawImage(img, 0, 0, width, height);
+          // 壓至 70% 畫質 JPEG (通常只有 40~70KB)
+          const compressedDataUrl = canvas.toDataURL('image/jpeg', 0.7);
+          setImageBase64(compressedDataUrl);
+        }
+        setCompressing(false);
+      };
+      img.src = event.target?.result as string;
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handlePublishClick = async (e: React.FormEvent) => {
     e.preventDefault();
+    setError('');
+
+    // 1. 手機強驗證防線
+    if (!profile?.is_phone_verified) {
+      onRequireVerify();
+      return;
+    }
+
+    // 2. 敏感詞防護盾牌
     for (const word of SENSITIVE_WORDS) {
-      if (title.includes(word) || story.includes(word)) {
-        alert(`防護盾牌提示：故事包含違禁詞 [ ${word} ] 已被強行攔截。`);
+      if (title.includes(word) || story.includes(word) || promise.includes(word)) {
+        setError(`防護盾牌提示：內容包含敏感詞 [ ${word} ]，請修正後再提交。`);
         return;
       }
     }
-    if (!profile?.is_phone_verified) {
-      onRequireVerify();
-    } else {
-      alert('發布願望成功！此功能下一階段將接通 Realtime 實時齒輪。');
+
+    // 3. 字數與數額檢查
+    if (title.length > 20) {
+      setError('標題不能超過 20 字');
+      return;
+    }
+    if (story.length > 200) {
+      setError('故事內文不能超過 200 字');
+      return;
+    }
+    if (productPrice <= 0) {
+      setError('目標金額需大於 0');
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      const currentUserId = session?.user?.id;
+      if (!currentUserId) throw new Error('請先登入');
+
+      // 4. 寫入資料庫：狀態一律預設為 'pending' 待管理員審核
+      const { error: insertError } = await supabase.from('wishes').insert({
+        user_id: currentUserId,
+        product_name: title.trim(),
+        product_price: Number(productPrice),
+        current_stardust: 0,
+        tag_name: tagName,
+        cover_emoji: coverEmoji,
+        story_text: story.trim(),
+        promise_text: promise.trim() || '願望達成後公開回饋與開箱感謝信！',
+        image_url: imageBase64, // 存入壓縮後的星宿殘影圖
+        product_url: productUrl.trim() || null, // 電商導購連結 (蝦皮 / MOMO)
+        status: 'pending', // 待審核
+        block_reason: null,
+      });
+
+      if (insertError) {
+        // 若表名叫 stories 則 fallback
+        const { error: storyError } = await supabase.from('stories').insert({
+          user_id: currentUserId,
+          product_name: title.trim(),
+          product_price: Number(productPrice),
+          current_stardust: 0,
+          tag_name: tagName,
+          cover_emoji: coverEmoji,
+          story_text: story.trim(),
+          promise_text: promise.trim() || '願望達成後公開回饋與開箱感謝信！',
+          image_url: imageBase64,
+          product_url: productUrl.trim() || null,
+          status: 'pending',
+          block_reason: null,
+        });
+        if (storyError) throw storyError;
+      }
+
+      setSuccess(true);
+      // 清空表單
       setTitle('');
       setStory('');
+      setPromise('');
+      setProductUrl('');
+      setImageBase64(null);
+    } catch (err: any) {
+      console.error('發布願望失敗:', err);
+      setError(`發布失敗: ${err.message || '請確認網路狀態'}`);
+    } finally {
+      setSubmitting(false);
     }
   };
 
   return (
-    <form onSubmit={handlePublishClick} className="space-y-5 max-w-xl bg-white/5 border border-white/10 p-6 rounded-2xl glow-border animate-fade-in">
-      <h2 className="text-lg font-bold text-amber-100 flex items-center gap-2"><Sparkles className="w-5 h-5 text-amber-300" /> 發布夢想沙漏</h2>
-      <div>
-        <label className="block text-xs text-gray-300 mb-2">一條故事與圓夢承諾 (標題)</label>
-        <input type="text" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="例如：若籌齊報名碎銀，我將免費為偏鄉孩童課輔一年" className="w-full bg-zinc-900/80 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-amber-400/50" required />
-      </div>
-      <div>
-        <label className="block text-xs text-gray-300 mb-2">您的故事細節</label>
-        <textarea rows={5} value={story} onChange={(e) => setStory(e.target.value)} placeholder="請誠摯描述現狀..." className="w-full bg-zinc-900/80 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-amber-400/50 resize-none" required />
-      </div>
-      <button type="submit" className="w-full bg-gradient-to-r from-amber-500 to-yellow-600 text-gray-950 font-bold p-3 rounded-xl text-sm flex items-center justify-center gap-2"><Plus className="w-4 h-4" />注入星光 · 發布願望沙漏</button>
-    </form>
+    <div className="max-w-xl space-y-5 animate-fade-in">
+      <h2 className="text-xl font-bold text-amber-100 flex items-center gap-2">
+        <Sparkles className="w-5 h-5 text-amber-300" /> 發布夢想沙漏
+      </h2>
+
+      {success ? (
+        <div className="glass rounded-2xl p-8 glow-border text-center space-y-3 bg-zinc-900/60">
+          <div className="text-5xl animate-bounce">⏳</div>
+          <h3 className="text-lg font-bold text-amber-200">願望已送交星際審核室！</h3>
+          <p className="text-xs text-zinc-400 leading-relaxed max-w-sm mx-auto">
+            為了杜絕不當內容與詐騙，管理團隊將在 24 小時內完成人工審核。通過後將自動點亮於前台願望交易所！
+          </p>
+          <button
+            onClick={() => setSuccess(false)}
+            className="text-xs text-amber-300 border border-amber-400/40 px-4 py-2 rounded-xl hover:bg-amber-500/10 transition-all cursor-pointer mt-2"
+          >
+            繼續寫下另一個願望
+          </button>
+        </div>
+      ) : (
+        <form onSubmit={handlePublishClick} className="space-y-5 bg-white/5 border border-white/10 p-6 rounded-2xl glow-border">
+          {/* 標題 (限 20 字) */}
+          <div>
+            <div className="flex justify-between items-center mb-1.5">
+              <label className="text-xs font-medium text-gray-300">願望物品 / 核心目標 (限 20 字)</label>
+              <span className={`text-[11px] font-mono ${title.length > 20 ? 'text-red-400 font-bold' : 'text-zinc-500'}`}>
+                {title.length}/20
+              </span>
+            </div>
+            <input
+              type="text"
+              value={title}
+              maxLength={20}
+              onChange={(e) => setTitle(e.target.value)}
+              placeholder="例如：二手電繪板 (供課後創作)"
+              className="w-full bg-zinc-900/80 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-amber-400/50"
+              required
+            />
+          </div>
+
+          {/* 標籤與圖示選擇 */}
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-medium text-gray-300 mb-1.5">分類標籤</label>
+              <select
+                value={tagName}
+                onChange={(e) => setTagName(e.target.value)}
+                className="w-full bg-zinc-900/80 border border-white/10 rounded-xl px-3 py-2.5 text-xs text-amber-200 focus:outline-none focus:border-amber-400/50"
+              >
+                {tags.map((t) => (
+                  <option key={t} value={t} className="bg-zinc-900 text-white">#{t}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-300 mb-1.5">願望星宿圖示</label>
+              <div className="flex gap-1.5 overflow-x-auto pb-1 hide-scrollbar">
+                {emojis.map((em) => (
+                  <button
+                    key={em}
+                    type="button"
+                    onClick={() => setCoverEmoji(em)}
+                    className={`w-9 h-9 rounded-lg text-base flex-shrink-0 transition-all ${
+                      coverEmoji === em ? 'bg-amber-500/30 border border-amber-400' : 'bg-white/5 border border-white/10'
+                    }`}
+                  >
+                    {em}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* 目標金額與電商連結 */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-medium text-gray-300 mb-1.5">心願所需星塵 (NT$)</label>
+              <input
+                type="number"
+                min={10}
+                value={productPrice}
+                onChange={(e) => setProductPrice(Number(e.target.value))}
+                placeholder="例如：1200"
+                className="w-full bg-zinc-900/80 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-amber-300 font-mono font-bold focus:outline-none focus:border-amber-400/50"
+                required
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-300 mb-1.5">商品電商連結 (蝦皮 / MOMO / PChome)</label>
+              <input
+                type="url"
+                value={productUrl}
+                onChange={(e) => setProductUrl(e.target.value)}
+                placeholder="https://shopee.tw/..."
+                className="w-full bg-zinc-900/80 border border-white/10 rounded-xl px-4 py-2.5 text-xs text-white placeholder-zinc-600 focus:outline-none focus:border-amber-400/50"
+              />
+            </div>
+          </div>
+
+          {/* 圖片上傳與即時深空濾鏡預覽 */}
+          <div>
+            <label className="block text-xs font-medium text-gray-300 mb-1.5">
+              情境照片上傳 <span className="text-zinc-500">(自動壓縮並套用星空濾鏡)</span>
+            </label>
+            <input
+              type="file"
+              accept="image/*"
+              onChange={handleImageChange}
+              className="block w-full text-xs text-zinc-400 file:mr-3 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-amber-500/20 file:text-amber-200 hover:file:bg-amber-500/30 file:cursor-pointer"
+            />
+            {compressing && <p className="text-xs text-amber-300 mt-1">⏳ 正在壓縮並生成星空濾鏡遮罩...</p>}
+
+            {/* 即時濾鏡預覽卡片 */}
+            {imageBase64 && (
+              <div className="mt-3 relative h-36 rounded-xl overflow-hidden border border-amber-400/30 group">
+                <img
+                  src={imageBase64}
+                  alt="預覽"
+                  className="w-full h-full object-cover brightness-60 contrast-125"
+                />
+                {/* 強制同化為深色星空殘影遮罩 */}
+                <div className="absolute inset-0 bg-gradient-to-t from-[#0a0a1a] via-[#120e28]/85 to-[#241446]/60 mix-blend-overlay" />
+                <div className="absolute inset-0 bg-gradient-to-b from-transparent via-black/40 to-[#0a0a1a]" />
+                <div className="absolute bottom-2 left-3 right-3 flex justify-between items-center text-[10px] text-amber-200">
+                  <span>✨ 星空殘影同化效果預覽成功</span>
+                  <button
+                    type="button"
+                    onClick={() => setImageBase64(null)}
+                    className="text-red-400 hover:text-red-300 underline"
+                  >
+                    移除圖片
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* 故事內文 (限 200 字) */}
+          <div>
+            <div className="flex justify-between items-center mb-1.5">
+              <label className="text-xs font-medium text-gray-300">您的困境故事 (限 200 字，背面展示)</label>
+              <span className={`text-[11px] font-mono ${story.length > 200 ? 'text-red-400 font-bold' : 'text-zinc-500'}`}>
+                {story.length}/200
+              </span>
+            </div>
+            <textarea
+              rows={4}
+              maxLength={200}
+              value={story}
+              onChange={(e) => setStory(e.target.value)}
+              placeholder="請誠摯分享您的故事與現狀。大家將投入心願燃料，共同推進進度條來追這份故事的結局..."
+              className="w-full bg-zinc-900/80 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-amber-400/50 resize-none"
+              required
+            />
+          </div>
+
+          {/* 終章承諾 */}
+          <div>
+            <label className="block text-xs font-medium text-gray-300 mb-1.5">終章承諾 (滿願後的回饋，如開箱信、成果圖)</label>
+            <input
+              type="text"
+              value={promise}
+              onChange={(e) => setPromise(e.target.value)}
+              placeholder="例如：圓夢後將公開作品成果與手寫感謝卡！"
+              className="w-full bg-zinc-900/80 border border-white/10 rounded-xl px-4 py-2.5 text-xs text-white focus:outline-none focus:border-amber-400/50"
+            />
+          </div>
+
+          {error && <p className="text-red-400 text-xs bg-red-500/10 p-3 rounded-lg border border-red-500/20">{error}</p>}
+
+          <button
+            type="submit"
+            disabled={submitting || compressing}
+            className="w-full bg-gradient-to-r from-amber-500 to-yellow-600 text-gray-950 font-black text-sm py-3.5 rounded-xl hover:from-amber-400 hover:to-yellow-500 transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+          >
+            {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
+            送交管理團隊審核 · 發布願望沙漏
+          </button>
+        </form>
+      )}
+    </div>
   );
 }
 
