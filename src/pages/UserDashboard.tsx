@@ -38,7 +38,7 @@ export function UserDashboard({ onClose, onGoHome, onOpenAdmin }: { onClose: () 
         <div className="flex gap-1 overflow-x-auto hide-scrollbar max-w-4xl mx-auto">
           <TabButton id="account" activeTab={activeTab} onClick={setActiveTab} icon={<UserCircle className="w-4 h-4" />} label="帳號資訊" />
           <TabButton id="publish" activeTab={activeTab} onClick={setActiveTab} icon={<Plus className="w-4 h-4" />} label="發布夢想" />
-          <TabButton id="wallet" activeTab={activeTab} onClick={setActiveTab} icon={<Wallet className="w-4 h-4" />} label="星塵錢包" />
+          <TabButton id="wallet" activeTab={activeTab} onClick={setActiveTab} icon={<Wallet className="w-4 h-4" />} label="星光榮譽榜" />
           <TabButton id="invested" activeTab={activeTab} onClick={setActiveTab} icon={<BookOpen className="w-4 h-4" />} label="追番牆" />
           <TabButton id="memorial" activeTab={activeTab} onClick={setActiveTab} icon={<Award className="w-4 h-4" />} label="星願紀念館" />
         </div>
@@ -297,7 +297,7 @@ function PublishTab({ onRequireVerify }: { onRequireVerify: () => void }) {
       const currentUserId = session?.user?.id;
       if (!currentUserId) throw new Error('請先登入');
 
-      // 4. 寫入資料庫：狀態一律預設為 'pending' 待管理員審核
+      // 4. 寫入資料庫：全站只寫入 wishes 表
       const { error: insertError } = await supabase.from('wishes').insert({
         user_id: currentUserId,
         product_name: title.trim(),
@@ -307,33 +307,18 @@ function PublishTab({ onRequireVerify }: { onRequireVerify: () => void }) {
         cover_emoji: coverEmoji,
         story_text: story.trim(),
         promise_text: promise.trim() || '願望達成後公開回饋與開箱感謝信！',
-        image_url: imageBase64, // 存入壓縮後的星宿殘影圖
-        product_url: productUrl.trim() || null, // 電商導購連結 (蝦皮 / MOMO)
-        status: 'pending', // 待審核
+        image_url: imageBase64,
+        product_url: productUrl.trim() || null,
+        status: 'pending',
         block_reason: null,
       });
 
       if (insertError) {
-        // 若表名叫 stories 則 fallback
-        const { error: storyError } = await supabase.from('stories').insert({
-          user_id: currentUserId,
-          product_name: title.trim(),
-          product_price: Number(productPrice),
-          current_stardust: 0,
-          tag_name: tagName,
-          cover_emoji: coverEmoji,
-          story_text: story.trim(),
-          promise_text: promise.trim() || '願望達成後公開回饋與開箱感謝信！',
-          image_url: imageBase64,
-          product_url: productUrl.trim() || null,
-          status: 'pending',
-          block_reason: null,
-        });
-        if (storyError) throw storyError;
+        console.error('Wishes 寫入錯誤詳情:', insertError);
+        throw insertError;
       }
 
       setSuccess(true);
-      // 清空表單
       setTitle('');
       setStory('');
       setPromise('');
