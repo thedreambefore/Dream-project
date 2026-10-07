@@ -2,7 +2,6 @@ import { useState, useMemo } from 'react';
 import { X, Lock, Loader2, Heart, Sparkles } from 'lucide-react';
 import { supabase, type Story } from '@/lib/supabase';
 import { useAuth } from '@/context/AuthContext';
-import { AuthModal } from './AuthModal';
 import { updateWish } from '@/lib/backend';
 
 export function InvestModal({ story, onClose }: { story: Story; onClose: () => void }) {
