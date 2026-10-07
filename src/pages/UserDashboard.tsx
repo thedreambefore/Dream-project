@@ -67,28 +67,25 @@ function TabButton({ id, activeTab, onClick, icon, label }: { id: TabId; activeT
 function AccountTab() {
   const { session, profile, refreshProfile } = useAuth();
   
-  // 🚀 防禦性初始化：如果 profile 裡有值，直接當作第一顆星沙預設進去
-  const [realName, setRealName] = useState(profile?.real_name || '');
-  const [nickname, setNickname] = useState(profile?.anonymous_nickname || '匿名小五郎');
-  const [phone, setPhone] = useState(profile?.phone || '');
-  const [address, setAddress] = useState(profile?.address || '');
+  // 🌟 修正：一開始直接精確地去抓 profile 的值，抓不到才Fallback
+  const [realName, setRealName] = useState('');
+  const [nickname, setNickname] = useState('匿名小五郎');
+  const [phone, setPhone] = useState('');
+  const [address, setAddress] = useState('');
   
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState('');
 
-  // 🌟 🔥 核心大改動：全時雷達主動同步！
-  // 當網頁重整、或者 Context 重新撈完資料時，這個 useEffect 會強制執行 100% 覆蓋 React State，
-  // 徹底修正「網頁顯示不會讀取 Table 內容」的萬年死鎖！
+  // 🌟 核心對齊：只要 profile 載入完成，無條件覆蓋輸入框，徹底擊碎預設值！
   useEffect(() => {
     if (profile) {
-      console.log('🛰️ 夢沙讀取雷達成功捕捉到雲端最新 Table 資料:', profile);
       setRealName(profile.real_name || '');
       setNickname(profile.anonymous_nickname || '匿名小五郎');
       setPhone(profile.phone || '');
       setAddress(profile.address || '');
     }
-  }, [profile]); // 👈 只要 profile 一改變，立刻強制重新填寫輸入框！
+  }, [profile]);
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
