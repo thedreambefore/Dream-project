@@ -49,9 +49,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           .insert([{ 
             id: userId, 
             real_name: '', 
-            anonymous_nickname: '匿名小五郎',
+            anonymous_nickname: '匿名',
             role: 'user', 
-            wallet_balance: 500, 
+            wallet_balance: 0, 
             is_phone_verified: false 
           }])
           .select()
@@ -131,9 +131,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       await supabase.from('users').insert([{
         id: data.user.id,
         real_name: nameInput || '築夢者',
-        anonymous_nickname: '匿名小五郎',
+        anonymous_nickname: '匿名',
         role: 'user',
-        wallet_balance: 500,
+        wallet_balance: 0,
         is_phone_verified: false
       }]);
     }
