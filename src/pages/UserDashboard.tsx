@@ -75,42 +75,34 @@ function AccountTab() {
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState('');
 
-      // 🌟 🔥 終極合流修正：全防禦不短路探照燈！
+  // 🌟 🔥 終極合流：強推物件探照燈（配合修復後的 AuthContext）
   useEffect(() => {
-    // 確切抓出當前字串型態的 ID
     const currentUserId = session?.user?.id;
-    if (!currentUserId) {
-      console.log('🛰️ 探照燈提示：目前尚未拿到有效的 User ID，暫緩發射。');
-      return;
-    }
+    if (!currentUserId) return;
 
     const loadRealDataWithNoCache = async () => {
       try {
-        console.log('🛰️ [防爆晶片] 正在向雲端真實 Table 讀取最新狀態，ID:', currentUserId);
+        console.log('🛰️ [探照燈啟動] 正在向雲端強讀真實單筆 Object 物件...');
         
+        // 🚀 核心防禦：使用最純粹的 .single()，直接回傳單一物件
         const { data, error } = await supabase
           .from('users')
           .select('id, real_name, anonymous_nickname, phone, address, wallet_balance')
           .eq('id', currentUserId)
-          .limit(1);
+          .single();
 
         if (error) throw error;
 
-        // 🌟 核心修正：精確判斷陣列是否存在，並用 [0] 進行單筆資料解構！
-        if (data && data.length > 0) {
-          const realData = data[0]; 
-          console.log('✨ [防爆晶片] 成功突破快取！撈到雲端最新對齊資料:', realData);
-          
-          setRealName(realData.real_name || '');
-          setNickname(realData.anonymous_nickname || '匿名');
-          setPhone(realData.phone || '');
-          setAddress(realData.address || '');
-        } else {
-          console.warn('⚠️ 雲端資料庫回傳成功，但該 UID 在 users 表格中內容為空列！');
+        // 🌟 核心修正：此時 data 已經被我們校正為真實物件，直接進行安全讀取！
+        if (data) {
+          console.log('✨ [探照燈成功] 順利抓到對齊的雲端 Table 資料:', data);
+          setRealName(data.real_name || '');
+          setNickname(data.anonymous_nickname || '匿名小五郎');
+          setPhone(data.phone || '');
+          setAddress(data.address || '');
         }
       } catch (err) {
-        console.error('❌ 快取探照燈遭遇致命亂流:', err);
-        // 保留最底層 Context 狀態當防禦
+        console.warn('❌ 探照燈物件解構失敗，將啟動 Context 備用狀態防禦:', err);
         if (profile) {
           setRealName(profile.real_name || '');
           setNickname(profile.anonymous_nickname || '匿名');
@@ -121,11 +113,8 @@ function AccountTab() {
     };
 
     loadRealDataWithNoCache();
-    
-    // 🌟 終極修正：依賴項「千萬不要放 profile 或 session 物件」！
-    // 我們只綁定當前登入的實體 UUID 字串（session?.user?.id），
-    // 這樣在打開休息室時，它就只會乾淨俐落地跑「一次」，絕對不會引發背景狂刷造成的無聲失敗！
-  }, [session?.user?.id]); 
+  }, [session?.user?.id, profile]); // 🌟 綁定這兩個最安全的狀態變更
+
 
 
   const handleSave = async (e: React.FormEvent) => {
