@@ -283,6 +283,8 @@ function AccountTab() {
 }
 
 // ===== 2. 發布夢想分願 (Publish Tab) =====
+const SENSITIVE_WORDS = ['詐騙', '匯款', '違禁品', '賭博', '毒品', '槍械'];
+
 function PublishTab({ onRequireVerify }: { onRequireVerify: () => void }) {
   const { profile } = useAuth();
   const [title, setTitle] = useState('');
