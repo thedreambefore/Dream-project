@@ -298,7 +298,7 @@ export function InvestModal({ story, onClose }: { story: Story; onClose: () => v
                   ) : (
                     <>
                       <Lock className="w-4 h-4" />
-                      付款並加密封存我的留言 (NT$ {feeDetails.total})
+                      {session?.user ? `付款並加密封存我的留言 (NT$ ${feeDetails.total})` : `登入以贊助心願 (NT$ ${feeDetails.total})`}
                     </>
                   )}
                 </button>
@@ -311,7 +311,13 @@ export function InvestModal({ story, onClose }: { story: Story; onClose: () => v
         </div>
       </div>
 
-      {showAuth && <AuthModal onClose={() => setShowAuth(false)} />}
+      {showAuth && (
+  <AuthModal 
+    onClose={() => {
+      setShowAuth(false);
+    }} 
+  />
+)}
     </>
   );
 }
