@@ -75,32 +75,37 @@ function AccountTab() {
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState('');
 
-  // 🌟 🔥 終極殺招：主動式探照燈！一開頁面，直接向雲端 Table 抓最真實的資料
+    // 🌟 🔥 終極合流：破壞快取探照燈完全體！
   useEffect(() => {
-    const loadRealDataFromCloud = async () => {
+    const loadRealDataWithNoCache = async () => {
       const currentUserId = session?.user?.id || (await supabase.auth.getUser()).data.user?.id;
       if (!currentUserId) return;
 
       try {
-        console.log('🛰️ 正在發射超強探照燈，強讀雲端 Table 最真實的數據...');
+        console.log('🛰️ 正在發射破壞快取射線，強讀真實 Table 資料...');
+        
+        // 🚀 核心防禦：在 select 中明確撈取欄位，並加上 limit(1) 強迫 Supabase 直接去真實資料庫撈最新值！
         const { data, error } = await supabase
           .from('users')
-          .select('*')
+          .select('id, real_name, anonymous_nickname, phone, address, wallet_balance')
           .eq('id', currentUserId)
-          .single();
+          .limit(1); // 💡 改用 limit(1) 拿陣列，比 .single() 更能防範快取死鎖！
 
         if (error) throw error;
 
-        if (data) {
-          // 🚀 強制將雲端最新的真實文字刻進輸入框，徹底打破「匿名小五郎」預設值定格！
-          setRealName(data.real_name || '');
-          setNickname(data.anonymous_nickname || data.nickname || '');
-          setPhone(data.phone || '');
-          setAddress(data.address || '');
+        // 陣列防禦性解構
+        if (data && data.length > 0) {
+          const realData = data[0];
+          console.log('✨ 破壞快取成功！成功撈到雲端最新對齊資料:', realData);
+          
+          setRealName(realData.real_name || '');
+          // 支援兩種欄位名稱防禦
+          setNickname(realData.anonymous_nickname || realData.nickname || '匿名小五郎');
+          setPhone(realData.phone || '');
+          setAddress(realData.address || '');
         }
       } catch (err) {
-        console.warn('探照燈讀取遭遇亂流，退回 Context 暫存防禦:', err);
-        // 如果強讀失敗，才退回原有的 Context 狀態防禦
+        console.error('快取探照燈遭遇亂流:', err);
         if (profile) {
           setRealName(profile.real_name || '');
           setNickname(profile.anonymous_nickname || '匿名小五郎');
@@ -110,8 +115,9 @@ function AccountTab() {
       }
     };
 
-    loadRealDataFromCloud();
+    loadRealDataWithNoCache();
   }, [profile, session]);
+
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
