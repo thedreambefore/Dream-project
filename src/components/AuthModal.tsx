@@ -62,7 +62,7 @@ export function AuthModal({ onClose }: { onClose: () => void }) {
 
   return (
     <div
-      className="fixed inset-0 z-70 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm scale-in"
+      className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm scale-in"
       onClick={onClose}
     >
       <div
