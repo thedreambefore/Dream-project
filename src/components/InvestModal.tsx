@@ -92,11 +92,10 @@ export function InvestModal({ story, onClose }: { story: Story; onClose: () => v
         // 寫入贊助紀錄：同時帶上 wish_id 與 story_id 避免關聯失效
         await supabase.from('investments').insert({
           user_id: session.user.id,
-          wish_id: story.id,   // 🌟 確保外鍵對齊
-          story_id: story.id,  // 🌟 相容舊代碼
-          amount: amount,
-          message: message.trim() || null,
-          is_anonymous: true,
+          wish_id: story.id,      // 🌟 保證 wish_id 寫入
+          story_id: story.id,     // 🌟 保證相容欄位 story_id 寫入
+          amount: Number(amount),
+          message: customMessage.trim() || '默默為你注入了一份星塵！', // 避免空值造成 null
           is_hidden: false,
         });
 
