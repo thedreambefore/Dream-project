@@ -1,9 +1,10 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { Coins, Sparkles, Heart, Compass, ShieldAlert, Flag } from 'lucide-react';
 import type { Story } from '@/lib/supabase';
 import { InvestModal } from './InvestModal';
 import { useAuth } from '@/context/AuthContext';
 import { blockWish, updateWish } from '@/lib/backend';
+import { supabase } from '@/lib/supabaseClient';
 
 interface ExtendedStory extends Story {
   image_url?: string | null;
@@ -13,9 +14,10 @@ interface ExtendedStory extends Story {
 }
 
 export function StoryCard({ story, index }: { story: Story; index: number }) {
-  const { profile, refreshProfile } = useAuth();
+  const { session, profile, refreshProfile } = useAuth();
   const [showInvest, setShowInvest] = useState(false);
   const [isMobileFlipped, setIsMobileFlipped] = useState(false);
+  const [isBookmarked, setIsBookmarked] = useState(false);
   
   const [showActionModal, setShowActionModal] = useState(false);
   const [actionReason, setActionReason] = useState('');
@@ -30,12 +32,44 @@ export function StoryCard({ story, index }: { story: Story; index: number }) {
   const isFulfilled = story.status === 'fulfilled';
   const isNearComplete = progress >= 90 && progress < 100;
 
+  // 檢查是否已收藏
+  useEffect(() => {
+    if (!session?.user?.id || isOfficial) return;
+    supabase
+      .from('bookmarks')
+      .select('id')
+      .eq('user_id', session.user.id)
+      .eq('wish_id', story.id)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (data) setIsBookmarked(true);
+      });
+  }, [session?.user?.id, story.id, isOfficial]);
+
+  // 切換收藏愛心
+  const handleToggleBookmark = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!session?.user?.id) {
+      alert('請先登入後再加入追番收藏！');
+      return;
+    }
+    try {
+      if (isBookmarked) {
+        await supabase.from('bookmarks').delete().eq('user_id', session.user.id).eq('wish_id', story.id);
+        setIsBookmarked(false);
+      } else {
+        await supabase.from('bookmarks').insert({ user_id: session.user.id, wish_id: story.id });
+        setIsBookmarked(true);
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
   const constellationSeed = useMemo(() => {
     let hash = 0;
     const str = story.id || 'seed';
-    for (let i = 0; i < str.length; i++) {
-      hash = str.charCodeAt(i) + ((hash << 5) - hash);
-    }
+    for (let i = 0; i < str.length; i++) hash = str.charCodeAt(i) + ((hash << 5) - hash);
     const hue1 = Math.abs(hash % 40) + 240;
     const hue2 = Math.abs((hash >> 2) % 30) + 280;
     return {
@@ -59,23 +93,15 @@ export function StoryCard({ story, index }: { story: Story; index: number }) {
   };
 
   const handleConfirmAction = async () => {
-    if (!actionReason.trim()) {
-      alert('請填寫原因');
-      return;
-    }
+    if (!actionReason.trim()) return alert('請填寫原因');
     setIsActionLoading(true);
     try {
       if (isAdmin) {
-        // 管理員直接下架封鎖
         await blockWish(story.id, actionReason.trim());
         alert('✅ 管理員操作成功：卡片已即刻下架隱藏。');
       } else {
-        // 🌟 一般用戶檢舉：不改動 status，卡片留在首頁！只標註 is_reported
-        await updateWish(story.id, { 
-          is_reported: true,
-          report_reason: actionReason.trim()
-        });
-        alert('🚩 感謝您的通報！管理團隊將在後台查核此卡片，查核期間卡片正常展示。');
+        await updateWish(story.id, { is_reported: true, report_reason: actionReason.trim() });
+        alert('🚩 感謝通報！管理團隊將在後台查核，卡片暫時維持展示。');
       }
       setShowActionModal(false);
       setActionReason('');
@@ -93,11 +119,7 @@ export function StoryCard({ story, index }: { story: Story; index: number }) {
         style={{ animationDelay: `${index * 0.06}s` }}
         onClick={() => setIsMobileFlipped((prev) => !prev)}
       >
-        <div
-          className={`relative w-full h-full duration-700 transform-style-3d group-hover-flip transition-transform ease-out ${
-            isMobileFlipped ? 'rotate-y-180' : ''
-          }`}
-        >
+        <div className={`relative w-full h-full duration-700 transform-style-3d group-hover-flip transition-transform ease-out ${isMobileFlipped ? 'rotate-y-180' : ''}`}>
           {/* 正面 */}
           <div className="absolute inset-0 w-full h-full rounded-2xl glass glow-border overflow-hidden backface-hidden flex flex-col justify-between p-5 bg-zinc-950/90 shadow-2xl">
             <div className="absolute inset-0 pointer-events-none overflow-hidden -z-10">
@@ -125,12 +147,24 @@ export function StoryCard({ story, index }: { story: Story; index: number }) {
                   <Sparkles className="w-3 text-amber-300" />
                   #{story.tag_name}
                 </span>
-                {isFulfilled ? (
-                  <span className="text-xs px-2.5 py-0.5 rounded-full bg-emerald-500/20 border border-emerald-400/40 text-emerald-300 font-bold">✓ 已履約</span>
-                ) : (
-                  <div className="text-2xl drop-shadow-[0_0_12px_rgba(251,191,36,0.6)]">{story.cover_emoji}</div>
+
+                {/* ❤️ 愛心收藏快捷鍵 */}
+                {!isOfficial && (
+                  <button
+                    type="button"
+                    onClick={handleToggleBookmark}
+                    className={`p-1.5 rounded-full border transition-all ${
+                      isBookmarked
+                        ? 'bg-rose-500/20 border-rose-500/50 text-rose-400 scale-110 shadow-[0_0_10px_rgba(244,63,94,0.4)]'
+                        : 'bg-white/5 border-white/10 text-zinc-400 hover:text-white hover:bg-white/10'
+                    }`}
+                    title={isBookmarked ? '已加入追番牆' : '點擊加入追番牆'}
+                  >
+                    <Heart className={`w-3.5 h-3.5 ${isBookmarked ? 'fill-rose-400' : ''}`} />
+                  </button>
                 )}
               </div>
+
               <h3 className="font-bold text-amber-100 text-lg leading-snug line-clamp-2 mt-2 drop-shadow-md">
                 {story.product_name}
               </h3>
@@ -178,9 +212,7 @@ export function StoryCard({ story, index }: { story: Story; index: number }) {
                     type="button"
                     onClick={handleOpenActionModal}
                     className={`text-[10px] px-2 py-0.5 rounded-md flex items-center gap-1 transition-all ${
-                      isAdmin 
-                        ? 'bg-red-500/20 text-red-300 hover:bg-red-500/30 border border-red-500/30 font-bold' 
-                        : 'bg-white/5 text-zinc-500 hover:text-zinc-300 hover:bg-white/10'
+                      isAdmin ? 'bg-red-500/20 text-red-300 hover:bg-red-500/30 border border-red-500/30 font-bold' : 'bg-white/5 text-zinc-500 hover:text-zinc-300 hover:bg-white/10'
                     }`}
                   >
                     {isAdmin ? <><ShieldAlert className="w-3 h-3" /> 下架</> : <><Flag className="w-3 h-3" /> 檢舉</>}
@@ -214,10 +246,7 @@ export function StoryCard({ story, index }: { story: Story; index: number }) {
               ) : (
                 <button
                   type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setShowInvest(true);
-                  }}
+                  onClick={(e) => { e.stopPropagation(); setShowInvest(true); }}
                   className={`w-full touch-btn py-3 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 transition-all shadow-lg cursor-pointer ${
                     isNearComplete
                       ? 'bg-gradient-to-r from-amber-400 to-yellow-500 text-zinc-950 pulse-gold font-black'
@@ -238,49 +267,24 @@ export function StoryCard({ story, index }: { story: Story; index: number }) {
           story={story} 
           onClose={() => {
             setShowInvest(false);
-            refreshProfile(); // 🌟 關閉後立刻強制刷新個人 Profile 星塵數字！
+            refreshProfile();
           }} 
         />
       )}
 
       {showActionModal && (
-        <div 
-          className="fixed inset-0 z-[65] flex items-center justify-center p-4 bg-black/75 backdrop-blur-md scale-in"
-          onClick={(e) => { e.stopPropagation(); setShowActionModal(false); }}
-        >
-          <div 
-            className="glass-strong rounded-2xl w-full max-w-sm p-6 glow-border border-red-500/30 bg-zinc-950 space-y-4"
-            onClick={(e) => e.stopPropagation()}
-          >
+        <div className="fixed inset-0 z-[65] flex items-center justify-center p-4 bg-black/75 backdrop-blur-md scale-in" onClick={(e) => { e.stopPropagation(); setShowActionModal(false); }}>
+          <div className="glass-strong rounded-2xl w-full max-w-sm p-6 glow-border border-red-500/30 bg-zinc-950 space-y-4" onClick={(e) => e.stopPropagation()}>
             <h3 className="text-base font-bold text-amber-200 flex items-center gap-2">
               {isAdmin ? '⚠️ 管理員強制下架卡片' : '🚩 檢舉不當願望故事'}
             </h3>
             <p className="text-xs text-zinc-400">
-              {isAdmin 
-                ? `請輸入下架「${story.product_name}」的違規理由，將立刻從首頁隱藏：` 
-                : '請填寫檢舉原因（卡片會保留於首頁，並交由管理員核實定奪）：'}
+              {isAdmin ? `請輸入下架「${story.product_name}」的違規理由，將立刻從首頁隱藏：` : '請填寫檢舉原因（卡片會保留於首頁，並交由管理員核實定奪）：'}
             </p>
-            <textarea
-              rows={3}
-              value={actionReason}
-              onChange={(e) => setActionReason(e.target.value)}
-              placeholder="請填寫具體原因..."
-              className="w-full bg-zinc-900 border border-white/10 rounded-xl p-3 text-xs text-white focus:outline-none focus:border-red-400/50 resize-none"
-            />
+            <textarea rows={3} value={actionReason} onChange={(e) => setActionReason(e.target.value)} placeholder="請填寫具體原因..." className="w-full bg-zinc-900 border border-white/10 rounded-xl p-3 text-xs text-white focus:outline-none focus:border-red-400/50 resize-none" />
             <div className="flex gap-2">
-              <button
-                type="button"
-                onClick={() => setShowActionModal(false)}
-                className="flex-1 py-2 rounded-xl border border-white/10 text-xs text-zinc-400 hover:text-white"
-              >
-                取消
-              </button>
-              <button
-                type="button"
-                disabled={isActionLoading}
-                onClick={handleConfirmAction}
-                className="flex-1 py-2 rounded-xl bg-red-500 hover:bg-red-400 text-white font-bold text-xs"
-              >
+              <button type="button" onClick={() => setShowActionModal(false)} className="flex-1 py-2 rounded-xl border border-white/10 text-xs text-zinc-400 hover:text-white">取消</button>
+              <button type="button" disabled={isActionLoading} onClick={handleConfirmAction} className="flex-1 py-2 rounded-xl bg-red-500 hover:bg-red-400 text-white font-bold text-xs">
                 {isActionLoading ? '處理中...' : isAdmin ? '確認下架隱藏' : '送出通報檢舉'}
               </button>
             </div>
