@@ -203,7 +203,6 @@ function ModerationTab() {
   const [stories, setStories] = useState<Story[]>([]);
   const [loading, setLoading] = useState(true);
   
-  // 🌟 1. 這裡擴充了 'letters' 子標籤！
   const [subTab, setSubTab] = useState<'reported' | 'letters' | 'fulfilled' | 'all'>('reported');
 
   // 出貨審查彈窗狀態
@@ -223,20 +222,16 @@ function ModerationTab() {
 
   // 各類別名單篩選
   const reportedWishes = stories.filter((s) => (s as any).is_reported && !isBlockedStatus(s.status));
-  // 🌟 感謝信待審名單 (letter_status === 'pending')
   const pendingLetters = stories.filter((s) => (s as any).letter_status === 'pending');
-  // 滿額待出貨名單
   const fulfilledWishes = stories.filter((s) => (s.status === 'full_funded' || s.current_stardust >= s.product_price) && s.status !== 'fulfilled');
   const allList = stories;
 
-  // 通過感謝信
   const handleApproveLetter = async (id: string) => {
     await updateWish(id, { letter_status: 'approved' });
     alert('✅ 感謝信已審核通過！已正式推播至贊助者追番牆。');
     loadStories();
   };
 
-  // 駁回感謝信
   const handleRejectLetter = async (id: string) => {
     const reason = prompt('請輸入感謝信駁回修改原因：', '感謝信內容過於簡略，或照片未清晰拍攝商品。');
     if (!reason) return;
@@ -245,16 +240,18 @@ function ModerationTab() {
     loadStories();
   };
 
-  // 出貨審查彈窗
+  // 🌟 修復核心 1：同時向 wish_id 與 story_id 撈取贊助與留言，並關聯暱稱
   const handleOpenShippingModal = async (story: any) => {
     setShippingStory(story);
     setAdminBlessing('');
     setLoadingInvestments(true);
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('investments')
-      .select('*')
-      .eq('story_id', story.id)
+      .select('*, users:user_id(anonymous_nickname)')
+      .or(`wish_id.eq.${story.id},story_id.eq.${story.id}`)
       .order('created_at', { ascending: true });
+
+    if (error) console.error('讀取贊助留言錯誤:', error);
     setInvestmentsList(data || []);
     setLoadingInvestments(false);
   };
@@ -266,17 +263,52 @@ function ModerationTab() {
     );
   };
 
+  // 🌟 修復核心 2：出貨時，將在途燃料結算為每位贊助者的永久 wallet_balance 星塵點數！
   const handleConfirmShipment = async () => {
     if (!shippingStory) return;
     setShippingSubmit(true);
     try {
       const defaultBlessing = '🌟 夢沙星空見證了這份純粹的善意，願這份溫暖伴隨你迎向嶄新的明天！';
+      
+      // 1. 抓取這筆願望的所有贊助人與金額
+      const { data: invList } = await supabase
+        .from('investments')
+        .select('user_id, amount')
+        .or(`wish_id.eq.${shippingStory.id},story_id.eq.${shippingStory.id}`);
+
+      if (invList && invList.length > 0) {
+        // 匯總每位贊助者在該心願注入的總金額
+        const userSums: Record<string, number> = {};
+        invList.forEach((inv) => {
+          if (inv.user_id) {
+            userSums[inv.user_id] = (userSums[inv.user_id] || 0) + Number(inv.amount || 0);
+          }
+        });
+
+        // 逐一結算至贊助者的榮譽點數 (wallet_balance)
+        for (const [userId, addAmount] of Object.entries(userSums)) {
+          const { data: userData } = await supabase
+            .from('users')
+            .select('wallet_balance')
+            .eq('id', userId)
+            .maybeSingle();
+
+          const currentBalance = Number(userData?.wallet_balance || 0);
+          await supabase
+            .from('users')
+            .update({ wallet_balance: currentBalance + addAmount })
+            .eq('id', userId);
+        }
+      }
+
+      // 2. 將願望正式轉為 fulfilled (履約完結)
       await updateWish(shippingStory.id, {
         status: 'fulfilled',
         admin_blessing: adminBlessing.trim() || defaultBlessing,
         is_fulfilled_reviewed: true,
       });
-      alert('🎉 已完成出貨審查！該願望已正式進入已履約完結狀態。');
+
+      alert('🎉 已完成出貨審查！在途燃料已全數結算為贊助者的星光榮譽點數，該願望已登陸追番牆！');
       setShippingStory(null);
       loadStories();
     } catch (e: any) {
@@ -311,7 +343,6 @@ function ModerationTab() {
           <Ban className="w-5 h-5" /> 卡片巡檢與物流出貨台
         </h2>
         
-        {/* 🌟 2. 這裡加入了「💌 感謝信審核」子標籤按鈕！ */}
         <div className="flex bg-zinc-900 border border-white/10 p-1 rounded-xl gap-1 overflow-x-auto hide-scrollbar">
           <button
             onClick={() => setSubTab('reported')}
@@ -351,7 +382,7 @@ function ModerationTab() {
         </div>
       </div>
 
-      {/* 🌟 3. 感謝信審核專屬面板 */}
+      {/* 感謝信審核專屬面板 */}
       {subTab === 'letters' && (
         <div className="space-y-3">
           {pendingLetters.length === 0 ? (
@@ -385,17 +416,15 @@ function ModerationTab() {
                   </div>
                 </div>
 
-                {/* 開箱照查驗 */}
-                {(story as any).unboxing_photo_url && (
+                {story.unboxing_photo_url && (
                   <div className="h-44 max-w-sm rounded-xl overflow-hidden border border-white/10">
-                    <img src={(story as any).unboxing_photo_url} alt="開箱照" className="w-full h-full object-cover" />
+                    <img src={story.unboxing_photo_url} alt="開箱照" className="w-full h-full object-cover" />
                   </div>
                 )}
 
-                {/* 感謝信內文查驗 */}
                 <div className="bg-black/40 border border-white/5 rounded-xl p-3 text-xs text-zinc-200 leading-relaxed">
                   <p className="font-bold text-zinc-400 mb-1">【創作者感謝信內文】</p>
-                  {(story as any).thank_you_letter || '(無內文)'}
+                  {story.thank_you_letter || '(無內文)'}
                 </div>
               </div>
             ))
@@ -423,9 +452,9 @@ function ModerationTab() {
                   </p>
                 </div>
                 <div className="flex gap-2">
-                  {(story as any).product_url && (
+                  {story.product_url && (
                     <a
-                      href={(story as any).product_url}
+                      href={story.product_url}
                       target="_blank"
                       rel="noreferrer"
                       className="px-3 py-2 bg-zinc-800 text-zinc-300 rounded-xl text-xs hover:bg-zinc-700 flex items-center gap-1"
@@ -493,7 +522,7 @@ function ModerationTab() {
         </div>
       )}
 
-      {/* 確認出貨彈窗 */}
+      {/* 確認出貨與留言審核彈窗 */}
       {shippingStory && (
         <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-black/85 backdrop-blur-md overflow-y-auto">
           <div className="glass-strong rounded-3xl w-full max-w-xl p-6 glow-border border-emerald-400/30 bg-zinc-950 space-y-4 my-auto">
@@ -524,10 +553,13 @@ function ModerationTab() {
                       }`}
                     >
                       <div className="flex-1">
-                        <span className="text-amber-400 font-mono font-bold mr-2">+${inv.amount}</span>
-                        <span className={inv.is_hidden ? 'line-through text-red-400' : 'text-zinc-200'}>
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-amber-400 font-mono font-bold">+${inv.amount}</span>
+                          <span className="text-[10px] text-zinc-400">by {inv.users?.anonymous_nickname || '匿名星旅人'}</span>
+                        </div>
+                        <p className={`mt-0.5 ${inv.is_hidden ? 'line-through text-red-400' : 'text-zinc-200'}`}>
                           {inv.message || '(無留言)'}
-                        </span>
+                        </p>
                       </div>
                       <button
                         type="button"
@@ -565,9 +597,9 @@ function ModerationTab() {
               <button
                 onClick={handleConfirmShipment}
                 disabled={shippingSubmit}
-                className="flex-1 py-2.5 text-xs bg-emerald-500 hover:bg-emerald-400 text-zinc-950 font-bold rounded-xl transition-all"
+                className="flex-1 py-2.5 text-xs bg-emerald-500 hover:bg-emerald-400 text-zinc-950 font-bold rounded-xl transition-all cursor-pointer"
               >
-                {shippingSubmit ? '出貨中...' : '確認完成出貨 (解鎖履約狀態)'}
+                {shippingSubmit ? '結算並出貨中...' : '確認完成出貨 (結算榮譽點數)'}
               </button>
             </div>
           </div>
@@ -576,6 +608,7 @@ function ModerationTab() {
     </div>
   );
 }
+
 // ===== 3. 用戶名冊與停權 (Users Management Tab) =====
 function UsersManagementTab() {
   const [users, setUsers] = useState<any[]>([]);
