@@ -3,6 +3,7 @@ import { X, Loader2, Wallet, BookOpen, Award, Plus, LogOut, UserCircle, Save, Sp
 import { supabase } from '@/lib/supabaseClient';
 import { useAuth } from '@/context/AuthContext';
 import { PhoneVerificationModal } from '@/components/PhoneVerificationModal';
+import { SandEffectCard } from '@/components/SandEffectCard';
 
 // 🚨 補上先前遺漏的敏感詞定義，徹底消滅 Rollup traceVariable 崩潰
 const SENSITIVE_WORDS = ['詐騙', '匯款', '違禁品', '賭博', '毒品', '槍械'];
@@ -788,107 +789,16 @@ function MyWishesTab({ onEditWish }: { onEditWish: () => void }) {
           此分類下目前無心願。
         </div>
       ) : (
-        <div className="space-y-4">
-          {filteredList.map((w) => {
-            const isBlocked = w.status === 'blocked' || w.status === '已封鎖';
-            const isPending = w.status === 'pending';
-            const isFulfilled = w.status === 'fulfilled';
-            const isFunded = w.status === 'full_funded';
-            const letterStatus = w.letter_status || 'none';
-            const progress = Math.min(100, Math.round(((w.current_stardust || 0) / (w.product_price || 1)) * 100));
-
-            return (
-              <div
-                key={w.id}
-                className={`rounded-2xl p-5 border transition-all ${
-                  isBlocked
-                    ? 'bg-red-950/20 border-red-500/50 shadow-[0_0_20px_rgba(239,68,68,0.15)]'
-                    : isPending
-                    ? 'bg-zinc-900/60 border-amber-400/20'
-                    : 'bg-zinc-900/60 border-white/10'
-                }`}
-              >
-                <div className="flex justify-between items-start mb-2">
-                  <div className="flex items-center gap-2">
-                    <span className="text-2xl">{w.cover_emoji}</span>
-                    <h3 className="font-bold text-amber-100 text-base">{w.product_name}</h3>
-                  </div>
-                  <span className={`text-xs px-2.5 py-0.5 rounded-full font-bold ${
-                    isBlocked ? 'bg-red-500/20 text-red-300 border border-red-500/40' :
-                    isPending ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40' :
-                    isFulfilled ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-400/40' :
-                    isFunded ? 'bg-yellow-500/20 text-yellow-300' : 'bg-emerald-500/10 text-emerald-300'
-                  }`}>
-                    {isBlocked ? '❌ 已駁回 / 下架' : isPending ? '⏳ 星際審核中' : isFulfilled ? '🎉 已履約完結' : isFunded ? '📦 募滿待出貨' : '🌟 集資進行中'}
-                  </span>
-                </div>
-
-                <p className="text-xs text-zinc-400 line-clamp-2 mb-2">{w.story_text}</p>
-                <p className="text-[11px] text-zinc-500 font-mono mb-3">目標：NT$ {w.product_price.toLocaleString()}</p>
-
-                {/* 被駁回修正 */}
-                {isBlocked && (
-                  <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-3 mb-3 space-y-1.5">
-                    <p className="text-xs font-bold text-red-300">⚠️ 駁回 / 下架原因：</p>
-                    <p className="text-xs text-red-200/90 pl-2">{w.block_reason || '內容不符規範，請調整後重新送審。'}</p>
-                    <button
-                      type="button"
-                      onClick={() => handleStartEdit(w)}
-                      className="mt-2 text-xs bg-red-500/20 hover:bg-red-500/30 text-red-200 border border-red-500/40 px-3 py-1.5 rounded-lg font-bold"
-                    >
-                      ✏️ 修正金額、連結與內容並再次提交
-                    </button>
-                  </div>
-                )}
-
-                {/* 💌 感謝信審核閉環專區 */}
-                {(isFulfilled || isFunded) && (
-                  <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-xl p-3 mb-2 space-y-2">
-                    <div className="flex justify-between items-center">
-                      <span className="text-xs text-emerald-300 font-bold">
-                        {letterStatus === 'approved' ? '✓ 感謝信已審核通過並公開' :
-                         letterStatus === 'pending' ? '⏳ 感謝信審核中 (暫不可修改)' :
-                         letterStatus === 'rejected' ? '❌ 感謝信未通過審核' : '💌 集資已達標，請提交感謝信'}
-                      </span>
-
-                      {/* 只有在尚未提交，或被駁回時才給編輯！ */}
-                      {(letterStatus === 'none' || letterStatus === 'rejected') && (
-                        <button
-                          onClick={() => {
-                            setLetterWish(w);
-                            setThankYouLetter(w.thank_you_letter || '');
-                            setUnboxingPhoto(w.unboxing_photo_url || null);
-                          }}
-                          className="px-3 py-1 bg-emerald-500 text-zinc-950 font-bold rounded-lg text-xs"
-                        >
-                          {letterStatus === 'rejected' ? '修改重送感謝信' : '撰寫開箱感謝信'}
-                        </button>
-                      )}
-                    </div>
-
-                    {/* 駁回理由展示 */}
-                    {letterStatus === 'rejected' && (
-                      <p className="text-xs text-red-300 bg-red-500/10 p-2 rounded-lg">
-                        駁回理由：{w.letter_reject_reason || '照片不清晰或感謝信過於簡略，請修改後重送。'}
-                      </p>
-                    )}
-                  </div>
-                )}
-
-                {!isBlocked && (
-                  <div className="space-y-1">
-                    <div className="flex justify-between text-xs font-mono text-zinc-400">
-                      <span>進度: {w.current_stardust || 0} / {w.product_price} 星塵</span>
-                      <span className="text-amber-300 font-bold">{progress}%</span>
-                    </div>
-                    <div className="w-full h-1.5 bg-white/10 rounded-full overflow-hidden">
-                      <div className="h-full bg-amber-400 rounded-full" style={{ width: `${progress}%` }} />
-                    </div>
-                  </div>
-                )}
-              </div>
-            );
-          })}
+        /* 🌟 替換為星砂波浪閃卡網格 */
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+          {filteredList.map((w, idx) => (
+            <SandEffectCard
+              key={w.id}
+              wish={w}
+              index={idx}
+              showChatOnClick={true}
+            />
+          ))}
         </div>
       )}
 
@@ -979,7 +889,6 @@ function MyWishesTab({ onEditWish }: { onEditWish: () => void }) {
 }
 
 // ===== 5. 追番牆 (InvestedTab：全卡片化 + 雙軌 AND 篩選器) =====
-import { TrackedWishCard } from '@/components/TrackedWishCard'; // 請確認在頂部 import
 
 function InvestedTab() {
   const { session } = useAuth();
