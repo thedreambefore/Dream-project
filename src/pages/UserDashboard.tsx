@@ -7,7 +7,7 @@ import { PhoneVerificationModal } from '@/components/PhoneVerificationModal';
 // 🚨 補上先前遺漏的敏感詞定義，徹底消滅 Rollup traceVariable 崩潰
 const SENSITIVE_WORDS = ['詐騙', '匯款', '違禁品', '賭博', '毒品', '槍械'];
 
-type TabId = 'account' | 'publish' | 'wallet' | 'invested' | 'memorial';
+type TabId = 'account' | 'myWishes' | 'publish' | 'wallet' | 'invested' | 'memorial';
 
 export function UserDashboard({ onClose, onGoHome, onOpenAdmin }: { onClose: () => void; onGoHome: () => void; onOpenAdmin?: () => void }) {
   const { profile, refreshProfile, logout } = useAuth();
@@ -36,20 +36,21 @@ export function UserDashboard({ onClose, onGoHome, onOpenAdmin }: { onClose: () 
       {/* 標籤切換列 */}
       <div className="sticky top-16 z-10 glass border-b border-white/5 px-4 sm:px-6 bg-zinc-950/60 backdrop-blur-sm">
         <div className="flex gap-1 overflow-x-auto hide-scrollbar max-w-4xl mx-auto">
-          <TabButton id="account" activeTab={activeTab} onClick={setActiveTab} icon={<UserCircle className="w-4 h-4" />} label="帳號資訊" />
-          <TabButton id="publish" activeTab={activeTab} onClick={setActiveTab} icon={<Plus className="w-4 h-4" />} label="發布夢想" />
-          <TabButton id="wallet" activeTab={activeTab} onClick={setActiveTab} icon={<Wallet className="w-4 h-4" />} label="星光榮譽榜" />
-          <TabButton id="invested" activeTab={activeTab} onClick={setActiveTab} icon={<BookOpen className="w-4 h-4" />} label="追番牆" />
-          <TabButton id="memorial" activeTab={activeTab} onClick={setActiveTab} icon={<Award className="w-4 h-4" />} label="星願紀念館" />
-        </div>
+  <TabButton id="account" activeTab={activeTab} onClick={setActiveTab} icon={<UserCircle className="w-4 h-4" />} label="帳號資訊" />
+  <TabButton id="myWishes" activeTab={activeTab} onClick={setActiveTab} icon={<Sparkles className="w-4 h-4" />} label="我的心願" />
+  <TabButton id="publish" activeTab={activeTab} onClick={setActiveTab} icon={<Plus className="w-4 h-4" />} label="發布夢想" />
+  <TabButton id="wallet" activeTab={activeTab} onClick={setActiveTab} icon={<Award className="w-4 h-4" />} label="星光榮譽榜" />
+  <TabButton id="invested" activeTab={activeTab} onClick={setActiveTab} icon={<BookOpen className="w-4 h-4" />} label="追番牆" />
+</div>
       </div>
 
       {/* 內文主區塊 */}
       <div className="max-w-4xl mx-auto px-4 sm:px-6 py-8">
         {activeTab === 'account' && <AccountTab />}
+        {activeTab === 'myWishes' && <MyWishesTab onEditWish={() => setActiveTab('publish')} />}
         {activeTab === 'publish' && <PublishTab onRequireVerify={() => setShowPhoneVerify(true)} />}
         {activeTab === 'wallet' && <WalletTab />}
-        {activeTab === 'invested' && <div className="max-w-md mx-auto text-center border border-slate-800 bg-slate-900/10 rounded-2xl p-12 text-gray-500"><BookOpen className="mx-auto mb-3 opacity-40 w-8 h-8"/>追結局牆目前空空如也，快去首頁投資故事吧！</div>}
+        {activeTab === 'invested' && <div className="max-w-md mx-auto text-center border border-slate-800 bg-slate-900/10 rounded-2xl p-12 text-gray-500"><BookOpen className="mx-auto mb-3 opacity-40 w-8 h-8"/>結局牆目前空空如也，快去首頁看看故事吧！</div>}
         {activeTab === 'memorial' && <div className="max-w-md mx-auto text-center border border-slate-800 bg-slate-900/10 rounded-2xl p-12 text-gray-500"><Award className="mx-auto mb-3 opacity-40 w-8 h-8"/>星願履約紀念館尚未獲得榮譽勛章。</div>}
       </div>
 
@@ -370,7 +371,7 @@ function PublishTab({ onRequireVerify }: { onRequireVerify: () => void }) {
               value={title}
               maxLength={20}
               onChange={(e) => setTitle(e.target.value)}
-              placeholder="例如：二手電繪板 (供課後創作)"
+              placeholder="例如：二手電繪板 (供課後創作)"//標題範例
               className="w-full bg-zinc-900/80 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-amber-400/50"
               required
             />
@@ -499,7 +500,7 @@ function PublishTab({ onRequireVerify }: { onRequireVerify: () => void }) {
               type="text"
               value={promise}
               onChange={(e) => setPromise(e.target.value)}
-              placeholder="例如：圓夢後將公開作品成果與手寫感謝卡！"
+              placeholder="例如：圓夢後將公開作品成果與手寫感謝卡！"//承諾範例
               className="w-full bg-zinc-900/80 border border-white/10 rounded-xl px-4 py-2.5 text-xs text-white focus:outline-none focus:border-amber-400/50"
             />
           </div>
@@ -520,6 +521,187 @@ function PublishTab({ onRequireVerify }: { onRequireVerify: () => void }) {
   );
 }
 
+// ===== 4. 我的心願追蹤與重編分頁 (My Wishes Tab) =====
+function MyWishesTab({ onEditWish }: { onEditWish: () => void }) {
+  const { session } = useAuth();
+  const [myWishes, setMyWishes] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  // 重新編輯目標
+  const [editingWish, setEditingWish] = useState<any | null>(null);
+  const [editTitle, setEditTitle] = useState('');
+  const [editStory, setEditStory] = useState('');
+  const [editPromise, setEditPromise] = useState('');
+  const [savingEdit, setSavingEdit] = useState(false);
+
+  const loadMyWishes = async () => {
+    if (!session?.user?.id) return;
+    setLoading(true);
+    const { data } = await supabase
+      .from('wishes')
+      .select('*')
+      .eq('user_id', session.user.id)
+      .order('created_at', { ascending: false });
+    setMyWishes(data || []);
+    setLoading(false);
+  };
+
+  useEffect(() => {
+    loadMyWishes();
+  }, [session?.user?.id]);
+
+  const handleStartEdit = (w: any) => {
+    setEditingWish(w);
+    setEditTitle(w.product_name || w.title || '');
+    setEditStory(w.story_text || '');
+    setEditPromise(w.promise_text || '');
+  };
+
+  const handleResubmit = async () => {
+    if (!editingWish) return;
+    setSavingEdit(true);
+    try {
+      const { error } = await supabase
+        .from('wishes')
+        .update({
+          title: editTitle.trim(),
+          product_name: editTitle.trim(),
+          story_text: editStory.trim(),
+          promise_text: editPromise.trim(),
+          status: 'pending', // 再次轉為待審核
+          block_reason: null, // 清空駁回理由
+        })
+        .eq('id', editingWish.id);
+
+      if (error) throw error;
+      alert('✨ 已重新提交！該願望已再次送交星際審核室審閱。');
+      setEditingWish(null);
+      loadMyWishes();
+    } catch (e: any) {
+      alert(`更新失敗: ${e.message}`);
+    } finally {
+      setSavingEdit(false);
+    }
+  };
+
+  if (loading) return <div className="text-center py-16 text-zinc-500">正在探尋您的星願紀錄...</div>;
+
+  return (
+    <div className="max-w-2xl space-y-5 animate-fade-in">
+      <h2 className="text-xl font-bold text-amber-100 flex items-center gap-2">
+        <Sparkles className="w-5 h-5 text-amber-300" /> 我的心願追蹤館
+      </h2>
+
+      {myWishes.length === 0 ? (
+        <div className="text-center py-16 border border-white/5 rounded-2xl bg-zinc-900/30 text-zinc-500 space-y-3">
+          <p>您目前尚未拋下任何願望沙漏。</p>
+          <button onClick={onEditWish} className="text-xs text-amber-300 border border-amber-400/30 px-3.5 py-1.5 rounded-full hover:bg-amber-500/10">
+            立即許下第一個心願
+          </button>
+        </div>
+      ) : (
+        <div className="space-y-4">
+          {myWishes.map((w) => {
+            const isBlocked = w.status === 'blocked' || w.status === '已封鎖';
+            const isPending = w.status === 'pending';
+            const isFulfilled = w.status === 'fulfilled';
+            const progress = Math.min(100, Math.round(((w.current_stardust || 0) / (w.product_price || 1)) * 100));
+
+            return (
+              <div
+                key={w.id}
+                className={`rounded-2xl p-5 border transition-all ${
+                  isBlocked
+                    ? 'bg-red-950/20 border-red-500/50 shadow-[0_0_20px_rgba(239,68,68,0.15)]'
+                    : isPending
+                    ? 'bg-zinc-900/60 border-amber-400/20'
+                    : 'bg-zinc-900/60 border-white/10'
+                }`}
+              >
+                <div className="flex justify-between items-start mb-2">
+                  <div className="flex items-center gap-2">
+                    <span className="text-2xl">{w.cover_emoji}</span>
+                    <h3 className="font-bold text-amber-100 text-base">{w.product_name}</h3>
+                  </div>
+                  <span className={`text-xs px-2.5 py-0.5 rounded-full font-bold ${
+                    isBlocked ? 'bg-red-500/20 text-red-300 border border-red-500/40' :
+                    isPending ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40' :
+                    isFulfilled ? 'bg-emerald-500/20 text-emerald-300' : 'bg-emerald-500/10 text-emerald-300'
+                  }`}>
+                    {isBlocked ? '❌ 已駁回 / 下架' : isPending ? '⏳ 星際審核中' : isFulfilled ? '🎉 已履約' : '🌟 集資進行中'}
+                  </span>
+                </div>
+
+                <p className="text-xs text-zinc-400 line-clamp-2 mb-3">{w.story_text}</p>
+
+                {/* 🚨 如果是被下架或駁回，顯示半透明紅框與理由 */}
+                {isBlocked && (
+                  <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-3 mb-3 space-y-1.5">
+                    <p className="text-xs font-bold text-red-300 flex items-center gap-1">
+                      ⚠️ 審核未通過 / 違規駁回原因：
+                    </p>
+                    <p className="text-xs text-red-200/90 pl-2">
+                      {w.block_reason || '內容不符規範，請調整後重新送審。'}
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => handleStartEdit(w)}
+                      className="mt-2 text-xs bg-red-500/20 hover:bg-red-500/30 text-red-200 border border-red-500/40 px-3 py-1.5 rounded-lg font-bold transition-all"
+                    >
+                      ✏️ 修正內容並再次提交審核
+                    </button>
+                  </div>
+                )}
+
+                {/* 進度條 */}
+                {!isBlocked && (
+                  <div className="space-y-1">
+                    <div className="flex justify-between text-xs font-mono text-zinc-400">
+                      <span>進度: {w.current_stardust || 0} / {w.product_price} 星塵</span>
+                      <span className="text-amber-300 font-bold">{progress}%</span>
+                    </div>
+                    <div className="w-full h-1.5 bg-white/10 rounded-full overflow-hidden">
+                      <div className="h-full bg-amber-400 rounded-full" style={{ width: `${progress}%` }} />
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* ✏️ 重新編修彈窗 */}
+      {editingWish && (
+        <div className="fixed inset-0 z-[65] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
+          <div className="glass-strong rounded-2xl w-full max-w-lg p-6 glow-border border-amber-400/30 bg-zinc-950 space-y-4">
+            <h3 className="text-base font-bold text-amber-200">修正內容重新送審</h3>
+            <div>
+              <label className="text-xs text-zinc-400 block mb-1">願望標題</label>
+              <input type="text" maxLength={20} value={editTitle} onChange={(e) => setEditTitle(e.target.value)} className="w-full bg-zinc-900 border border-white/10 rounded-xl p-2.5 text-xs text-white" />
+            </div>
+            <div>
+              <label className="text-xs text-zinc-400 block mb-1">故事內文 (限 200 字)</label>
+              <textarea rows={4} maxLength={200} value={editStory} onChange={(e) => setEditStory(e.target.value)} className="w-full bg-zinc-900 border border-white/10 rounded-xl p-2.5 text-xs text-white resize-none" />
+            </div>
+            <div>
+              <label className="text-xs text-zinc-400 block mb-1">終章承諾</label>
+              <input type="text" value={editPromise} onChange={(e) => setEditPromise(e.target.value)} className="w-full bg-zinc-900 border border-white/10 rounded-xl p-2.5 text-xs text-white" />
+            </div>
+            <div className="flex gap-2">
+              <button onClick={() => setEditingWish(null)} className="flex-1 py-2 text-xs border border-white/10 rounded-xl text-zinc-400">取消</button>
+              <button onClick={handleResubmit} disabled={savingEdit} className="flex-1 py-2 text-xs bg-amber-500 hover:bg-amber-400 text-zinc-950 font-bold rounded-xl">
+                {savingEdit ? '提交中...' : '確認重新提交審核'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ===== 5. 榮譽稱號分頁 (WalletTab) =====
 function WalletTab() {
   const { profile } = useAuth();
   const contribution = profile?.wallet_balance ?? 0;
