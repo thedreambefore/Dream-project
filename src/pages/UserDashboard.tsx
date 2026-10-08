@@ -50,8 +50,8 @@ export function UserDashboard({ onClose, onGoHome, onOpenAdmin }: { onClose: () 
         {activeTab === 'myWishes' && <MyWishesTab onEditWish={() => setActiveTab('publish')} />}
         {activeTab === 'publish' && <PublishTab onRequireVerify={() => setShowPhoneVerify(true)} />}
         {activeTab === 'wallet' && <WalletTab />}
-        {activeTab === 'invested' && <div className="max-w-md mx-auto text-center border border-slate-800 bg-slate-900/10 rounded-2xl p-12 text-gray-500"><BookOpen className="mx-auto mb-3 opacity-40 w-8 h-8"/>結局牆目前空空如也，快去首頁看看故事吧！</div>}
-        {activeTab === 'memorial' && <div className="max-w-md mx-auto text-center border border-slate-800 bg-slate-900/10 rounded-2xl p-12 text-gray-500"><Award className="mx-auto mb-3 opacity-40 w-8 h-8"/>星願履約紀念館尚未獲得榮譽勛章。</div>}
+        {/* 🌟 修正這裡：將原本的靜態 dummy div 替換為真正的 InvestedTab */}
+        {activeTab === 'invested' && <InvestedTab />}
       </div>
 
       {showPhoneVerify && <PhoneVerificationModal onClose={() => setShowPhoneVerify(false)} onVerified={async () => { await refreshProfile(); }} />}
@@ -992,7 +992,8 @@ function InvestedTab() {
 
       // 1. 撈取愛心收藏
       const { data: bData } = await supabase.from('bookmarks').select('wish_id').eq('user_id', session.user.id);
-      // 2. 撈取贊助紀錄
+      
+      // 2. 撈取贊助紀錄 (同時兼顧 wish_id 與相容 story_id)
       const { data: iData } = await supabase.from('investments').select('wish_id, story_id, amount').eq('user_id', session.user.id);
 
       const investMap = new Map();
@@ -1007,6 +1008,7 @@ function InvestedTab() {
       ].filter(Boolean)));
 
       if (allWishIds.length > 0) {
+        // 不過濾 status，包含 fulfilled 完結履約的卡片皆會載入
         const { data: wishList } = await supabase.from('wishes').select('*').in('id', allWishIds);
         if (wishList) {
           const merged = wishList.map((w) => ({
@@ -1016,6 +1018,8 @@ function InvestedTab() {
           }));
           setTrackedWishes(merged);
         }
+      } else {
+        setTrackedWishes([]);
       }
       setLoading(false);
     };
@@ -1069,13 +1073,13 @@ function InvestedTab() {
                     </div>
                   </div>
                   <span className={`text-xs px-2.5 py-0.5 rounded-full font-bold ${
-                    isFulfilled ? 'bg-emerald-500/20 text-emerald-300' : 'bg-amber-500/10 text-amber-300'
+                    isFulfilled ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40' : 'bg-amber-500/10 text-amber-300'
                   }`}>
                     {isFulfilled ? '🎉 已履約圓夢' : `集資中 ${progress}%`}
                   </span>
                 </div>
 
-                {/* 創作者開箱感謝信 (需審核通過 letter_status === 'approved' 才展示) */}
+                {/* 創作者開箱感謝信 (審核通過 letter_status === 'approved' 才展示) */}
                 {w.letter_status === 'approved' && w.thank_you_letter && (
                   <div className="bg-emerald-950/20 border border-emerald-400/30 rounded-xl p-3.5 space-y-2">
                     <p className="text-xs font-bold text-emerald-300 flex items-center gap-1">💌 創作者終章開箱感謝信：</p>
