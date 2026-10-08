@@ -198,11 +198,13 @@ function PendingApprovalTab() {
   );
 }
 
-// ===== 2. 卡片審查分頁 (三大區塊：被檢舉、待出貨、全站) =====
+// ===== 2. 卡片審查分頁 (含：被檢舉、感謝信審核、滿額出貨、全站) =====
 function ModerationTab() {
   const [stories, setStories] = useState<Story[]>([]);
   const [loading, setLoading] = useState(true);
-  const [subTab, setSubTab] = useState<'reported' | 'fulfilled' | 'all'>('reported');
+  
+  // 🌟 1. 這裡擴充了 'letters' 子標籤！
+  const [subTab, setSubTab] = useState<'reported' | 'letters' | 'fulfilled' | 'all'>('reported');
 
   // 出貨審查彈窗狀態
   const [shippingStory, setShippingStory] = useState<any | null>(null);
@@ -219,12 +221,31 @@ function ModerationTab() {
 
   useEffect(() => { loadStories(); }, [loadStories]);
 
+  // 各類別名單篩選
   const reportedWishes = stories.filter((s) => (s as any).is_reported && !isBlockedStatus(s.status));
-  // 滿額待出貨：狀態為 full_funded 或金額達標但尚未 fulfilled
+  // 🌟 感謝信待審名單 (letter_status === 'pending')
+  const pendingLetters = stories.filter((s) => (s as any).letter_status === 'pending');
+  // 滿額待出貨名單
   const fulfilledWishes = stories.filter((s) => (s.status === 'full_funded' || s.current_stardust >= s.product_price) && s.status !== 'fulfilled');
   const allList = stories;
 
-  // 打開出貨審查彈窗
+  // 通過感謝信
+  const handleApproveLetter = async (id: string) => {
+    await updateWish(id, { letter_status: 'approved' });
+    alert('✅ 感謝信已審核通過！已正式推播至贊助者追番牆。');
+    loadStories();
+  };
+
+  // 駁回感謝信
+  const handleRejectLetter = async (id: string) => {
+    const reason = prompt('請輸入感謝信駁回修改原因：', '感謝信內容過於簡略，或照片未清晰拍攝商品。');
+    if (!reason) return;
+    await updateWish(id, { letter_status: 'rejected', letter_reject_reason: reason });
+    alert('已駁回，創作者可根據理由重新修改提交。');
+    loadStories();
+  };
+
+  // 出貨審查彈窗
   const handleOpenShippingModal = async (story: any) => {
     setShippingStory(story);
     setAdminBlessing('');
@@ -238,7 +259,6 @@ function ModerationTab() {
     setLoadingInvestments(false);
   };
 
-  // 剔除 / 恢復某則留言
   const handleToggleHideMessage = async (invId: string, currentHidden: boolean) => {
     await supabase.from('investments').update({ is_hidden: !currentHidden }).eq('id', invId);
     setInvestmentsList((prev) =>
@@ -246,7 +266,6 @@ function ModerationTab() {
     );
   };
 
-  // 確認出貨完結
   const handleConfirmShipment = async () => {
     if (!shippingStory) return;
     setShippingSubmit(true);
@@ -292,26 +311,38 @@ function ModerationTab() {
           <Ban className="w-5 h-5" /> 卡片巡檢與物流出貨台
         </h2>
         
-        <div className="flex bg-zinc-900 border border-white/10 p-1 rounded-xl gap-1">
+        {/* 🌟 2. 這裡加入了「💌 感謝信審核」子標籤按鈕！ */}
+        <div className="flex bg-zinc-900 border border-white/10 p-1 rounded-xl gap-1 overflow-x-auto hide-scrollbar">
           <button
             onClick={() => setSubTab('reported')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all whitespace-nowrap cursor-pointer ${
               subTab === 'reported' ? 'bg-red-500/20 text-red-300 border border-red-500/40' : 'text-zinc-400 hover:text-white'
             }`}
           >
             🚩 被檢舉待查 ({reportedWishes.length})
           </button>
+          
+          <button
+            onClick={() => setSubTab('letters')}
+            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all whitespace-nowrap cursor-pointer ${
+              subTab === 'letters' ? 'bg-purple-500/20 text-purple-300 border border-purple-500/40' : 'text-zinc-400 hover:text-white'
+            }`}
+          >
+            💌 感謝信審核 ({pendingLetters.length})
+          </button>
+
           <button
             onClick={() => setSubTab('fulfilled')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all whitespace-nowrap cursor-pointer ${
               subTab === 'fulfilled' ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40' : 'text-zinc-400 hover:text-white'
             }`}
           >
             📦 滿額待審查出貨 ({fulfilledWishes.length})
           </button>
+
           <button
             onClick={() => setSubTab('all')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all whitespace-nowrap cursor-pointer ${
               subTab === 'all' ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40' : 'text-zinc-400 hover:text-white'
             }`}
           >
@@ -320,7 +351,59 @@ function ModerationTab() {
         </div>
       </div>
 
-      {/* 滿額待審查出貨列表 */}
+      {/* 🌟 3. 感謝信審核專屬面板 */}
+      {subTab === 'letters' && (
+        <div className="space-y-3">
+          {pendingLetters.length === 0 ? (
+            <div className="text-center py-16 text-zinc-500 border border-white/5 rounded-2xl bg-zinc-900/20">
+              目前無待審核的開箱感謝信。
+            </div>
+          ) : (
+            pendingLetters.map((story) => (
+              <div key={story.id} className="glass rounded-2xl p-5 border border-purple-500/30 bg-purple-950/10 space-y-3">
+                <div className="flex justify-between items-start gap-4">
+                  <div>
+                    <span className="text-xs font-bold text-purple-300 bg-purple-500/20 px-2.5 py-0.5 rounded-full">
+                      💌 創作者已提交開箱信待審
+                    </span>
+                    <h3 className="font-bold text-amber-100 text-base mt-2">{story.product_name}</h3>
+                  </div>
+
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => handleRejectLetter(story.id)}
+                      className="px-3 py-1.5 bg-red-500/20 border border-red-500/40 text-red-300 rounded-lg text-xs font-bold hover:bg-red-500/30"
+                    >
+                      駁回修改
+                    </button>
+                    <button
+                      onClick={() => handleApproveLetter(story.id)}
+                      className="px-3 py-1.5 bg-purple-500 text-zinc-950 font-bold rounded-lg text-xs hover:bg-purple-400"
+                    >
+                      ✓ 審核通過並推播
+                    </button>
+                  </div>
+                </div>
+
+                {/* 開箱照查驗 */}
+                {(story as any).unboxing_photo_url && (
+                  <div className="h-44 max-w-sm rounded-xl overflow-hidden border border-white/10">
+                    <img src={(story as any).unboxing_photo_url} alt="開箱照" className="w-full h-full object-cover" />
+                  </div>
+                )}
+
+                {/* 感謝信內文查驗 */}
+                <div className="bg-black/40 border border-white/5 rounded-xl p-3 text-xs text-zinc-200 leading-relaxed">
+                  <p className="font-bold text-zinc-400 mb-1">【創作者感謝信內文】</p>
+                  {(story as any).thank_you_letter || '(無內文)'}
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      )}
+
+      {/* 滿額待出貨列表 */}
       {subTab === 'fulfilled' && (
         <div className="space-y-3">
           {fulfilledWishes.length === 0 ? (
@@ -410,7 +493,7 @@ function ModerationTab() {
         </div>
       )}
 
-      {/* 📦 確認出貨與留言審查彈窗 */}
+      {/* 確認出貨彈窗 */}
       {shippingStory && (
         <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-black/85 backdrop-blur-md overflow-y-auto">
           <div className="glass-strong rounded-3xl w-full max-w-xl p-6 glow-border border-emerald-400/30 bg-zinc-950 space-y-4 my-auto">
@@ -463,7 +546,7 @@ function ModerationTab() {
               </div>
             </div>
 
-            {/* 管理員專屬置頂祝福 */}
+            {/* 管理員官方祝福 */}
             <div>
               <label className="text-xs font-bold text-amber-200 block mb-1">
                 管理團隊官方祝福 <span className="text-zinc-500 font-normal">(留空將自動帶入公版溫暖祝福)</span>
@@ -493,7 +576,6 @@ function ModerationTab() {
     </div>
   );
 }
-
 // ===== 3. 用戶名冊與停權 (Users Management Tab) =====
 function UsersManagementTab() {
   const [users, setUsers] = useState<any[]>([]);
