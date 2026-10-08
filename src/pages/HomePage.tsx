@@ -9,12 +9,12 @@ const OFFICIAL_SPONSOR_STORY: Story = {
   id: '00000000-0000-0000-0000-000000000001', // 標準合規 UUID
   user_id: '00000000-0000-0000-0000-000000000000',
   product_name: '💖 守護夢沙星空 · 平台伺服器與營運基金',
-  product_price: 999999, // 象徵性無上限
-  current_stardust: 36800,
+  product_price: '∞', // 
+  current_stardust: 0,
   tag_name: '官方營運支持',
   cover_emoji: '🪐',
-  story_text: '夢沙 DreamSand 致力於打造一個完全匿名、無詐騙的溫暖心願避風港。您的每一筆微小心願燃料，都將全數投入伺服器雲端維護、防詐驗證模組與公益物流補貼，讓這片星空永不熄滅。',
-  promise_text: '平台將持續以零抽成、全匿名運作，每月定期公開伺服器營運透明報表與重大更新。',
+  story_text: '夢沙 DreamSand 致力於打造一個完全匿名的溫暖心願避風港。您的每一筆微小心願燃料，都將全數投入網站運作，讓這片星空永不熄滅。',
+  promise_text: '平台將持續發布重大更新。',
   status: 'approved',
   block_reason: null,
   created_at: '2025-01-01T00:00:00.000Z',
@@ -30,8 +30,16 @@ export function HomePage() {
   const loadWishes = async () => {
     try {
       const realWishes = await fetchPublicWishes();
-      // 官方贊助卡片固定置頂於最前方，後面接著用戶真實願望
-      setWishes([OFFICIAL_SPONSOR_STORY, ...realWishes]);
+      // 🌟 核心過濾：進度滿額 (>=100%) 或狀態已募滿/完結者，立刻從首頁退場！
+      const activeWishes = realWishes.filter((w) => {
+        // 排除已滿額、募滿待出貨或已履約完結的卡片
+        const isFull = Number(w.current_stardust || 0) >= Number(w.product_price || 0);
+        const isCompletedStatus = w.status === 'full_funded' || w.status === 'fulfilled';
+    
+        return !isFull && !isCompletedStatus;
+      });
+      // 官方贊助卡片（ID 000...001）常駐置頂，後面只放真正「需要燃料」的故事
+      setWishes([OFFICIAL_SPONSOR_STORY, ...activeWishes]);
     } catch (err) {
       console.warn('載入願望異常，使用保底模式:', err);
       setWishes([OFFICIAL_SPONSOR_STORY]);
