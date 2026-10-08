@@ -525,18 +525,102 @@ function PublishTab({ onRequireVerify }: { onRequireVerify: () => void }) {
   );
 }
 
-// ===== 4. 我的心願追蹤與重編分頁 (My Wishes Tab) =====
+
+// ===== 3. 星光榮譽館 (WalletTab：在途星塵暫存與履約正式分開) =====
+function WalletTab() {
+  const { session, profile } = useAuth();
+  const [inTransitAmount, setInTransitAmount] = useState(0);
+  const [inTransitList, setInTransitList] = useState<any[]>([]);
+
+  useEffect(() => {
+    const calcTransit = async () => {
+      if (!session?.user?.id) return;
+      const { data } = await supabase
+        .from('investments')
+        .select('amount, created_at, wishes(product_name, status, current_stardust, product_price)')
+        .eq('user_id', session.user.id);
+
+      if (data) {
+        // 尚未真正履約出貨 (status !== 'fulfilled') 的全數歸入在途暫存區！
+        const active = data.filter((inv: any) => inv.wishes?.status !== 'fulfilled');
+        setInTransitList(active);
+        const sum = active.reduce((acc, curr) => acc + (curr.amount || 0), 0);
+        setInTransitAmount(sum);
+      }
+    };
+    calcTransit();
+  }, [session?.user?.id]);
+
+  // 正式榮譽點數：只有卡片真正 status === 'fulfilled' 履約完結的才能計入
+  const totalHonor = profile?.wallet_balance ?? 0;
+
+  return (
+    <div className="max-w-xl space-y-5 animate-fade-in">
+      <h2 className="text-xl font-bold text-amber-100 flex items-center gap-2">
+        <Award className="w-5 h-5 text-amber-300" /> 星光貢獻榮譽館
+      </h2>
+
+      {/* 正式累計榮譽值 (已履約達成) */}
+      <div className="bg-gradient-to-br from-amber-500/10 via-zinc-900 to-zinc-950 border border-amber-500/20 p-6 rounded-3xl glow-border">
+        <p className="text-zinc-400 text-xs font-medium tracking-wider mb-1">COMPLETED HONOR · 已圓滿履約見證總額</p>
+        <h4 className="text-3xl font-black text-amber-300 font-mono tracking-tight flex items-baseline gap-1">
+          <span>✨</span>
+          <span>{totalHonor.toLocaleString()}</span>
+          <span className="text-xs text-zinc-500 font-normal ml-1">榮譽星塵點</span>
+        </h4>
+        <p className="text-[11px] text-zinc-500 mt-2">只有故事經管理員完成出貨履約後，燃料才會正式化為永久榮譽印記。</p>
+      </div>
+
+      {/* ⏳ 在途星塵暫存區 (未履約) */}
+      <div className="glass rounded-2xl p-5 border border-amber-400/20 bg-zinc-900/60 space-y-3">
+        <div className="flex justify-between items-center">
+          <div>
+            <h3 className="text-sm font-bold text-amber-200 flex items-center gap-1.5">
+              <span>⏳</span> 進行中心願暫存區 (在途燃料)
+            </h3>
+            <p className="text-[11px] text-zinc-400">故事推進中，正等待主角滿額與管理員出貨履約</p>
+          </div>
+          <span className="text-base font-black font-mono text-amber-300 bg-amber-500/10 px-3 py-1 rounded-xl border border-amber-400/30">
+            {inTransitAmount.toLocaleString()} 星塵
+          </span>
+        </div>
+
+        {inTransitList.length > 0 && (
+          <div className="space-y-2 pt-2 border-t border-white/5 max-h-48 overflow-y-auto hide-scrollbar">
+            {inTransitList.map((item, idx) => (
+              <div key={idx} className="flex justify-between items-center text-xs bg-zinc-950/60 p-2.5 rounded-xl border border-white/5">
+                <span className="text-zinc-300 truncate max-w-[200px]">{item.wishes?.product_name || '進行中心願'}</span>
+                <span className="text-amber-400 font-mono font-bold">+{item.amount} 暫存星塵</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ===== 4. 我的心願館 (MyWishesTab：標籤篩選 + 完整重編修正 + 上傳感謝信) =====
 function MyWishesTab({ onEditWish }: { onEditWish: () => void }) {
   const { session } = useAuth();
   const [myWishes, setMyWishes] = useState<any[]>([]);
+  const [filterTag, setFilterTag] = useState<string>('all');
   const [loading, setLoading] = useState(true);
 
-  // 重新編輯目標
+  // ✏️ 重編狀態 (金額與連結完整修復)
   const [editingWish, setEditingWish] = useState<any | null>(null);
   const [editTitle, setEditTitle] = useState('');
+  const [editPrice, setEditPrice] = useState<number>(500);
+  const [editProductUrl, setEditProductUrl] = useState('');
   const [editStory, setEditStory] = useState('');
   const [editPromise, setEditPromise] = useState('');
   const [savingEdit, setSavingEdit] = useState(false);
+
+  // 💌 創作者感謝信上傳彈窗
+  const [letterWish, setLetterWish] = useState<any | null>(null);
+  const [thankYouLetter, setThankYouLetter] = useState('');
+  const [unboxingPhoto, setUnboxingPhoto] = useState<string | null>(null);
+  const [savingLetter, setSavingLetter] = useState(false);
 
   const loadMyWishes = async () => {
     if (!session?.user?.id) return;
@@ -550,17 +634,18 @@ function MyWishesTab({ onEditWish }: { onEditWish: () => void }) {
     setLoading(false);
   };
 
-  useEffect(() => {
-    loadMyWishes();
-  }, [session?.user?.id]);
+  useEffect(() => { loadMyWishes(); }, [session?.user?.id]);
 
   const handleStartEdit = (w: any) => {
     setEditingWish(w);
     setEditTitle(w.product_name || w.title || '');
+    setEditPrice(Number(w.product_price) || 500);
+    setEditProductUrl(w.product_url || '');
     setEditStory(w.story_text || '');
     setEditPromise(w.promise_text || '');
   };
 
+  // 完整送審修復：金額與電商網址 100% 寫入
   const handleResubmit = async () => {
     if (!editingWish) return;
     setSavingEdit(true);
@@ -570,6 +655,8 @@ function MyWishesTab({ onEditWish }: { onEditWish: () => void }) {
         .update({
           title: editTitle.trim(),
           product_name: editTitle.trim(),
+          product_price: Number(editPrice), // 🌟 確保目標金額更新
+          product_url: editProductUrl.trim() || null, // 🌟 確保電商連結更新
           story_text: editStory.trim(),
           promise_text: editPromise.trim(),
           status: 'pending', // 再次轉為待審核
@@ -578,7 +665,7 @@ function MyWishesTab({ onEditWish }: { onEditWish: () => void }) {
         .eq('id', editingWish.id);
 
       if (error) throw error;
-      alert('✨ 已重新提交！該願望已再次送交星際審核室審閱。');
+      alert('✨ 已重新提交！目標金額與連結已成功更新，請等待審查。');
       setEditingWish(null);
       loadMyWishes();
     } catch (e: any) {
@@ -588,27 +675,76 @@ function MyWishesTab({ onEditWish }: { onEditWish: () => void }) {
     }
   };
 
+  // 提交開箱感謝信
+  const handleSubmitLetter = async () => {
+    if (!letterWish || !thankYouLetter.trim()) return;
+    setSavingLetter(true);
+    try {
+      await supabase.from('wishes').update({
+        thank_you_letter: thankYouLetter.trim(),
+        unboxing_photo_url: unboxingPhoto,
+      }).eq('id', letterWish.id);
+      alert('💌 終章開箱感謝信已提交！已推播至所有贊助者的追番牆中！');
+      setLetterWish(null);
+      loadMyWishes();
+    } catch (e: any) {
+      alert(`提交失敗: ${e.message}`);
+    } finally {
+      setSavingLetter(false);
+    }
+  };
+
+  const filteredList = myWishes.filter((w) => {
+    if (filterTag === 'all') return true;
+    if (filterTag === 'approved') return w.status === 'approved';
+    if (filterTag === 'pending') return w.status === 'pending';
+    if (filterTag === 'blocked') return w.status === 'blocked' || w.status === '已封鎖';
+    if (filterTag === 'fulfilled') return w.status === 'fulfilled' || w.status === 'full_funded';
+    return true;
+  });
+
   if (loading) return <div className="text-center py-16 text-zinc-500">正在探尋您的星願紀錄...</div>;
 
   return (
     <div className="max-w-2xl space-y-5 animate-fade-in">
-      <h2 className="text-xl font-bold text-amber-100 flex items-center gap-2">
-        <Sparkles className="w-5 h-5 text-amber-300" /> 我的心願追蹤館
-      </h2>
+      <div className="flex justify-between items-center flex-wrap gap-2">
+        <h2 className="text-xl font-bold text-amber-100 flex items-center gap-2">
+          <Sparkles className="w-5 h-5 text-amber-300" /> 我的心願追蹤館
+        </h2>
 
-      {myWishes.length === 0 ? (
-        <div className="text-center py-16 border border-white/5 rounded-2xl bg-zinc-900/30 text-zinc-500 space-y-3">
-          <p>您目前尚未拋下任何願望沙漏。</p>
-          <button onClick={onEditWish} className="text-xs text-amber-300 border border-amber-400/30 px-3.5 py-1.5 rounded-full hover:bg-amber-500/10">
-            立即許下第一個心願
-          </button>
+        {/* 篩選標籤列 */}
+        <div className="flex bg-zinc-900 border border-white/10 p-1 rounded-xl text-xs gap-1">
+          {[
+            { id: 'all', label: '全部' },
+            { id: 'approved', label: '🌟 募資中' },
+            { id: 'pending', label: '⏳ 審核中' },
+            { id: 'fulfilled', label: '🎉 已滿額' },
+            { id: 'blocked', label: '❌ 已駁回' },
+          ].map((tab) => (
+            <button
+              key={tab.id}
+              onClick={() => setFilterTag(tab.id)}
+              className={`px-2.5 py-1 rounded-lg transition-all ${
+                filterTag === tab.id ? 'bg-amber-500/20 text-amber-300 font-bold border border-amber-400/30' : 'text-zinc-400'
+              }`}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {filteredList.length === 0 ? (
+        <div className="text-center py-16 border border-white/5 rounded-2xl bg-zinc-900/30 text-zinc-500">
+          此分類下目前無心願。
         </div>
       ) : (
         <div className="space-y-4">
-          {myWishes.map((w) => {
+          {filteredList.map((w) => {
             const isBlocked = w.status === 'blocked' || w.status === '已封鎖';
             const isPending = w.status === 'pending';
             const isFulfilled = w.status === 'fulfilled';
+            const isFunded = w.status === 'full_funded';
             const progress = Math.min(100, Math.round(((w.current_stardust || 0) / (w.product_price || 1)) * 100));
 
             return (
@@ -630,29 +766,42 @@ function MyWishesTab({ onEditWish }: { onEditWish: () => void }) {
                   <span className={`text-xs px-2.5 py-0.5 rounded-full font-bold ${
                     isBlocked ? 'bg-red-500/20 text-red-300 border border-red-500/40' :
                     isPending ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40' :
-                    isFulfilled ? 'bg-emerald-500/20 text-emerald-300' : 'bg-emerald-500/10 text-emerald-300'
+                    isFulfilled ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-400/40' :
+                    isFunded ? 'bg-yellow-500/20 text-yellow-300' : 'bg-emerald-500/10 text-emerald-300'
                   }`}>
-                    {isBlocked ? '❌ 已駁回 / 下架' : isPending ? '⏳ 星際審核中' : isFulfilled ? '🎉 已履約' : '🌟 集資進行中'}
+                    {isBlocked ? '❌ 已駁回 / 下架' : isPending ? '⏳ 星際審核中' : isFulfilled ? '🎉 已履約完結' : isFunded ? '📦 募滿待出貨' : '🌟 集資進行中'}
                   </span>
                 </div>
 
-                <p className="text-xs text-zinc-400 line-clamp-2 mb-3">{w.story_text}</p>
+                <p className="text-xs text-zinc-400 line-clamp-2 mb-2">{w.story_text}</p>
+                <p className="text-[11px] text-zinc-500 font-mono mb-3">目標：NT$ {w.product_price.toLocaleString()} · 連結：{w.product_url ? '已附電商網址' : '無'}</p>
 
-                {/* 🚨 如果是被下架或駁回，顯示半透明紅框與理由 */}
+                {/* 被駁回：展示紅框理由與全功能重編按鈕 */}
                 {isBlocked && (
                   <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-3 mb-3 space-y-1.5">
-                    <p className="text-xs font-bold text-red-300 flex items-center gap-1">
-                      ⚠️ 審核未通過 / 違規駁回原因：
-                    </p>
-                    <p className="text-xs text-red-200/90 pl-2">
-                      {w.block_reason || '內容不符規範，請調整後重新送審。'}
-                    </p>
+                    <p className="text-xs font-bold text-red-300">⚠️ 駁回 / 下架原因：</p>
+                    <p className="text-xs text-red-200/90 pl-2">{w.block_reason || '內容不符規範，請調整後重新送審。'}</p>
                     <button
                       type="button"
                       onClick={() => handleStartEdit(w)}
-                      className="mt-2 text-xs bg-red-500/20 hover:bg-red-500/30 text-red-200 border border-red-500/40 px-3 py-1.5 rounded-lg font-bold transition-all"
+                      className="mt-2 text-xs bg-red-500/20 hover:bg-red-500/30 text-red-200 border border-red-500/40 px-3 py-1.5 rounded-lg font-bold"
                     >
-                      ✏️ 修正內容並再次提交審核
+                      ✏️ 修正金額、連結與內容並再次提交
+                    </button>
+                  </div>
+                )}
+
+                {/* 已滿額/已履約：創作者撰寫感謝信按鈕 */}
+                {(isFulfilled || isFunded) && (
+                  <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-xl p-3 mb-2 flex justify-between items-center">
+                    <span className="text-xs text-emerald-300 font-bold">
+                      {w.thank_you_letter ? '✓ 感謝信已發布完畢' : '💌 集資已達標，請向贊助者發送感謝信'}
+                    </span>
+                    <button
+                      onClick={() => { setLetterWish(w); setThankYouLetter(w.thank_you_letter || ''); }}
+                      className="px-3 py-1 bg-emerald-500 text-zinc-950 font-bold rounded-lg text-xs"
+                    >
+                      {w.thank_you_letter ? '修改開箱信' : '撰寫開箱感謝信'}
                     </button>
                   </div>
                 )}
@@ -675,12 +824,11 @@ function MyWishesTab({ onEditWish }: { onEditWish: () => void }) {
         </div>
       )}
 
-      {/* ✏️ 全功能重新編修彈窗 */}
+      {/* ✏️ 完整重編彈窗 (金額與連結修復) */}
       {editingWish && (
         <div className="fixed inset-0 z-[65] flex items-center justify-center p-4 bg-black/85 backdrop-blur-md overflow-y-auto">
           <div className="glass-strong rounded-2xl w-full max-w-lg p-6 glow-border border-amber-400/30 bg-zinc-950 space-y-4 my-auto">
-            <h3 className="text-base font-bold text-amber-200">修正內容並再次提交審核</h3>
-
+            <h3 className="text-base font-bold text-amber-200">修正內容重新送審</h3>
             <div>
               <label className="text-xs text-zinc-400 block mb-1">願望標題 (限 20 字)</label>
               <input type="text" maxLength={20} value={editTitle} onChange={(e) => setEditTitle(e.target.value)} className="w-full bg-zinc-900 border border-white/10 rounded-xl p-2.5 text-xs text-white" required />
@@ -689,11 +837,11 @@ function MyWishesTab({ onEditWish }: { onEditWish: () => void }) {
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="text-xs text-zinc-400 block mb-1">目標星塵 (NT$)</label>
-                <input type="number" min={10} value={editingWish.product_price} onChange={(e) => setEditingWish({...editingWish, product_price: Number(e.target.value)})} className="w-full bg-zinc-900 border border-white/10 rounded-xl p-2 text-xs text-amber-300 font-mono" />
+                <input type="number" min={10} value={editPrice} onChange={(e) => setEditPrice(Number(e.target.value))} className="w-full bg-zinc-900 border border-white/10 rounded-xl p-2 text-xs text-amber-300 font-mono" required />
               </div>
               <div>
                 <label className="text-xs text-zinc-400 block mb-1">電商連結 (蝦皮/MOMO)</label>
-                <input type="url" value={editingWish.product_url || ''} onChange={(e) => setEditingWish({...editingWish, product_url: e.target.value})} placeholder="https://..." className="w-full bg-zinc-900 border border-white/10 rounded-xl p-2 text-xs text-white" />
+                <input type="url" value={editProductUrl} onChange={(e) => setEditProductUrl(e.target.value)} placeholder="https://..." className="w-full bg-zinc-900 border border-white/10 rounded-xl p-2 text-xs text-white" />
               </div>
             </div>
 
@@ -708,9 +856,32 @@ function MyWishesTab({ onEditWish }: { onEditWish: () => void }) {
             </div>
 
             <div className="flex gap-2 pt-2">
-              <button onClick={() => setEditingWish(null)} className="flex-1 py-2.5 text-xs border border-white/10 rounded-xl text-zinc-400 hover:text-white">取消</button>
-              <button onClick={handleResubmit} disabled={savingEdit} className="flex-1 py-2.5 text-xs bg-amber-500 hover:bg-amber-400 text-zinc-950 font-bold rounded-xl transition-all">
-                {savingEdit ? '提交中...' : '確認重新提交審核'}
+              <button onClick={() => setEditingWish(null)} className="flex-1 py-2.5 text-xs border border-white/10 rounded-xl text-zinc-400">取消</button>
+              <button onClick={handleResubmit} disabled={savingEdit} className="flex-1 py-2.5 text-xs bg-amber-500 hover:bg-amber-400 text-zinc-950 font-bold rounded-xl">
+                {savingEdit ? '提交中...' : '確認更新並重新送審'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 💌 上傳終章感謝信彈窗 */}
+      {letterWish && (
+        <div className="fixed inset-0 z-[65] flex items-center justify-center p-4 bg-black/85 backdrop-blur-md">
+          <div className="glass-strong rounded-2xl w-full max-w-lg p-6 glow-border border-emerald-400/30 bg-zinc-950 space-y-4">
+            <h3 className="text-base font-bold text-emerald-300">💌 發布開箱感謝信 (公開給贊助者)</h3>
+            <p className="text-xs text-zinc-400">此內容將同步發布至所有曾投入星塵贊助者的「追番牆」。</p>
+            <textarea
+              rows={5}
+              value={thankYouLetter}
+              onChange={(e) => setThankYouLetter(e.target.value)}
+              placeholder="誠摯感謝每位陌生人星光的相助... 請分享您收到商品的心得與實現承諾的成果！"
+              className="w-full bg-zinc-900 border border-white/10 rounded-xl p-3 text-xs text-white resize-none"
+            />
+            <div className="flex gap-2">
+              <button onClick={() => setLetterWish(null)} className="flex-1 py-2.5 text-xs border border-white/10 rounded-xl text-zinc-400">取消</button>
+              <button onClick={handleSubmitLetter} disabled={savingLetter} className="flex-1 py-2.5 text-xs bg-emerald-500 text-zinc-950 font-bold rounded-xl">
+                {savingLetter ? '送出中...' : '正式發送感謝信'}
               </button>
             </div>
           </div>
@@ -720,68 +891,108 @@ function MyWishesTab({ onEditWish }: { onEditWish: () => void }) {
   );
 }
 
-// ===== 5. 榮譽稱號分頁 (WalletTab) =====
-function WalletTab() {
-  const { session, profile } = useAuth();
-  const [inTransitStardust, setInTransitStardust] = useState(0);
+// ===== 5. 追番牆 (InvestedTab：加入搜尋與閱讀感謝信功能) =====
+function InvestedTab() {
+  const { session } = useAuth();
+  const [investedWishes, setInvestedWishes] = useState<any[]>([]);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const calcInTransit = async () => {
+    const loadInvested = async () => {
       if (!session?.user?.id) return;
+      setLoading(true);
       const { data } = await supabase
         .from('investments')
-        .select('amount, story_id, wishes(status)')
-        .eq('user_id', session.user.id);
+        .select('amount, created_at, wishes(*)')
+        .eq('user_id', session.user.id)
+        .order('created_at', { ascending: false });
 
       if (data) {
-        const sum = data
-          .filter((inv: any) => inv.wishes?.status !== 'fulfilled')
-          .reduce((acc, curr) => acc + (curr.amount || 0), 0);
-        setInTransitStardust(sum);
+        // 去除重複願望
+        const uniqueWishesMap = new Map();
+        data.forEach((item: any) => {
+          if (item.wishes && !uniqueWishesMap.has(item.wishes.id)) {
+            uniqueWishesMap.set(item.wishes.id, { ...item.wishes, myInvestAmount: item.amount });
+          }
+        });
+        setInvestedWishes(Array.from(uniqueWishesMap.values()));
       }
+      setLoading(false);
     };
-    calcInTransit();
+    loadInvested();
   }, [session?.user?.id]);
 
-  const totalHonor = profile?.wallet_balance ?? 0;
+  const filtered = investedWishes.filter((w) =>
+    (w.product_name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (w.tag_name || '').toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
+  if (loading) return <div className="text-center py-16 text-zinc-500">正在整理您的追番心願牆...</div>;
 
   return (
-    <div className="max-w-xl space-y-5 animate-fade-in">
-      <h2 className="text-xl font-bold text-amber-100 flex items-center gap-2">
-        <Award className="w-5 h-5 text-amber-300" /> 星光貢獻榮譽館
-      </h2>
+    <div className="max-w-2xl space-y-5 animate-fade-in">
+      <div className="flex justify-between items-center gap-3 flex-wrap">
+        <h2 className="text-xl font-bold text-amber-100 flex items-center gap-2">
+          <BookOpen className="w-5 h-5 text-amber-300" /> 心願追番結局牆
+        </h2>
 
-      <div className="bg-gradient-to-br from-amber-500/10 via-zinc-900 to-zinc-950 border border-amber-500/20 p-6 rounded-3xl glow-border">
-        <p className="text-zinc-400 text-xs font-medium tracking-wider mb-1">TOTAL HONOR · 累計心願燃料總額</p>
-        <h4 className="text-3xl font-black text-amber-300 font-mono tracking-tight flex items-baseline gap-1">
-          <span>✨</span>
-          <span>{totalHonor.toLocaleString()}</span>
-          <span className="text-xs text-zinc-500 font-normal ml-1">榮譽星塵點數</span>
-        </h4>
+        {/* 搜尋列 */}
+        <input
+          type="text"
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          placeholder="🔍 搜尋追番故事或標籤..."
+          className="bg-zinc-900 border border-white/10 rounded-xl px-3.5 py-1.5 text-xs text-white focus:outline-none focus:border-amber-400/50"
+        />
       </div>
 
-      {/* 🌟 在途星塵與履約星塵暫存狀態面板 */}
-      <div className="grid grid-cols-2 gap-3">
-        <div className="bg-zinc-900/60 border border-amber-400/20 p-4 rounded-2xl">
-          <p className="text-xs text-amber-300/80 mb-1 flex items-center gap-1 font-bold">
-            ⏳ 在途守護星塵 (未履約)
-          </p>
-          <p className="text-xl font-mono font-bold text-white">
-            {inTransitStardust.toLocaleString()} <span className="text-xs text-zinc-500 font-normal">星塵</span>
-          </p>
-          <p className="text-[10px] text-zinc-500 mt-1">集資推進中，等待主角終章履約</p>
+      {filtered.length === 0 ? (
+        <div className="text-center py-16 border border-white/5 rounded-2xl bg-zinc-900/30 text-zinc-500">
+          {searchTerm ? '未找到符合關鍵字的追番心願。' : '您目前尚未贊助過任何故事，快去首頁為別人的夢想注入星塵吧！'}
         </div>
+      ) : (
+        <div className="space-y-4">
+          {filtered.map((w) => {
+            const isFulfilled = w.status === 'fulfilled';
+            const progress = Math.min(100, Math.round(((w.current_stardust || 0) / (w.product_price || 1)) * 100));
 
-        <div className="bg-zinc-900/60 border border-emerald-500/20 p-4 rounded-2xl">
-          <p className="text-xs text-emerald-400 mb-1 flex items-center gap-1 font-bold">
-            🎉 已圓滿見證星塵
-          </p>
-          <p className="text-xl font-mono font-bold text-emerald-300">
-            {Math.max(0, totalHonor - inTransitStardust).toLocaleString()} <span className="text-xs text-zinc-500 font-normal">星塵</span>
-          </p>
-          <p className="text-[10px] text-zinc-500 mt-1">故事已成功履約圓夢</p>
+            return (
+              <div key={w.id} className="glass rounded-2xl p-5 border border-white/10 bg-zinc-900/60 space-y-3">
+                <div className="flex justify-between items-start">
+                  <div className="flex items-center gap-2">
+                    <span className="text-2xl">{w.cover_emoji}</span>
+                    <div>
+                      <h4 className="font-bold text-amber-100 text-sm">{w.product_name}</h4>
+                      <p className="text-[11px] text-zinc-500">我的累計燃料：+{w.myInvestAmount} 星塵</p>
+                    </div>
+                  </div>
+                  <span className={`text-xs px-2.5 py-0.5 rounded-full font-bold ${
+                    isFulfilled ? 'bg-emerald-500/20 text-emerald-300' : 'bg-amber-500/10 text-amber-300'
+                  }`}>
+                    {isFulfilled ? '🎉 已履約圓夢' : `集資中 ${progress}%`}
+                  </span>
+                </div>
+
+                {/* 創作者感謝信公開區 */}
+                {w.thank_you_letter && (
+                  <div className="bg-emerald-950/20 border border-emerald-400/30 rounded-xl p-3.5 space-y-1.5">
+                    <p className="text-xs font-bold text-emerald-300 flex items-center gap-1">💌 創作者開箱感謝信：</p>
+                    <p className="text-xs text-zinc-200 leading-relaxed">{w.thank_you_letter}</p>
+                  </div>
+                )}
+
+                {/* 官方祝福區 */}
+                {w.admin_blessing && (
+                  <div className="bg-amber-500/10 border border-amber-400/20 rounded-xl p-3 text-[11px] text-amber-200/90">
+                    <span className="font-bold">👑 夢沙星空見證祝福：</span> {w.admin_blessing}
+                  </div>
+                )}
+              </div>
+            );
+          })}
         </div>
-      </div>
+      )}
     </div>
   );
 }
