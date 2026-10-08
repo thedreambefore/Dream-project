@@ -1,7 +1,9 @@
 import { useState, useMemo } from 'react';
-import { Coins, Sparkles, Heart, Compass } from 'lucide-react';
+import { Coins, Sparkles, Heart, Compass, ShieldAlert, Flag } from 'lucide-react';
 import type { Story } from '@/lib/supabase';
 import { InvestModal } from './InvestModal';
+import { useAuth } from '@/context/AuthContext';
+import { blockWish, updateWish } from '@/lib/backend';
 
 interface ExtendedStory extends Story {
   image_url?: string | null;
@@ -9,26 +11,31 @@ interface ExtendedStory extends Story {
 }
 
 export function StoryCard({ story, index }: { story: Story; index: number }) {
+  const { profile } = useAuth();
   const [showInvest, setShowInvest] = useState(false);
-  // 手機端預留點擊翻面狀態
   const [isMobileFlipped, setIsMobileFlipped] = useState(false);
+  
+  // 檢舉與下架彈窗狀態
+  const [showActionModal, setShowActionModal] = useState(false);
+  const [actionReason, setActionReason] = useState('');
+  const [isActionLoading, setIsActionLoading] = useState(false);
 
   const extStory = story as ExtendedStory;
+  const isAdmin = profile?.role === 'admin';
+  const isOfficial = story.id === '00000000-0000-0000-0000-000000000001';
 
-  // 計算募集進度百分比
   const progress = Math.min(100, Math.round((story.current_stardust / story.product_price) * 100));
   const isFulfilled = story.status === 'fulfilled';
   const isNearComplete = progress >= 90 && progress < 100;
 
-  // A 案：星宿幾何種子計算（純 CSS/SVG 演算法，零延遲零 Token）
   const constellationSeed = useMemo(() => {
     let hash = 0;
     const str = story.id || 'seed';
     for (let i = 0; i < str.length; i++) {
       hash = str.charCodeAt(i) + ((hash << 5) - hash);
     }
-    const hue1 = Math.abs(hash % 40) + 240; // 藍紫深空色相
-    const hue2 = Math.abs((hash >> 2) % 30) + 280; // 紫粉星雲色相
+    const hue1 = Math.abs(hash % 40) + 240;
+    const hue2 = Math.abs((hash >> 2) % 30) + 280;
     return {
       gradient: `radial-gradient(ellipse at 70% 30%, hsla(${hue2}, 70%, 25%, 0.7) 0%, transparent 60%), radial-gradient(ellipse at 20% 80%, hsla(${hue1}, 75%, 20%, 0.8) 0%, #0a0a1a 80%)`,
       svgPoints: [
@@ -40,9 +47,33 @@ export function StoryCard({ story, index }: { story: Story; index: number }) {
     };
   }, [story.id]);
 
-  // 手機端點擊卡片翻面切換（防呆：點擊結帳按鈕除外）
-  const handleCardClick = () => {
-    setIsMobileFlipped((prev) => !prev);
+  // 處理管理員快速下架或一般用戶檢舉
+  const handleConfirmAction = async () => {
+    if (!actionReason.trim()) {
+      alert('請填寫原因');
+      return;
+    }
+    setIsActionLoading(true);
+    try {
+      if (isAdmin) {
+        // 管理員：直接下架
+        await blockWish(story.id, actionReason.trim());
+        alert('✅ 管理員操作成功：卡片已即刻下架隱藏。');
+      } else {
+        // 一般用戶：標記為待查驗檢舉
+        await updateWish(story.id, { 
+          status: 'reported', 
+          block_reason: `[用戶檢舉]: ${actionReason.trim()}` 
+        });
+        alert('🚩 感謝您的檢舉，星際巡警已接獲通報並移交管理員審核！');
+      }
+      setShowActionModal(false);
+      setActionReason('');
+    } catch (e: any) {
+      alert(`操作失敗: ${e.message}`);
+    } finally {
+      setIsActionLoading(false);
+    }
   };
 
   return (
@@ -50,113 +81,71 @@ export function StoryCard({ story, index }: { story: Story; index: number }) {
       <div
         className="perspective-1000 w-full h-[400px] select-none group fade-in-up cursor-pointer"
         style={{ animationDelay: `${index * 0.06}s` }}
-        onClick={handleCardClick}
+        onClick={() => setIsMobileFlipped((prev) => !prev)}
       >
-        {/* 3D 翻轉核心容器 */}
         <div
           className={`relative w-full h-full duration-700 transform-style-3d group-hover-flip transition-transform ease-out ${
             isMobileFlipped ? 'rotate-y-180' : ''
           }`}
         >
-          {/* ======================================================== */}
-          {/* 🌟 1. 正面 (FRONT)                                       */}
-          {/* ======================================================== */}
+          {/* 🌟 1. 正面 (FRONT) */}
           <div className="absolute inset-0 w-full h-full rounded-2xl glass glow-border overflow-hidden backface-hidden flex flex-col justify-between p-5 bg-zinc-950/90 shadow-2xl">
-            {/* 背景圖層機制 (A 案 / C 案防弊同化) */}
             <div className="absolute inset-0 pointer-events-none overflow-hidden -z-10">
               {extStory.image_url ? (
-                /* C 案：用戶上傳圖 - 強制裁剪 + 疊加暗紫深空濾鏡同化 */
                 <div className="relative w-full h-full">
-                  <img
-                    src={extStory.image_url}
-                    alt={story.product_name}
-                    className="w-full h-full object-cover brightness-60 contrast-125"
-                  />
+                  <img src={extStory.image_url} alt={story.product_name} className="w-full h-full object-cover brightness-60 contrast-125" />
                   <div className="absolute inset-0 bg-gradient-to-t from-[#0a0a1a] via-[#120e28]/85 to-[#241446]/60 mix-blend-overlay" />
                   <div className="absolute inset-0 bg-gradient-to-b from-transparent via-black/40 to-[#0a0a1a]" />
                 </div>
               ) : (
-                /* A 案：系統發配專屬星宿圖 (純 CSS + SVG 幾何星軌) */
-                <div
-                  className="w-full h-full relative"
-                  style={{ background: constellationSeed.gradient }}
-                >
+                <div className="w-full h-full relative" style={{ background: constellationSeed.gradient }}>
                   <svg className="absolute inset-0 w-full h-full opacity-40" viewBox="0 0 280 160">
-                    <polyline
-                      points={constellationSeed.svgPoints.map((p) => `${p.cx},${p.cy}`).join(' ')}
-                      fill="none"
-                      stroke="rgba(251, 191, 36, 0.45)"
-                      strokeWidth="1.2"
-                      strokeDasharray="4 3"
-                    />
+                    <polyline points={constellationSeed.svgPoints.map((p) => `${p.cx},${p.cy}`).join(' ')} fill="none" stroke="rgba(251, 191, 36, 0.45)" strokeWidth="1.2" strokeDasharray="4 3" />
                     {constellationSeed.svgPoints.map((p, idx) => (
-                      <circle
-                        key={idx}
-                        cx={p.cx}
-                        cy={p.cy}
-                        r={idx === 1 ? '3.5' : '2'}
-                        fill="#fde68a"
-                        className="animate-pulse"
-                      />
+                      <circle key={idx} cx={p.cx} cy={p.cy} r={idx === 1 ? '3.5' : '2'} fill="#fde68a" className="animate-pulse" />
                     ))}
                   </svg>
                 </div>
               )}
             </div>
 
-            {/* 正面上半部：標籤與 Emoji 星宿徽記章 */}
             <div>
               <div className="flex items-center justify-between mb-3">
                 <span className="text-xs px-2.5 py-1 rounded-full bg-amber-500/15 border border-amber-400/30 text-amber-200 font-mono flex items-center gap-1 backdrop-blur-md">
-                  <Sparkles className="w-3 h-3 text-amber-300" />
+                  <Sparkles className="w-3 sub-pixel-antialiased text-amber-300" />
                   #{story.tag_name}
                 </span>
                 {isFulfilled ? (
-                  <span className="text-xs px-2.5 py-0.5 rounded-full bg-emerald-500/20 border border-emerald-400/40 text-emerald-300 font-bold">
-                    ✓ 已履約
-                  </span>
+                  <span className="text-xs px-2.5 py-0.5 rounded-full bg-emerald-500/20 border border-emerald-400/40 text-emerald-300 font-bold">✓ 已履約</span>
                 ) : (
-                  <div className="text-2xl drop-shadow-[0_0_12px_rgba(251,191,36,0.6)]">
-                    {story.cover_emoji}
-                  </div>
+                  <div className="text-2xl drop-shadow-[0_0_12px_rgba(251,191,36,0.6)]">{story.cover_emoji}</div>
                 )}
               </div>
-
-              {/* 正面願望標題 (限制顯示 2 行，超出 ellipsis) */}
               <h3 className="font-bold text-amber-100 text-lg leading-snug line-clamp-2 mt-2 drop-shadow-md">
                 {story.product_name}
               </h3>
             </div>
 
-            {/* 正面下半部：終章承諾縮圖 + 發光霓虹進度條 */}
             <div className="space-y-4">
               <div className="bg-black/40 border border-white/10 rounded-xl p-2.5 backdrop-blur-md">
                 <p className="text-[11px] text-zinc-400 line-clamp-1">
-                  <span className="text-amber-300/80 font-bold">終章承諾：</span>
-                  {story.promise_text}
+                  <span className="text-amber-300/80 font-bold">終章承諾：</span>{story.promise_text}
                 </p>
               </div>
 
-              {/* 發光霓虹募集進度條 (帶 Transition 平滑過渡) */}
               <div className="space-y-1.5">
                 <div className="flex justify-between items-baseline text-xs">
                   <span className="text-zinc-400 flex items-center gap-1 font-mono">
                     <Coins className="w-3.5 h-3.5 text-amber-400" />
                     {story.current_stardust.toLocaleString()} / {story.product_price.toLocaleString()} 星塵
                   </span>
-                  <span className={`font-black font-mono ${isNearComplete ? 'text-amber-300 glow-text' : 'text-amber-200'}`}>
-                    {progress}%
-                  </span>
+                  <span className={`font-black font-mono ${isNearComplete ? 'text-amber-300 glow-text' : 'text-amber-200'}`}>{progress}%</span>
                 </div>
                 <div className="w-full h-2 rounded-full bg-white/10 overflow-hidden relative shadow-inner">
-                  <div
-                    className="h-full rounded-full bg-gradient-to-r from-amber-500 via-yellow-400 to-amber-200 shadow-[0_0_12px_rgba(251,191,36,0.7)] transition-all duration-800 ease-out"
-                    style={{ width: `${progress}%` }}
-                  />
+                  <div className="h-full rounded-full bg-gradient-to-r from-amber-500 via-yellow-400 to-amber-200 shadow-[0_0_12px_rgba(251,191,36,0.7)] transition-all duration-800 ease-out" style={{ width: `${progress}%` }} />
                 </div>
               </div>
 
-              {/* 翻面指引微提示 */}
               <div className="text-center">
                 <p className="text-[11px] text-zinc-500 group-hover:text-amber-300/70 transition-colors flex items-center justify-center gap-1">
                   <span>🔄</span> 懸停翻轉揭曉故事
@@ -165,48 +154,55 @@ export function StoryCard({ story, index }: { story: Story; index: number }) {
             </div>
           </div>
 
-          {/* ======================================================== */}
-          {/* 🌟 2. 背面 (BACK)                                        */}
-          {/* ======================================================== */}
+          {/* 🌟 2. 背面 (BACK) */}
           <div className="absolute inset-0 w-full h-full rounded-2xl glass-strong glow-border p-5 flex flex-col justify-between backface-hidden rotate-y-180 bg-zinc-950/98 border border-amber-400/30 shadow-2xl">
-            {/* 背面頭部：縮小版標題 + 匿名暱稱 */}
+            {/* 背面頭部 */}
             <div className="border-b border-white/10 pb-3">
               <div className="flex items-center justify-between text-xs text-zinc-400 mb-1">
                 <span className="flex items-center gap-1 text-amber-300">
                   <Compass className="w-3.5 h-3.5" />
                   {extStory.anonymous_nickname || '匿名星旅人'} 的心願
                 </span>
-                <span className="font-mono text-zinc-500">#{story.tag_name}</span>
+                
+                {/* 🚨 管理員下架 / 用戶檢舉快捷按鈕 */}
+                {!isOfficial && (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setShowActionModal(true);
+                    }}
+                    className={`text-[10px] px-2 py-0.5 rounded-md flex items-center gap-1 transition-all ${
+                      isAdmin 
+                        ? 'bg-red-500/20 text-red-300 hover:bg-red-500/30 border border-red-500/30 font-bold' 
+                        : 'bg-white/5 text-zinc-500 hover:text-zinc-300 hover:bg-white/10'
+                    }`}
+                  >
+                    {isAdmin ? <><ShieldAlert className="w-3 h-3" /> 下架卡片</> : <><Flag className="w-3 h-3" /> 檢舉</>}
+                  </button>
+                )}
               </div>
-              <h4 className="font-bold text-amber-100 text-sm truncate">
-                {story.product_name}
-              </h4>
+              <h4 className="font-bold text-amber-100 text-sm truncate">{story.product_name}</h4>
             </div>
 
-            {/* 背面主體：完整故事內文（底部帶漸層淡出防爆字數） */}
+            {/* 背面故事主體 */}
             <div className="relative my-2 flex-1 overflow-hidden">
-              <p className="text-xs text-zinc-300 leading-relaxed tracking-wide text-justify">
-                {story.story_text}
-              </p>
-              {/* 漸層透明遮罩 */}
+              <p className="text-xs text-zinc-300 leading-relaxed tracking-wide text-justify">{story.story_text}</p>
               <div className="absolute bottom-0 inset-x-0 h-10 bg-gradient-to-t from-zinc-950 to-transparent pointer-events-none" />
             </div>
 
-            {/* 背面承諾小標籤 */}
             <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl px-3 py-2 mb-3">
               <p className="text-[11px] text-amber-200/90 leading-tight">
-                <span className="font-bold text-amber-300">承諾：</span>
-                {story.promise_text}
+                <span className="font-bold text-amber-300">承諾：</span>{story.promise_text}
               </p>
             </div>
 
-            {/* 背面數據總覽 */}
             <div className="flex justify-between items-center text-xs text-zinc-400 mb-3 px-1 font-mono">
               <span>需募: NT$ {story.product_price.toLocaleString()}</span>
               <span className="text-amber-300 font-bold">進度 {progress}%</span>
             </div>
 
-            {/* 🔒 防呆結帳主按鈕：只有在翻到背面時點擊此按鈕才會觸發結帳 */}
+            {/* 結帳按鈕 */}
             <div>
               {isFulfilled ? (
                 <div className="w-full text-center py-2.5 rounded-xl bg-emerald-500/20 border border-emerald-400/40 text-emerald-300 text-xs font-bold">
@@ -216,8 +212,8 @@ export function StoryCard({ story, index }: { story: Story; index: number }) {
                 <button
                   type="button"
                   onClick={(e) => {
-                    e.stopPropagation(); // 阻止向上冒泡觸發翻面
-                    setShowInvest(true); // 正式開啟三段式手續費結帳彈窗
+                    e.stopPropagation();
+                    setShowInvest(true);
                   }}
                   className={`w-full touch-btn py-3 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 transition-all shadow-lg cursor-pointer ${
                     isNearComplete
@@ -234,9 +230,53 @@ export function StoryCard({ story, index }: { story: Story; index: number }) {
         </div>
       </div>
 
-      {/* 結帳視窗（已完美串接三段式服務費） */}
-      {showInvest && (
-        <InvestModal story={story} onClose={() => setShowInvest(false)} />
+      {/* 贊助彈窗 */}
+      {showInvest && <InvestModal story={story} onClose={() => setShowInvest(false)} />}
+
+      {/* 🚨 下架 / 檢舉操作彈窗 */}
+      {showActionModal && (
+        <div 
+          className="fixed inset-0 z-[65] flex items-center justify-center p-4 bg-black/75 backdrop-blur-md scale-in"
+          onClick={(e) => { e.stopPropagation(); setShowActionModal(false); }}
+        >
+          <div 
+            className="glass-strong rounded-2xl w-full max-w-sm p-6 glow-border border-red-500/30 bg-zinc-950 space-y-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="text-base font-bold text-amber-200 flex items-center gap-2">
+              {isAdmin ? '⚠️ 管理員強制下架卡片' : '🚩 檢舉不當願望故事'}
+            </h3>
+            <p className="text-xs text-zinc-400">
+              {isAdmin 
+                ? `請輸入下架「${story.product_name}」的具體違規理由，該卡片將立刻從首頁隱藏：` 
+                : '請填寫您檢舉此內容的原因（如：疑似詐騙、涉及敏感內容、廣告）：'}
+            </p>
+            <textarea
+              rows={3}
+              value={actionReason}
+              onChange={(e) => setActionReason(e.target.value)}
+              placeholder="請填寫具體原因..."
+              className="w-full bg-zinc-900 border border-white/10 rounded-xl p-3 text-xs text-white focus:outline-none focus:border-red-400/50 resize-none"
+            />
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => setShowActionModal(false)}
+                className="flex-1 py-2 rounded-xl border border-white/10 text-xs text-zinc-400 hover:text-white"
+              >
+                取消
+              </button>
+              <button
+                type="button"
+                disabled={isActionLoading}
+                onClick={handleConfirmAction}
+                className="flex-1 py-2 rounded-xl bg-red-500 hover:bg-red-400 text-white font-bold text-xs"
+              >
+                {isActionLoading ? '處理中...' : isAdmin ? '確認下架隱藏' : '送出檢舉'}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </>
   );
