@@ -198,111 +198,148 @@ function PendingApprovalTab() {
   );
 }
 
-// ===== 2. 卡片審查與封鎖 (Moderation Tab) =====
+// ===== 2. 卡片審查分頁 (三大區塊：被檢舉、待出貨、全站) =====
 function ModerationTab() {
   const [stories, setStories] = useState<Story[]>([]);
   const [loading, setLoading] = useState(true);
-  const [blockingStory, setBlockingStory] = useState<Story | null>(null);
-  const [blockReason, setBlockReason] = useState('');
+  const [subTab, setSubTab] = useState<'reported' | 'fulfilled' | 'all'>('reported');
 
   const loadStories = useCallback(async () => {
+    setLoading(true);
     setStories(await fetchAllWishesForAdmin());
     setLoading(false);
   }, []);
 
-  useEffect(() => {
-    loadStories();
-  }, [loadStories]);
+  useEffect(() => { loadStories(); }, [loadStories]);
 
-  const handleBlock = async () => {
-    if (!blockingStory) return;
-    await blockWish(blockingStory.id, blockReason || '管理員判定違規下架');
-    setBlockingStory(null);
-    setBlockReason('');
+  // 1. 被檢舉名單 (is_reported = true 且未封鎖)
+  const reportedWishes = stories.filter((s) => (s as any).is_reported && !isBlockedStatus(s.status));
+  // 2. 已履約/已滿額待出貨名單 (status = fulfilled 或 金額達標)
+  const fulfilledWishes = stories.filter((s) => s.status === 'fulfilled' || s.current_stardust >= s.product_price);
+  // 3. 全站卡片
+  const currentList = subTab === 'reported' ? reportedWishes : subTab === 'fulfilled' ? fulfilledWishes : stories;
+
+  // 駁回檢舉
+  const handleDismissReport = async (id: string) => {
+    await updateWish(id, { is_reported: false, report_reason: null });
+    alert('已駁回檢舉，該卡片恢復正常無違規狀態。');
     loadStories();
   };
 
-  const handleUnblock = async (story: Story) => {
-    await unblockWish(story.id);
+  // 確認下架封鎖
+  const handleConfirmBlock = async (id: string, reason: string) => {
+    await blockWish(id, reason || '管理員查核違規下架');
     loadStories();
   };
 
-  if (loading) return <div className="text-center py-16 text-gray-400">載入中...</div>;
+  const handleUnblock = async (id: string) => {
+    await unblockWish(id);
+    loadStories();
+  };
+
+  if (loading) return <div className="text-center py-16 text-gray-400"><Loader2 className="w-6 h-6 animate-spin mx-auto mb-2" />載入卡片審查數據...</div>;
 
   return (
     <div className="space-y-4">
-      <h2 className="text-lg font-bold text-red-200 flex items-center gap-2">
-        <Ban className="w-5 h-5" /> 全站卡片監控與封鎖管理
-      </h2>
-      <p className="text-sm text-gray-400">共 {stories.length} 張故事卡片。封鎖後將立即從前台交易所隱藏。</p>
-
-      <div className="space-y-3">
-        {stories.map((story) => (
-          <div
-            key={story.id}
-            className={`glass rounded-2xl p-4 border transition-all ${
-              isBlockedStatus(story.status) ? 'border-red-500/40 opacity-70 bg-red-950/10' : 'border-white/10'
+      <div className="flex justify-between items-center flex-wrap gap-2">
+        <h2 className="text-lg font-bold text-red-200 flex items-center gap-2">
+          <Ban className="w-5 h-5" /> 卡片巡檢與物流出貨台
+        </h2>
+        
+        {/* 三大子分頁 */}
+        <div className="flex bg-zinc-900 border border-white/10 p-1 rounded-xl gap-1">
+          <button
+            onClick={() => setSubTab('reported')}
+            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+              subTab === 'reported' ? 'bg-red-500/20 text-red-300 border border-red-500/40' : 'text-zinc-400 hover:text-white'
             }`}
           >
-            <div className="flex items-start justify-between gap-3">
-              <div className="flex items-center gap-3">
-                <span className="text-3xl">{story.cover_emoji}</span>
-                <div>
-                  <h3 className="font-bold text-amber-100">{story.product_name}</h3>
-                  <div className="flex items-center gap-2 text-xs text-zinc-400">
-                    <span className={`px-2 py-0.5 rounded-full ${
-                      story.status === 'approved' ? 'bg-emerald-500/20 text-emerald-300' :
-                      isBlockedStatus(story.status) ? 'bg-red-500/20 text-red-300' :
-                      story.status === 'pending' ? 'bg-amber-500/20 text-amber-300' : 'bg-blue-500/20 text-blue-300'
-                    }`}>
-                      {story.status === 'approved' ? '展示中' :
-                       isBlockedStatus(story.status) ? '已封鎖' :
-                       story.status === 'pending' ? '待審核' : '已履約'}
-                    </span>
-                    <span>#{story.tag_name}</span>
-                    <span>{story.current_stardust}/{story.product_price} 星塵</span>
+            🚩 被檢舉待查 ({reportedWishes.length})
+          </button>
+          <button
+            onClick={() => setSubTab('fulfilled')}
+            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+              subTab === 'fulfilled' ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40' : 'text-zinc-400 hover:text-white'
+            }`}
+          >
+            📦 滿額待出貨 ({fulfilledWishes.length})
+          </button>
+          <button
+            onClick={() => setSubTab('all')}
+            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+              subTab === 'all' ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40' : 'text-zinc-400 hover:text-white'
+            }`}
+          >
+            🌐 全站卡片 ({stories.length})
+          </button>
+        </div>
+      </div>
+
+      {currentList.length === 0 ? (
+        <div className="text-center py-16 text-zinc-500 border border-white/5 rounded-2xl bg-zinc-900/20">
+          目前此分類下沒有卡片紀錄。
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {currentList.map((story) => (
+            <div key={story.id} className="glass rounded-2xl p-4 border border-white/10 bg-zinc-900/60 space-y-2">
+              <div className="flex justify-between items-start gap-2">
+                <div className="flex items-center gap-3">
+                  <span className="text-3xl">{story.cover_emoji}</span>
+                  <div>
+                    <h4 className="font-bold text-amber-100 text-sm">{story.product_name}</h4>
+                    <p className="text-xs text-zinc-400">
+                      #{story.tag_name} · 進度 {story.current_stardust}/{story.product_price} 星塵
+                    </p>
                   </div>
+                </div>
+
+                <div className="flex gap-2">
+                  {subTab === 'reported' && (
+                    <>
+                      <button
+                        onClick={() => handleDismissReport(story.id)}
+                        className="px-2.5 py-1.5 bg-zinc-800 text-zinc-300 rounded-lg text-xs hover:bg-zinc-700"
+                      >
+                        駁回檢舉
+                      </button>
+                      <button
+                        onClick={() => handleConfirmBlock(story.id, (story as any).report_reason || '檢舉屬實下架')}
+                        className="px-2.5 py-1.5 bg-red-500/20 border border-red-500/40 text-red-300 rounded-lg text-xs font-bold hover:bg-red-500/30"
+                      >
+                        確認違規下架
+                      </button>
+                    </>
+                  )}
+
+                  {subTab === 'fulfilled' && (story as any).product_url && (
+                    <a
+                      href={(story as any).product_url}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="px-3 py-1.5 bg-emerald-500 text-zinc-950 font-bold rounded-lg text-xs flex items-center gap-1"
+                    >
+                      前往電商採購出貨
+                    </a>
+                  )}
+
+                  {subTab === 'all' && (
+                    isBlockedStatus(story.status) ? (
+                      <button onClick={() => handleUnblock(story.id)} className="px-2.5 py-1 bg-emerald-500/20 text-emerald-300 text-xs rounded-lg">解除封鎖</button>
+                    ) : (
+                      <button onClick={() => handleConfirmBlock(story.id, '管理員手動封鎖')} className="px-2.5 py-1 bg-red-500/20 text-red-300 text-xs rounded-lg">手動封鎖</button>
+                    )
+                  )}
                 </div>
               </div>
 
-              <div>
-                {isBlockedStatus(story.status) ? (
-                  <button
-                    onClick={() => handleUnblock(story)}
-                    className="px-3 py-1.5 rounded-lg bg-emerald-500/15 border border-emerald-400/30 text-emerald-300 text-xs font-bold hover:bg-emerald-500/25 transition-all"
-                  >
-                    解除封鎖
-                  </button>
-                ) : (
-                  <button
-                    onClick={() => setBlockingStory(story)}
-                    className="px-3 py-1.5 rounded-lg bg-red-500/20 border border-red-400/40 text-red-300 text-xs font-bold hover:bg-red-500/30 transition-all flex items-center gap-1"
-                  >
-                    <Ban className="w-3.5 h-3.5" /> 封鎖此卡片
-                  </button>
-                )}
-              </div>
+              {(story as any).report_reason && (
+                <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-2.5 text-xs text-red-300">
+                  <span className="font-bold">🚩 檢舉人通報原因：</span> {(story as any).report_reason}
+                </div>
+              )}
             </div>
-          </div>
-        ))}
-      </div>
-
-      {blockingStory && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm">
-          <div className="glass-strong rounded-2xl w-full max-w-md p-6 glow-border border-red-500/30 bg-zinc-950">
-            <h3 className="text-base font-bold text-red-300 mb-2">確認封鎖「{blockingStory.product_name}」？</h3>
-            <input
-              type="text"
-              value={blockReason}
-              onChange={(e) => setBlockReason(e.target.value)}
-              placeholder="請填寫封鎖理由 (如不實資訊、侵權)..."
-              className="w-full bg-zinc-900 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white mb-4 focus:outline-none focus:border-red-400/50"
-            />
-            <div className="flex gap-2">
-              <button onClick={() => setBlockingStory(null)} className="flex-1 py-2.5 rounded-xl border border-white/10 text-xs text-gray-300">取消</button>
-              <button onClick={handleBlock} className="flex-1 py-2.5 rounded-xl bg-red-500 text-white font-bold text-xs">確認封鎖下架</button>
-            </div>
-          </div>
+          ))}
         </div>
       )}
     </div>
