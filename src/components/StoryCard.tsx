@@ -8,20 +8,22 @@ import { blockWish, updateWish } from '@/lib/backend';
 interface ExtendedStory extends Story {
   image_url?: string | null;
   anonymous_nickname?: string | null;
+  is_reported?: boolean;
+  report_reason?: string | null;
 }
 
 export function StoryCard({ story, index }: { story: Story; index: number }) {
-  const { profile } = useAuth();
+  const { profile, refreshProfile } = useAuth();
   const [showInvest, setShowInvest] = useState(false);
   const [isMobileFlipped, setIsMobileFlipped] = useState(false);
   
-  // 檢舉與下架彈窗狀態
   const [showActionModal, setShowActionModal] = useState(false);
   const [actionReason, setActionReason] = useState('');
   const [isActionLoading, setIsActionLoading] = useState(false);
 
   const extStory = story as ExtendedStory;
   const isAdmin = profile?.role === 'admin';
+  const isBanned = profile?.role === 'banned';
   const isOfficial = story.id === '00000000-0000-0000-0000-000000000001';
 
   const progress = Math.min(100, Math.round((story.current_stardust / story.product_price) * 100));
@@ -47,7 +49,15 @@ export function StoryCard({ story, index }: { story: Story; index: number }) {
     };
   }, [story.id]);
 
-  // 處理管理員快速下架或一般用戶檢舉
+  const handleOpenActionModal = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!isAdmin && isBanned) {
+      alert('🚫 您的帳號已被停權，無法使用檢舉功能。');
+      return;
+    }
+    setShowActionModal(true);
+  };
+
   const handleConfirmAction = async () => {
     if (!actionReason.trim()) {
       alert('請填寫原因');
@@ -56,16 +66,16 @@ export function StoryCard({ story, index }: { story: Story; index: number }) {
     setIsActionLoading(true);
     try {
       if (isAdmin) {
-        // 管理員：直接下架
+        // 管理員直接下架封鎖
         await blockWish(story.id, actionReason.trim());
         alert('✅ 管理員操作成功：卡片已即刻下架隱藏。');
       } else {
-        // 一般用戶：標記為待查驗檢舉
+        // 🌟 一般用戶檢舉：不改動 status，卡片留在首頁！只標註 is_reported
         await updateWish(story.id, { 
-          status: 'reported', 
-          block_reason: `[用戶檢舉]: ${actionReason.trim()}` 
+          is_reported: true,
+          report_reason: actionReason.trim()
         });
-        alert('🚩 感謝您的檢舉，星際巡警已接獲通報並移交管理員審核！');
+        alert('🚩 感謝您的通報！管理團隊將在後台查核此卡片，查核期間卡片正常展示。');
       }
       setShowActionModal(false);
       setActionReason('');
@@ -88,7 +98,7 @@ export function StoryCard({ story, index }: { story: Story; index: number }) {
             isMobileFlipped ? 'rotate-y-180' : ''
           }`}
         >
-          {/* 🌟 1. 正面 (FRONT) */}
+          {/* 正面 */}
           <div className="absolute inset-0 w-full h-full rounded-2xl glass glow-border overflow-hidden backface-hidden flex flex-col justify-between p-5 bg-zinc-950/90 shadow-2xl">
             <div className="absolute inset-0 pointer-events-none overflow-hidden -z-10">
               {extStory.image_url ? (
@@ -112,7 +122,7 @@ export function StoryCard({ story, index }: { story: Story; index: number }) {
             <div>
               <div className="flex items-center justify-between mb-3">
                 <span className="text-xs px-2.5 py-1 rounded-full bg-amber-500/15 border border-amber-400/30 text-amber-200 font-mono flex items-center gap-1 backdrop-blur-md">
-                  <Sparkles className="w-3 sub-pixel-antialiased text-amber-300" />
+                  <Sparkles className="w-3 text-amber-300" />
                   #{story.tag_name}
                 </span>
                 {isFulfilled ? (
@@ -154,9 +164,8 @@ export function StoryCard({ story, index }: { story: Story; index: number }) {
             </div>
           </div>
 
-          {/* 🌟 2. 背面 (BACK) */}
+          {/* 背面 */}
           <div className="absolute inset-0 w-full h-full rounded-2xl glass-strong glow-border p-5 flex flex-col justify-between backface-hidden rotate-y-180 bg-zinc-950/98 border border-amber-400/30 shadow-2xl">
-            {/* 背面頭部 */}
             <div className="border-b border-white/10 pb-3">
               <div className="flex items-center justify-between text-xs text-zinc-400 mb-1">
                 <span className="flex items-center gap-1 text-amber-300">
@@ -164,28 +173,23 @@ export function StoryCard({ story, index }: { story: Story; index: number }) {
                   {extStory.anonymous_nickname || '匿名星旅人'} 的心願
                 </span>
                 
-                {/* 🚨 管理員下架 / 用戶檢舉快捷按鈕 */}
                 {!isOfficial && (
                   <button
                     type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setShowActionModal(true);
-                    }}
+                    onClick={handleOpenActionModal}
                     className={`text-[10px] px-2 py-0.5 rounded-md flex items-center gap-1 transition-all ${
                       isAdmin 
                         ? 'bg-red-500/20 text-red-300 hover:bg-red-500/30 border border-red-500/30 font-bold' 
                         : 'bg-white/5 text-zinc-500 hover:text-zinc-300 hover:bg-white/10'
                     }`}
                   >
-                    {isAdmin ? <><ShieldAlert className="w-3 h-3" /> 下架卡片</> : <><Flag className="w-3 h-3" /> 檢舉</>}
+                    {isAdmin ? <><ShieldAlert className="w-3 h-3" /> 下架</> : <><Flag className="w-3 h-3" /> 檢舉</>}
                   </button>
                 )}
               </div>
               <h4 className="font-bold text-amber-100 text-sm truncate">{story.product_name}</h4>
             </div>
 
-            {/* 背面故事主體 */}
             <div className="relative my-2 flex-1 overflow-hidden">
               <p className="text-xs text-zinc-300 leading-relaxed tracking-wide text-justify">{story.story_text}</p>
               <div className="absolute bottom-0 inset-x-0 h-10 bg-gradient-to-t from-zinc-950 to-transparent pointer-events-none" />
@@ -202,7 +206,6 @@ export function StoryCard({ story, index }: { story: Story; index: number }) {
               <span className="text-amber-300 font-bold">進度 {progress}%</span>
             </div>
 
-            {/* 結帳按鈕 */}
             <div>
               {isFulfilled ? (
                 <div className="w-full text-center py-2.5 rounded-xl bg-emerald-500/20 border border-emerald-400/40 text-emerald-300 text-xs font-bold">
@@ -230,10 +233,16 @@ export function StoryCard({ story, index }: { story: Story; index: number }) {
         </div>
       </div>
 
-      {/* 贊助彈窗 */}
-      {showInvest && <InvestModal story={story} onClose={() => setShowInvest(false)} />}
+      {showInvest && (
+        <InvestModal 
+          story={story} 
+          onClose={() => {
+            setShowInvest(false);
+            refreshProfile(); // 🌟 關閉後立刻強制刷新個人 Profile 星塵數字！
+          }} 
+        />
+      )}
 
-      {/* 🚨 下架 / 檢舉操作彈窗 */}
       {showActionModal && (
         <div 
           className="fixed inset-0 z-[65] flex items-center justify-center p-4 bg-black/75 backdrop-blur-md scale-in"
@@ -248,8 +257,8 @@ export function StoryCard({ story, index }: { story: Story; index: number }) {
             </h3>
             <p className="text-xs text-zinc-400">
               {isAdmin 
-                ? `請輸入下架「${story.product_name}」的具體違規理由，該卡片將立刻從首頁隱藏：` 
-                : '請填寫您檢舉此內容的原因（如：疑似詐騙、涉及敏感內容、廣告）：'}
+                ? `請輸入下架「${story.product_name}」的違規理由，將立刻從首頁隱藏：` 
+                : '請填寫檢舉原因（卡片會保留於首頁，並交由管理員核實定奪）：'}
             </p>
             <textarea
               rows={3}
@@ -272,7 +281,7 @@ export function StoryCard({ story, index }: { story: Story; index: number }) {
                 onClick={handleConfirmAction}
                 className="flex-1 py-2 rounded-xl bg-red-500 hover:bg-red-400 text-white font-bold text-xs"
               >
-                {isActionLoading ? '處理中...' : isAdmin ? '確認下架隱藏' : '送出檢舉'}
+                {isActionLoading ? '處理中...' : isAdmin ? '確認下架隱藏' : '送出通報檢舉'}
               </button>
             </div>
           </div>
