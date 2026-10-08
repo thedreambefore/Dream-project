@@ -242,19 +242,21 @@ function ModerationTab() {
 
   // 🌟 修復核心 1：同時向 wish_id 與 story_id 撈取贊助與留言，並關聯暱稱
   const handleOpenShippingModal = async (story: any) => {
-    setShippingStory(story);
-    setAdminBlessing('');
-    setLoadingInvestments(true);
-    const { data, error } = await supabase
-      .from('investments')
-      .select('*, users:user_id(anonymous_nickname)')
-      .or(`wish_id.eq.${story.id},story_id.eq.${story.id}`)
-      .order('created_at', { ascending: true });
+  setShippingStory(story);
+  setAdminBlessing('');
+  setLoadingInvestments(true);
 
-    if (error) console.error('讀取贊助留言錯誤:', error);
-    setInvestmentsList(data || []);
-    setLoadingInvestments(false);
-  };
+  // 🌟 使用 .or 同時查詢 wish_id 或 story_id
+  const { data, error } = await supabase
+    .from('investments')
+    .select('*, users:user_id(anonymous_nickname)')
+    .or(`wish_id.eq.${story.id},story_id.eq.${story.id}`)
+    .order('created_at', { ascending: true });
+
+  console.log('查詢該卡片贊助紀錄結果:', data, error); // 可以在瀏覽器 Console 檢查
+  setInvestmentsList(data || []);
+  setLoadingInvestments(false);
+};
 
   const handleToggleHideMessage = async (invId: string, currentHidden: boolean) => {
     await supabase.from('investments').update({ is_hidden: !currentHidden }).eq('id', invId);
