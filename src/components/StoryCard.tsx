@@ -62,7 +62,7 @@ export function StoryCard({ story, index }: { story: Story; index: number }) {
         setIsBookmarked(true);
       }
     } catch (err) {
-      console.error(err);
+      console.error('收藏切換失敗:', err);
     }
   };
 
@@ -120,7 +120,8 @@ export function StoryCard({ story, index }: { story: Story; index: number }) {
         onClick={() => setIsMobileFlipped((prev) => !prev)}
       >
         <div className={`relative w-full h-full duration-700 transform-style-3d group-hover-flip transition-transform ease-out ${isMobileFlipped ? 'rotate-y-180' : ''}`}>
-          {/* 正面 */}
+          
+          {/* 正面（已移除愛心，徹底避免懸停/點擊衝突） */}
           <div className="absolute inset-0 w-full h-full rounded-2xl glass glow-border overflow-hidden backface-hidden flex flex-col justify-between p-5 bg-zinc-950/90 shadow-2xl">
             <div className="absolute inset-0 pointer-events-none overflow-hidden -z-10">
               {extStory.image_url ? (
@@ -147,21 +148,10 @@ export function StoryCard({ story, index }: { story: Story; index: number }) {
                   <Sparkles className="w-3 text-amber-300" />
                   #{story.tag_name}
                 </span>
-
-                {/* ❤️ 愛心收藏快捷鍵 */}
-                {!isOfficial && (
-                  <button
-                    type="button"
-                    onClick={handleToggleBookmark}
-                    className={`p-1.5 rounded-full border transition-all ${
-                      isBookmarked
-                        ? 'bg-rose-500/20 border-rose-500/50 text-rose-400 scale-110 shadow-[0_0_10px_rgba(244,63,94,0.4)]'
-                        : 'bg-white/5 border-white/10 text-zinc-400 hover:text-white hover:bg-white/10'
-                    }`}
-                    title={isBookmarked ? '已加入追番牆' : '點擊加入追番牆'}
-                  >
-                    <Heart className={`w-3.5 h-3.5 ${isBookmarked ? 'fill-rose-400' : ''}`} />
-                  </button>
+                {isFulfilled && (
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                    ✓ 已履約圓夢
+                  </span>
                 )}
               </div>
 
@@ -198,7 +188,7 @@ export function StoryCard({ story, index }: { story: Story; index: number }) {
             </div>
           </div>
 
-          {/* 背面 */}
+          {/* 背面（❤️ 愛心移至右上角原檢舉處；檢舉下移至底部） */}
           <div className="absolute inset-0 w-full h-full rounded-2xl glass-strong glow-border p-5 flex flex-col justify-between backface-hidden rotate-y-180 bg-zinc-950/98 border border-amber-400/30 shadow-2xl">
             <div className="border-b border-white/10 pb-3">
               <div className="flex items-center justify-between text-xs text-zinc-400 mb-1">
@@ -207,6 +197,42 @@ export function StoryCard({ story, index }: { story: Story; index: number }) {
                   {extStory.anonymous_nickname || '匿名星旅人'} 的心願
                 </span>
                 
+                {/* 🌟 1. 愛心收藏按鈕放置在原檢舉按鈕位置 */}
+                {!isOfficial && (
+                  <button
+                    type="button"
+                    onClick={handleToggleBookmark}
+                    className={`p-1.5 rounded-full border transition-all cursor-pointer ${
+                      isBookmarked
+                        ? 'bg-rose-500/20 border-rose-500/50 text-rose-400 scale-110 shadow-[0_0_10px_rgba(244,63,94,0.4)]'
+                        : 'bg-white/5 border-white/10 text-zinc-400 hover:text-white hover:bg-white/10'
+                    }`}
+                    title={isBookmarked ? '已追番 (點擊取消)' : '加入追番牆'}
+                  >
+                    <Heart className={`w-3.5 h-3.5 ${isBookmarked ? 'fill-rose-400 text-rose-400' : ''}`} />
+                  </button>
+                )}
+              </div>
+              <h4 className="font-bold text-amber-100 text-sm truncate">{story.product_name}</h4>
+            </div>
+
+            <div className="relative my-2 flex-1 overflow-hidden">
+              <p className="text-xs text-zinc-300 leading-relaxed tracking-wide text-justify">{story.story_text}</p>
+              <div className="absolute bottom-0 inset-x-0 h-10 bg-gradient-to-t from-zinc-950 to-transparent pointer-events-none" />
+            </div>
+
+            <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl px-3 py-2 mb-2">
+              <p className="text-[11px] text-amber-200/90 leading-tight">
+                <span className="font-bold text-amber-300">承諾：</span>{story.promise_text}
+              </p>
+            </div>
+
+            {/* 🌟 2. 檢舉按鈕下移至進度資訊欄旁 */}
+            <div className="flex justify-between items-center text-xs text-zinc-400 mb-2.5 px-1 font-mono">
+              <span>需募: NT$ {story.product_price.toLocaleString()}</span>
+              
+              <div className="flex items-center gap-2">
+                <span className="text-amber-300 font-bold">進度 {progress}%</span>
                 {!isOfficial && (
                   <button
                     type="button"
@@ -219,23 +245,6 @@ export function StoryCard({ story, index }: { story: Story; index: number }) {
                   </button>
                 )}
               </div>
-              <h4 className="font-bold text-amber-100 text-sm truncate">{story.product_name}</h4>
-            </div>
-
-            <div className="relative my-2 flex-1 overflow-hidden">
-              <p className="text-xs text-zinc-300 leading-relaxed tracking-wide text-justify">{story.story_text}</p>
-              <div className="absolute bottom-0 inset-x-0 h-10 bg-gradient-to-t from-zinc-950 to-transparent pointer-events-none" />
-            </div>
-
-            <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl px-3 py-2 mb-3">
-              <p className="text-[11px] text-amber-200/90 leading-tight">
-                <span className="font-bold text-amber-300">承諾：</span>{story.promise_text}
-              </p>
-            </div>
-
-            <div className="flex justify-between items-center text-xs text-zinc-400 mb-3 px-1 font-mono">
-              <span>需募: NT$ {story.product_price.toLocaleString()}</span>
-              <span className="text-amber-300 font-bold">進度 {progress}%</span>
             </div>
 
             <div>
@@ -253,7 +262,7 @@ export function StoryCard({ story, index }: { story: Story; index: number }) {
                       : 'bg-gradient-to-r from-amber-500 to-yellow-600 hover:from-amber-400 hover:to-yellow-500 text-zinc-950 font-bold shadow-amber-500/20'
                   }`}
                 >
-                  <Heart className="w-3.5 h-3.5 fill-current" />
+                  <Coins className="w-3.5 h-3.5 fill-current" />
                   {isNearComplete ? '🌟 搶下尾刀 · 助他圓夢' : '🌌 注入星塵 · 助他圓夢'}
                 </button>
               )}
