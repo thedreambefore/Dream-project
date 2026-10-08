@@ -265,6 +265,10 @@ function PublishTab({ onRequireVerify }: { onRequireVerify: () => void }) {
     e.preventDefault();
     setError('');
 
+    if (profile?.role === 'banned') {
+      setError('🚫 您的帳號因違反平台規範已被停權，目前無法發布任何願望。');
+      return;
+    }
     // 1. 手機強驗證防線
     if (!profile?.is_phone_verified) {
       onRequireVerify();
