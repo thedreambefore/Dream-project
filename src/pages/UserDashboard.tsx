@@ -675,50 +675,72 @@ function MyWishesTab({ onEditWish }: { onEditWish: () => void }) {
         </div>
       )}
 
-      {/* ✏️ 重新編修彈窗 */}
+      {/* ✏️ 全功能重新編修彈窗 */}
       {editingWish && (
-        <div className="fixed inset-0 z-[65] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
-          <div className="glass-strong rounded-2xl w-full max-w-lg p-6 glow-border border-amber-400/30 bg-zinc-950 space-y-4">
-            <h3 className="text-base font-bold text-amber-200">修正內容重新送審</h3>
+        <div className="fixed inset-0 z-[65] flex items-center justify-center p-4 bg-black/85 backdrop-blur-md overflow-y-auto">
+          <div className="glass-strong rounded-2xl w-full max-w-lg p-6 glow-border border-amber-400/30 bg-zinc-950 space-y-4 my-auto">
+            <h3 className="text-base font-bold text-amber-200">修正內容並再次提交審核</h3>
+
             <div>
-              <label className="text-xs text-zinc-400 block mb-1">願望標題</label>
-              <input type="text" maxLength={20} value={editTitle} onChange={(e) => setEditTitle(e.target.value)} className="w-full bg-zinc-900 border border-white/10 rounded-xl p-2.5 text-xs text-white" />
+              <label className="text-xs text-zinc-400 block mb-1">願望標題 (限 20 字)</label>
+              <input type="text" maxLength={20} value={editTitle} onChange={(e) => setEditTitle(e.target.value)} className="w-full bg-zinc-900 border border-white/10 rounded-xl p-2.5 text-xs text-white" required />
             </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs text-zinc-400 block mb-1">目標星塵 (NT$)</label>
+                <input type="number" min={10} value={editingWish.product_price} onChange={(e) => setEditingWish({...editingWish, product_price: Number(e.target.value)})} className="w-full bg-zinc-900 border border-white/10 rounded-xl p-2 text-xs text-amber-300 font-mono" />
+              </div>
+              <div>
+                <label className="text-xs text-zinc-400 block mb-1">電商連結 (蝦皮/MOMO)</label>
+                <input type="url" value={editingWish.product_url || ''} onChange={(e) => setEditingWish({...editingWish, product_url: e.target.value})} placeholder="https://..." className="w-full bg-zinc-900 border border-white/10 rounded-xl p-2 text-xs text-white" />
+              </div>
+            </div>
+
             <div>
               <label className="text-xs text-zinc-400 block mb-1">故事內文 (限 200 字)</label>
-              <textarea rows={4} maxLength={200} value={editStory} onChange={(e) => setEditStory(e.target.value)} className="w-full bg-zinc-900 border border-white/10 rounded-xl p-2.5 text-xs text-white resize-none" />
+              <textarea rows={4} maxLength={200} value={editStory} onChange={(e) => setEditStory(e.target.value)} className="w-full bg-zinc-900 border border-white/10 rounded-xl p-2.5 text-xs text-white resize-none" required />
             </div>
+
             <div>
               <label className="text-xs text-zinc-400 block mb-1">終章承諾</label>
-              <input type="text" value={editPromise} onChange={(e) => setEditPromise(e.target.value)} className="w-full bg-zinc-900 border border-white/10 rounded-xl p-2.5 text-xs text-white" />
+              <input type="text" value={editPromise} onChange={(e) => setEditPromise(e.target.value)} className="w-full bg-zinc-900 border border-white/10 rounded-xl p-2 text-xs text-white" />
             </div>
-            <div className="flex gap-2">
-              <button onClick={() => setEditingWish(null)} className="flex-1 py-2 text-xs border border-white/10 rounded-xl text-zinc-400">取消</button>
-              <button onClick={handleResubmit} disabled={savingEdit} className="flex-1 py-2 text-xs bg-amber-500 hover:bg-amber-400 text-zinc-950 font-bold rounded-xl">
+
+            <div className="flex gap-2 pt-2">
+              <button onClick={() => setEditingWish(null)} className="flex-1 py-2.5 text-xs border border-white/10 rounded-xl text-zinc-400 hover:text-white">取消</button>
+              <button onClick={handleResubmit} disabled={savingEdit} className="flex-1 py-2.5 text-xs bg-amber-500 hover:bg-amber-400 text-zinc-950 font-bold rounded-xl transition-all">
                 {savingEdit ? '提交中...' : '確認重新提交審核'}
               </button>
             </div>
           </div>
         </div>
       )}
-    </div>
-  );
-}
 
 // ===== 5. 榮譽稱號分頁 (WalletTab) =====
 function WalletTab() {
-  const { profile } = useAuth();
-  const contribution = profile?.wallet_balance ?? 0;
+  const { session, profile } = useAuth();
+  const [inTransitStardust, setInTransitStardust] = useState(0);
 
-  // 榮譽稱號評級
-  const getRank = (val: number) => {
-    if (val >= 5000) return { title: '🌌 傳奇星河守護者', color: 'text-amber-300' };
-    if (val >= 2000) return { title: '✨ 璀璨星宿築夢人', color: 'text-yellow-300' };
-    if (val >= 500) return { title: '🌟 溫暖微光星旅人', color: 'text-emerald-300' };
-    return { title: '🌱 初生星塵探索者', color: 'text-zinc-400' };
-  };
+  useEffect(() => {
+    const calcInTransit = async () => {
+      if (!session?.user?.id) return;
+      const { data } = await supabase
+        .from('investments')
+        .select('amount, story_id, wishes(status)')
+        .eq('user_id', session.user.id);
 
-  const rank = getRank(contribution);
+      if (data) {
+        const sum = data
+          .filter((inv: any) => inv.wishes?.status !== 'fulfilled')
+          .reduce((acc, curr) => acc + (curr.amount || 0), 0);
+        setInTransitStardust(sum);
+      }
+    };
+    calcInTransit();
+  }, [session?.user?.id]);
+
+  const totalHonor = profile?.wallet_balance ?? 0;
 
   return (
     <div className="max-w-xl space-y-5 animate-fade-in">
@@ -726,24 +748,35 @@ function WalletTab() {
         <Award className="w-5 h-5 text-amber-300" /> 星光貢獻榮譽館
       </h2>
 
-      <div className="bg-gradient-to-br from-amber-500/10 via-zinc-900 to-zinc-950 border border-amber-500/20 p-6 rounded-3xl relative overflow-hidden shadow-2xl glow-border">
-        <p className="text-zinc-400 text-xs font-medium tracking-wider mb-1">
-          TOTAL CONTRIBUTION · 累計心願燃料貢獻
-        </p>
+      <div className="bg-gradient-to-br from-amber-500/10 via-zinc-900 to-zinc-950 border border-amber-500/20 p-6 rounded-3xl glow-border">
+        <p className="text-zinc-400 text-xs font-medium tracking-wider mb-1">TOTAL HONOR · 累計心願燃料總額</p>
         <h4 className="text-3xl font-black text-amber-300 font-mono tracking-tight flex items-baseline gap-1">
           <span>✨</span>
-          <span>{contribution.toLocaleString()}</span>
-          <span className="text-xs text-zinc-500 font-normal ml-1">星塵榮譽點數</span>
+          <span>{totalHonor.toLocaleString()}</span>
+          <span className="text-xs text-zinc-500 font-normal ml-1">榮譽星塵點數</span>
         </h4>
+      </div>
 
-        <div className="mt-4 pt-4 border-t border-white/5 flex items-center justify-between">
-          <div>
-            <p className="text-[11px] text-zinc-500">當前榮譽稱號</p>
-            <p className={`text-sm font-bold ${rank.color}`}>{rank.title}</p>
-          </div>
-          <span className="text-xs text-zinc-400 bg-white/5 border border-white/10 px-3 py-1.5 rounded-full">
-            每資助 1 元即可累積 1 點
-          </span>
+      {/* 🌟 在途星塵與履約星塵暫存狀態面板 */}
+      <div className="grid grid-cols-2 gap-3">
+        <div className="bg-zinc-900/60 border border-amber-400/20 p-4 rounded-2xl">
+          <p className="text-xs text-amber-300/80 mb-1 flex items-center gap-1 font-bold">
+            ⏳ 在途守護星塵 (未履約)
+          </p>
+          <p className="text-xl font-mono font-bold text-white">
+            {inTransitStardust.toLocaleString()} <span className="text-xs text-zinc-500 font-normal">星塵</span>
+          </p>
+          <p className="text-[10px] text-zinc-500 mt-1">集資推進中，等待主角終章履約</p>
+        </div>
+
+        <div className="bg-zinc-900/60 border border-emerald-500/20 p-4 rounded-2xl">
+          <p className="text-xs text-emerald-400 mb-1 flex items-center gap-1 font-bold">
+            🎉 已圓滿見證星塵
+          </p>
+          <p className="text-xl font-mono font-bold text-emerald-300">
+            {Math.max(0, totalHonor - inTransitStardust).toLocaleString()} <span className="text-xs text-zinc-500 font-normal">星塵</span>
+          </p>
+          <p className="text-[10px] text-zinc-500 mt-1">故事已成功履約圓夢</p>
         </div>
       </div>
     </div>
