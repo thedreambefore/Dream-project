@@ -71,7 +71,23 @@ export function InvestModal({ story, onClose }: { story: Story; onClose: () => v
       setShowAuth(true);
       return;
     }
-    if (amount < 10) {
+
+    // 🔒 1. 防超額防呆（官方常駐贊助卡除外）
+    const isOfficial = story.id === '00000000-0000-0000-0000-000000000001' || story.id === 'demo-story-001';
+    let finalAmount = amount;
+
+    if (!isOfficial) {
+      const remainingNeed = story.product_price - story.current_stardust;
+      if (remainingNeed <= 0) {
+        setError('🎉 此願望已經圓滿達成，無法再注入更多星塵！');
+        return;
+      }
+      if (finalAmount > remainingNeed) {
+        finalAmount = remainingNeed; // 自動修正為剛好達成金額，不超收
+      }
+    }
+
+    if (finalAmount < 10 && !isOfficial) {
       setError('最低心願資助金額為 NT$ 10 元');
       return;
     }
@@ -82,18 +98,45 @@ export function InvestModal({ story, onClose }: { story: Story; onClose: () => v
 
     setLoading(true);
     try {
-      const { error: investError } = await supabase.from('investments').insert({
-        user_id: session.user.id,
-        story_id: story.id,
-        amount: amount,
-        message: message.trim() || null,
-        is_anonymous: true,
-      });
-      if (investError) console.warn('investments 寫入提示:', investError);
+      // 2. 一般卡片才寫入 investments 紀錄，避免示範卡 UUID 報錯
+      if (!isOfficial) {
+        const { error: investError } = await supabase.from('investments').insert({
+          user_id: session.user.id,
+          story_id: story.id,
+          amount: finalAmount,
+          message: message.trim() || null,
+          is_anonymous: true,
+        });
+        if (investError) console.warn('investments 寫入提示:', investError);
+      }
 
-      const newTotal = (story.current_stardust || 0) + amount;
-      const newStatus = newTotal >= story.product_price ? 'fulfilled' : 'approved';
-      await updateWish(story.id, { current_stardust: newTotal, status: newStatus });
+      // 3. 更新該願望卡片的進度條
+      const newTotal = (story.current_stardust || 0) + finalAmount;
+      const newStatus = (!isOfficial && newTotal >= story.product_price) ? 'fulfilled' : 'approved';
+
+      if (!isOfficial) {
+        await updateWish(story.id, { current_stardust: newTotal, status: newStatus });
+      } else {
+        story.current_stardust = newTotal; // 官方卡片原地更新展示
+      }
+
+      // ========================================================
+      // 🌟【在此加入】：累加星光榮譽貢獻值（純資助金額，不含手續費）
+      // ========================================================
+      if (session?.user?.id) {
+        const { data: userRow } = await supabase
+          .from('users')
+          .select('wallet_balance')
+          .eq('id', session.user.id)
+          .maybeSingle();
+
+        const currentHonor = userRow?.wallet_balance || 0;
+        await supabase
+          .from('users')
+          .update({ wallet_balance: currentHonor + finalAmount })
+          .eq('id', session.user.id);
+      }
+      // ========================================================
 
       setSuccess(true);
       setTimeout(() => onClose(), 2200);
