@@ -297,9 +297,10 @@ function PublishTab({ onRequireVerify }: { onRequireVerify: () => void }) {
       const currentUserId = session?.user?.id;
       if (!currentUserId) throw new Error('請先登入');
 
-      // 4. 寫入資料庫：全站只寫入 wishes 表
-      const { error: insertError } = await supabase.from('wishes').insert({
+// 4. 寫入資料庫：同時帶上 title 與 product_name 達成 100% 相容
+      const payload = {
         user_id: currentUserId,
+        title: title.trim(), // 🌟 補上這個！滿足 title NOT NULL 約束
         product_name: title.trim(),
         product_price: Number(productPrice),
         current_stardust: 0,
@@ -311,7 +312,9 @@ function PublishTab({ onRequireVerify }: { onRequireVerify: () => void }) {
         product_url: productUrl.trim() || null,
         status: 'pending',
         block_reason: null,
-      });
+      };
+
+      const { error: insertError } = await supabase.from('wishes').insert(payload);
 
       if (insertError) {
         console.error('Wishes 寫入錯誤詳情:', insertError);
