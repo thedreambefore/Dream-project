@@ -204,6 +204,13 @@ function ModerationTab() {
   const [loading, setLoading] = useState(true);
   const [subTab, setSubTab] = useState<'reported' | 'fulfilled' | 'all'>('reported');
 
+  // 出貨審查彈窗狀態
+  const [shippingStory, setShippingStory] = useState<any | null>(null);
+  const [investmentsList, setInvestmentsList] = useState<any[]>([]);
+  const [adminBlessing, setAdminBlessing] = useState('');
+  const [loadingInvestments, setLoadingInvestments] = useState(false);
+  const [shippingSubmit, setShippingSubmit] = useState(false);
+
   const loadStories = useCallback(async () => {
     setLoading(true);
     setStories(await fetchAllWishesForAdmin());
@@ -212,21 +219,60 @@ function ModerationTab() {
 
   useEffect(() => { loadStories(); }, [loadStories]);
 
-  // 1. 被檢舉名單 (is_reported = true 且未封鎖)
   const reportedWishes = stories.filter((s) => (s as any).is_reported && !isBlockedStatus(s.status));
-  // 2. 已履約/已滿額待出貨名單 (status = fulfilled 或 金額達標)
-  const fulfilledWishes = stories.filter((s) => s.status === 'fulfilled' || s.current_stardust >= s.product_price);
-  // 3. 全站卡片
-  const currentList = subTab === 'reported' ? reportedWishes : subTab === 'fulfilled' ? fulfilledWishes : stories;
+  // 滿額待出貨：狀態為 full_funded 或金額達標但尚未 fulfilled
+  const fulfilledWishes = stories.filter((s) => (s.status === 'full_funded' || s.current_stardust >= s.product_price) && s.status !== 'fulfilled');
+  const allList = stories;
 
-  // 駁回檢舉
+  // 打開出貨審查彈窗
+  const handleOpenShippingModal = async (story: any) => {
+    setShippingStory(story);
+    setAdminBlessing('');
+    setLoadingInvestments(true);
+    const { data } = await supabase
+      .from('investments')
+      .select('*')
+      .eq('story_id', story.id)
+      .order('created_at', { ascending: true });
+    setInvestmentsList(data || []);
+    setLoadingInvestments(false);
+  };
+
+  // 剔除 / 恢復某則留言
+  const handleToggleHideMessage = async (invId: string, currentHidden: boolean) => {
+    await supabase.from('investments').update({ is_hidden: !currentHidden }).eq('id', invId);
+    setInvestmentsList((prev) =>
+      prev.map((item) => (item.id === invId ? { ...item, is_hidden: !currentHidden } : item))
+    );
+  };
+
+  // 確認出貨完結
+  const handleConfirmShipment = async () => {
+    if (!shippingStory) return;
+    setShippingSubmit(true);
+    try {
+      const defaultBlessing = '🌟 夢沙星空見證了這份純粹的善意，願這份溫暖伴隨你迎向嶄新的明天！';
+      await updateWish(shippingStory.id, {
+        status: 'fulfilled',
+        admin_blessing: adminBlessing.trim() || defaultBlessing,
+        is_fulfilled_reviewed: true,
+      });
+      alert('🎉 已完成出貨審查！該願望已正式進入已履約完結狀態。');
+      setShippingStory(null);
+      loadStories();
+    } catch (e: any) {
+      alert(`出貨失敗: ${e.message}`);
+    } finally {
+      setShippingSubmit(false);
+    }
+  };
+
   const handleDismissReport = async (id: string) => {
     await updateWish(id, { is_reported: false, report_reason: null });
-    alert('已駁回檢舉，該卡片恢復正常無違規狀態。');
+    alert('已駁回檢舉。');
     loadStories();
   };
 
-  // 確認下架封鎖
   const handleConfirmBlock = async (id: string, reason: string) => {
     await blockWish(id, reason || '管理員查核違規下架');
     loadStories();
@@ -237,7 +283,7 @@ function ModerationTab() {
     loadStories();
   };
 
-  if (loading) return <div className="text-center py-16 text-gray-400"><Loader2 className="w-6 h-6 animate-spin mx-auto mb-2" />載入卡片審查數據...</div>;
+  if (loading) return <div className="text-center py-16 text-gray-400"><Loader2 className="w-6 h-6 animate-spin mx-auto mb-2" />載入審查中心...</div>;
 
   return (
     <div className="space-y-4">
@@ -246,7 +292,6 @@ function ModerationTab() {
           <Ban className="w-5 h-5" /> 卡片巡檢與物流出貨台
         </h2>
         
-        {/* 三大子分頁 */}
         <div className="flex bg-zinc-900 border border-white/10 p-1 rounded-xl gap-1">
           <button
             onClick={() => setSubTab('reported')}
@@ -262,7 +307,7 @@ function ModerationTab() {
               subTab === 'fulfilled' ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40' : 'text-zinc-400 hover:text-white'
             }`}
           >
-            📦 滿額待出貨 ({fulfilledWishes.length})
+            📦 滿額待審查出貨 ({fulfilledWishes.length})
           </button>
           <button
             onClick={() => setSubTab('all')}
@@ -275,71 +320,174 @@ function ModerationTab() {
         </div>
       </div>
 
-      {currentList.length === 0 ? (
-        <div className="text-center py-16 text-zinc-500 border border-white/5 rounded-2xl bg-zinc-900/20">
-          目前此分類下沒有卡片紀錄。
-        </div>
-      ) : (
+      {/* 滿額待審查出貨列表 */}
+      {subTab === 'fulfilled' && (
         <div className="space-y-3">
-          {currentList.map((story) => (
-            <div key={story.id} className="glass rounded-2xl p-4 border border-white/10 bg-zinc-900/60 space-y-2">
-              <div className="flex justify-between items-start gap-2">
-                <div className="flex items-center gap-3">
-                  <span className="text-3xl">{story.cover_emoji}</span>
-                  <div>
-                    <h4 className="font-bold text-amber-100 text-sm">{story.product_name}</h4>
-                    <p className="text-xs text-zinc-400">
-                      #{story.tag_name} · 進度 {story.current_stardust}/{story.product_price} 星塵
-                    </p>
-                  </div>
+          {fulfilledWishes.length === 0 ? (
+            <div className="text-center py-16 text-zinc-500 border border-white/5 rounded-2xl bg-zinc-900/20">
+              目前暫無滿額待出貨項目。
+            </div>
+          ) : (
+            fulfilledWishes.map((story) => (
+              <div key={story.id} className="glass rounded-2xl p-5 border border-emerald-500/30 bg-emerald-950/15 flex justify-between items-center gap-4">
+                <div>
+                  <span className="text-xs font-bold text-emerald-300 bg-emerald-500/20 px-2.5 py-0.5 rounded-full">
+                    🎉 募集已 100% 達成
+                  </span>
+                  <h3 className="font-bold text-amber-100 text-base mt-2">{story.product_name}</h3>
+                  <p className="text-xs text-zinc-400 mt-0.5">
+                    募集總額: NT$ {story.current_stardust.toLocaleString()} / NT$ {story.product_price.toLocaleString()}
+                  </p>
                 </div>
-
                 <div className="flex gap-2">
-                  {subTab === 'reported' && (
-                    <>
-                      <button
-                        onClick={() => handleDismissReport(story.id)}
-                        className="px-2.5 py-1.5 bg-zinc-800 text-zinc-300 rounded-lg text-xs hover:bg-zinc-700"
-                      >
-                        駁回檢舉
-                      </button>
-                      <button
-                        onClick={() => handleConfirmBlock(story.id, (story as any).report_reason || '檢舉屬實下架')}
-                        className="px-2.5 py-1.5 bg-red-500/20 border border-red-500/40 text-red-300 rounded-lg text-xs font-bold hover:bg-red-500/30"
-                      >
-                        確認違規下架
-                      </button>
-                    </>
-                  )}
-
-                  {subTab === 'fulfilled' && (story as any).product_url && (
+                  {(story as any).product_url && (
                     <a
                       href={(story as any).product_url}
                       target="_blank"
                       rel="noreferrer"
-                      className="px-3 py-1.5 bg-emerald-500 text-zinc-950 font-bold rounded-lg text-xs flex items-center gap-1"
+                      className="px-3 py-2 bg-zinc-800 text-zinc-300 rounded-xl text-xs hover:bg-zinc-700 flex items-center gap-1"
                     >
-                      前往電商採購出貨
+                      查看商品
                     </a>
                   )}
-
-                  {subTab === 'all' && (
-                    isBlockedStatus(story.status) ? (
-                      <button onClick={() => handleUnblock(story.id)} className="px-2.5 py-1 bg-emerald-500/20 text-emerald-300 text-xs rounded-lg">解除封鎖</button>
-                    ) : (
-                      <button onClick={() => handleConfirmBlock(story.id, '管理員手動封鎖')} className="px-2.5 py-1 bg-red-500/20 text-red-300 text-xs rounded-lg">手動封鎖</button>
-                    )
-                  )}
+                  <button
+                    onClick={() => handleOpenShippingModal(story)}
+                    className="px-4 py-2 bg-emerald-500 hover:bg-emerald-400 text-zinc-950 font-bold rounded-xl text-xs flex items-center gap-1.5 shadow-lg"
+                  >
+                    📦 審核留言並確認出貨
+                  </button>
                 </div>
               </div>
+            ))
+          )}
+        </div>
+      )}
 
-              {(story as any).report_reason && (
-                <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-2.5 text-xs text-red-300">
-                  <span className="font-bold">🚩 檢舉人通報原因：</span> {(story as any).report_reason}
+      {/* 待檢舉列表 */}
+      {subTab === 'reported' && (
+        <div className="space-y-3">
+          {reportedWishes.length === 0 ? (
+            <div className="text-center py-16 text-zinc-500 border border-white/5 rounded-2xl bg-zinc-900/20">
+              目前無被檢舉卡片。
+            </div>
+          ) : (
+            reportedWishes.map((story) => (
+              <div key={story.id} className="glass rounded-2xl p-4 border border-red-500/30 bg-red-950/15 space-y-2">
+                <div className="flex justify-between items-center">
+                  <h4 className="font-bold text-amber-100 text-sm">{story.product_name}</h4>
+                  <div className="flex gap-2">
+                    <button onClick={() => handleDismissReport(story.id)} className="px-2.5 py-1 text-xs bg-zinc-800 text-zinc-300 rounded-lg">駁回檢舉</button>
+                    <button onClick={() => handleConfirmBlock(story.id, (story as any).report_reason || '檢舉違規')} className="px-2.5 py-1 text-xs bg-red-500 text-white font-bold rounded-lg">確認下架</button>
+                  </div>
                 </div>
-              )}
+                <p className="text-xs text-red-300 bg-red-500/10 p-2 rounded-lg">
+                  檢舉理由：{(story as any).report_reason || '內容不符規範'}
+                </p>
+              </div>
+            ))
+          )}
+        </div>
+      )}
+
+      {/* 全站卡片列表 */}
+      {subTab === 'all' && (
+        <div className="space-y-3">
+          {allList.map((story) => (
+            <div key={story.id} className="glass rounded-xl p-4 flex justify-between items-center border border-white/5 bg-zinc-900/40">
+              <div>
+                <p className="font-bold text-sm text-amber-100">{story.product_name}</p>
+                <p className="text-xs text-zinc-500">狀態: {story.status} · 進度: {story.current_stardust}/{story.product_price}</p>
+              </div>
+              <div>
+                {isBlockedStatus(story.status) ? (
+                  <button onClick={() => handleUnblock(story.id)} className="px-2.5 py-1 bg-emerald-500/20 text-emerald-300 text-xs rounded-lg">解除封鎖</button>
+                ) : (
+                  <button onClick={() => handleConfirmBlock(story.id, '手動封鎖')} className="px-2.5 py-1 bg-red-500/20 text-red-300 text-xs rounded-lg">封鎖</button>
+                )}
+              </div>
             </div>
           ))}
+        </div>
+      )}
+
+      {/* 📦 確認出貨與留言審查彈窗 */}
+      {shippingStory && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-black/85 backdrop-blur-md overflow-y-auto">
+          <div className="glass-strong rounded-3xl w-full max-w-xl p-6 glow-border border-emerald-400/30 bg-zinc-950 space-y-4 my-auto">
+            <div className="flex justify-between items-center border-b border-white/10 pb-3">
+              <div>
+                <h3 className="text-base font-bold text-emerald-300">📦 物流出貨與留言審核終章</h3>
+                <p className="text-xs text-zinc-400">願望：{shippingStory.product_name}</p>
+              </div>
+              <button onClick={() => setShippingStory(null)} className="text-zinc-400 hover:text-white"><X className="w-5 h-5" /></button>
+            </div>
+
+            {/* 贊助者留言查驗區 */}
+            <div>
+              <p className="text-xs font-bold text-amber-200 mb-2">贊助者漂流瓶留言名冊 ({investmentsList.length} 則)</p>
+              <div className="max-h-48 overflow-y-auto space-y-2 pr-1 hide-scrollbar">
+                {loadingInvestments ? (
+                  <p className="text-xs text-zinc-500 text-center py-4">讀取留言中...</p>
+                ) : investmentsList.length === 0 ? (
+                  <p className="text-xs text-zinc-500 text-center py-4">此願望無留存留言。</p>
+                ) : (
+                  investmentsList.map((inv) => (
+                    <div
+                      key={inv.id}
+                      className={`p-2.5 rounded-xl border text-xs flex justify-between items-center gap-2 ${
+                        inv.is_hidden
+                          ? 'bg-red-950/20 border-red-500/30 opacity-60'
+                          : 'bg-zinc-900 border-white/5'
+                      }`}
+                    >
+                      <div className="flex-1">
+                        <span className="text-amber-400 font-mono font-bold mr-2">+${inv.amount}</span>
+                        <span className={inv.is_hidden ? 'line-through text-red-400' : 'text-zinc-200'}>
+                          {inv.message || '(無留言)'}
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleToggleHideMessage(inv.id, inv.is_hidden)}
+                        className={`text-[10px] px-2 py-1 rounded-lg border font-bold transition-all ${
+                          inv.is_hidden
+                            ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-300'
+                            : 'bg-red-500/10 border-red-500/30 text-red-300 hover:bg-red-500/20'
+                        }`}
+                      >
+                        {inv.is_hidden ? '復原顯示' : '🚫 剔除隱藏'}
+                      </button>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+
+            {/* 管理員專屬置頂祝福 */}
+            <div>
+              <label className="text-xs font-bold text-amber-200 block mb-1">
+                管理團隊官方祝福 <span className="text-zinc-500 font-normal">(留空將自動帶入公版溫暖祝福)</span>
+              </label>
+              <textarea
+                rows={2}
+                value={adminBlessing}
+                onChange={(e) => setAdminBlessing(e.target.value)}
+                placeholder="🌟 夢沙星空見證了這份純粹的善意，願這份溫暖伴隨你迎向嶄新的明天！"
+                className="w-full bg-zinc-900 border border-white/10 rounded-xl p-3 text-xs text-white resize-none focus:outline-none focus:border-emerald-400/50"
+              />
+            </div>
+
+            <div className="flex gap-2 pt-2">
+              <button onClick={() => setShippingStory(null)} className="flex-1 py-2.5 text-xs border border-white/10 rounded-xl text-zinc-400">取消</button>
+              <button
+                onClick={handleConfirmShipment}
+                disabled={shippingSubmit}
+                className="flex-1 py-2.5 text-xs bg-emerald-500 hover:bg-emerald-400 text-zinc-950 font-bold rounded-xl transition-all"
+              >
+                {shippingSubmit ? '出貨中...' : '確認完成出貨 (解鎖履約狀態)'}
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>
