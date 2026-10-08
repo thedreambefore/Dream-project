@@ -89,15 +89,22 @@ export function InvestModal({ story, onClose }: { story: Story; onClose: () => v
     setLoading(true);
     try {
       if (!isOfficial) {
-        // 寫入贊助紀錄
+        // 寫入贊助紀錄：同時帶上 wish_id 與 story_id 避免關聯失效
         await supabase.from('investments').insert({
           user_id: session.user.id,
-          story_id: story.id,
+          wish_id: story.id,   // 🌟 確保外鍵對齊
+          story_id: story.id,  // 🌟 相容舊代碼
           amount: amount,
           message: message.trim() || null,
           is_anonymous: true,
           is_hidden: false,
         });
+
+        // 🌟 自動加入使用者的追番列表！
+        await supabase.from('bookmarks').upsert({
+          user_id: session.user.id,
+          wish_id: story.id,
+        }, { onConflict: 'user_id,wish_id' });
       }
 
       const newTotal = (story.current_stardust || 0) + amount;
