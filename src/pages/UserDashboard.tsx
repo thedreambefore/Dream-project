@@ -716,6 +716,9 @@ function MyWishesTab({ onEditWish }: { onEditWish: () => void }) {
           </div>
         </div>
       )}
+    </div>
+  );
+}
 
 // ===== 5. 榮譽稱號分頁 (WalletTab) =====
 function WalletTab() {
