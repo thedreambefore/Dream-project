@@ -978,11 +978,15 @@ function MyWishesTab({ onEditWish }: { onEditWish: () => void }) {
   );
 }
 
-// ===== 5. 追番牆 (InvestedTab：聚合 ❤️ 愛心收藏與贊助追更 + 搜尋 + 開箱信圖文) =====
+// ===== 5. 追番牆 (InvestedTab：全卡片化 + 雙軌 AND 篩選器) =====
+import { TrackedWishCard } from '@/components/TrackedWishCard'; // 請確認在頂部 import
+
 function InvestedTab() {
   const { session } = useAuth();
   const [trackedWishes, setTrackedWishes] = useState<any[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
+  const [sourceFilter, setSourceFilter] = useState<'all' | 'invested' | 'bookmarked'>('all'); // 第一軌：來源
+  const [statusFilter, setStatusFilter] = useState<'all' | 'funding' | 'fulfilled'>('all');   // 第二軌：進度
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -990,31 +994,30 @@ function InvestedTab() {
       if (!session?.user?.id) return;
       setLoading(true);
 
-      // 1. 撈取愛心收藏
+      // 1. 撈取愛心
       const { data: bData } = await supabase.from('bookmarks').select('wish_id').eq('user_id', session.user.id);
       
-      // 2. 撈取贊助紀錄 (同時兼顧 wish_id 與相容 story_id)
+      // 2. 撈取贊助
       const { data: iData } = await supabase.from('investments').select('wish_id, story_id, amount').eq('user_id', session.user.id);
 
       const investMap = new Map();
       iData?.forEach((inv) => {
         const id = inv.wish_id || inv.story_id;
-        if (id) investMap.set(id, (investMap.get(id) || 0) + (inv.amount || 0));
+        if (id) investMap.set(id, (investMap.get(id) || 0) + Number(inv.amount || 0));
       });
 
-      const allWishIds = Array.from(new Set([
-        ...(bData?.map((b) => b.wish_id) || []),
-        ...Array.from(investMap.keys())
-      ].filter(Boolean)));
+      const bookmarkedSet = new Set(bData?.map((b) => b.wish_id).filter(Boolean) || []);
+      const allWishIds = Array.from(new Set([...Array.from(bookmarkedSet), ...Array.from(investMap.keys())]));
 
       if (allWishIds.length > 0) {
-        // 不過濾 status，包含 fulfilled 完結履約的卡片皆會載入
         const { data: wishList } = await supabase.from('wishes').select('*').in('id', allWishIds);
         if (wishList) {
           const merged = wishList.map((w) => ({
             ...w,
             myInvestAmount: investMap.get(w.id) || 0,
-            isBookmarkedOnly: !investMap.has(w.id),
+            hasInvested: investMap.has(w.id),
+            isBookmarked: bookmarkedSet.has(w.id),
+            isBookmarkedOnly: !investMap.has(w.id) && bookmarkedSet.has(w.id),
           }));
           setTrackedWishes(merged);
         }
@@ -1026,21 +1029,40 @@ function InvestedTab() {
     loadTracked();
   }, [session?.user?.id]);
 
-  const filtered = trackedWishes.filter((w) =>
-    (w.product_name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-    (w.tag_name || '').toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  // 🌟 AND 交叉條件過濾
+  const filtered = trackedWishes.filter((w) => {
+    // 關鍵字搜尋
+    const matchSearch =
+      (w.product_name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (w.tag_name || '').toLowerCase().includes(searchTerm.toLowerCase());
+    if (!matchSearch) return false;
 
-  if (loading) return <div className="text-center py-16 text-zinc-500">正在整理您的追番心願牆...</div>;
+    // 第一軌：來源篩選
+    if (sourceFilter === 'invested' && !w.hasInvested) return false;
+    if (sourceFilter === 'bookmarked' && !w.isBookmarkedOnly) return false;
+
+    // 第二軌：狀態篩選
+    if (statusFilter === 'funding' && w.status === 'fulfilled') return false;
+    if (statusFilter === 'fulfilled' && w.status !== 'fulfilled') return false;
+
+    return true;
+  });
+
+  if (loading) return <div className="text-center py-16 text-zinc-500">正在探尋您的追番心願牆...</div>;
 
   return (
-    <div className="max-w-2xl space-y-5 animate-fade-in">
+    <div className="space-y-6 animate-fade-in">
+      {/* 頂部標題與搜尋 */}
       <div className="flex justify-between items-center gap-3 flex-wrap">
-        <h2 className="text-xl font-bold text-amber-100 flex items-center gap-2">
-          <BookOpen className="w-5 h-5 text-amber-300" /> 心願追番結局牆
-        </h2>
+        <div>
+          <h2 className="text-xl font-bold text-amber-100 flex items-center gap-2">
+            <BookOpen className="w-5 h-5 text-amber-300" /> 心願追番結局牆
+          </h2>
+          <p className="text-xs text-zinc-400 mt-1">
+            正面重溫初衷與故事進度，滿額履約後點擊翻面解鎖創作者的親筆開箱終章！
+          </p>
+        </div>
 
-        {/* 搜尋列 */}
         <input
           type="text"
           value={searchTerm}
@@ -1050,57 +1072,94 @@ function InvestedTab() {
         />
       </div>
 
+      {/* 🌟 雙軌 AND 篩選按鈕列 (帶有分隔線與相異色彩) */}
+      <div className="flex flex-wrap items-center gap-3 p-2 bg-zinc-900/60 rounded-2xl border border-white/5">
+        {/* 第一軌：追番類型 (琥珀/粉色) */}
+        <div className="flex items-center gap-1">
+          <span className="text-[10px] text-zinc-500 font-bold px-1.5">來源:</span>
+          <button
+            onClick={() => setSourceFilter('all')}
+            className={`px-3 py-1 rounded-xl text-xs transition-all ${
+              sourceFilter === 'all'
+                ? 'bg-white/15 text-white font-bold'
+                : 'text-zinc-400 hover:text-white'
+            }`}
+          >
+            全部追番
+          </button>
+          <button
+            onClick={() => setSourceFilter('invested')}
+            className={`px-3 py-1 rounded-xl text-xs transition-all flex items-center gap-1 ${
+              sourceFilter === 'invested'
+                ? 'bg-amber-500/25 border border-amber-400/40 text-amber-200 font-bold'
+                : 'text-zinc-400 hover:text-amber-200'
+            }`}
+          >
+            <Coins className="w-3 h-3 text-amber-400" /> 曾注入燃料
+          </button>
+          <button
+            onClick={() => setSourceFilter('bookmarked')}
+            className={`px-3 py-1 rounded-xl text-xs transition-all flex items-center gap-1 ${
+              sourceFilter === 'bookmarked'
+                ? 'bg-rose-500/25 border border-rose-400/40 text-rose-200 font-bold'
+                : 'text-zinc-400 hover:text-rose-200'
+            }`}
+          >
+            <Heart className="w-3 h-3 text-rose-400" /> 純愛心追番
+          </button>
+        </div>
+
+        {/* 垂直分隔線 */}
+        <div className="hidden sm:block w-[1px] h-5 bg-white/15 mx-1" />
+
+        {/* 第二軌：進度狀態 (翡翠/藍紫) */}
+        <div className="flex items-center gap-1">
+          <span className="text-[10px] text-zinc-500 font-bold px-1.5">狀態:</span>
+          <button
+            onClick={() => setStatusFilter('all')}
+            className={`px-3 py-1 rounded-xl text-xs transition-all ${
+              statusFilter === 'all'
+                ? 'bg-white/15 text-white font-bold'
+                : 'text-zinc-400 hover:text-white'
+            }`}
+          >
+            所有狀態
+          </button>
+          <button
+            onClick={() => setStatusFilter('funding')}
+            className={`px-3 py-1 rounded-xl text-xs transition-all ${
+              statusFilter === 'funding'
+                ? 'bg-sky-500/20 border border-sky-400/30 text-sky-200 font-bold'
+                : 'text-zinc-400 hover:text-sky-200'
+            }`}
+          >
+            ⏳ 集資進行中
+          </button>
+          <button
+            onClick={() => setStatusFilter('fulfilled')}
+            className={`px-3 py-1 rounded-xl text-xs transition-all ${
+              statusFilter === 'fulfilled'
+                ? 'bg-emerald-500/20 border border-emerald-400/30 text-emerald-200 font-bold'
+                : 'text-zinc-400 hover:text-emerald-200'
+            }`}
+          >
+            🎉 已履約開箱
+          </button>
+        </div>
+      </div>
+
+      {/* 卡片網格 (首頁同款 3D 排版) */}
       {filtered.length === 0 ? (
-        <div className="text-center py-16 border border-white/5 rounded-2xl bg-zinc-900/30 text-zinc-500">
-          {searchTerm ? '未找到符合關鍵字的追番故事。' : '您目前尚未收藏或贊助過任何故事，點擊卡片愛心或注入星塵即可加入追番！'}
+        <div className="text-center py-20 border border-white/5 rounded-2xl bg-zinc-900/30 text-zinc-500">
+          {searchTerm || sourceFilter !== 'all' || statusFilter !== 'all'
+            ? '在此交叉條件下暫無追番故事，請嘗試調整上方過濾條件。'
+            : '您目前尚未收藏或贊助過任何故事，快去首頁看看吧！'}
         </div>
       ) : (
-        <div className="space-y-4">
-          {filtered.map((w) => {
-            const isFulfilled = w.status === 'fulfilled';
-            const progress = Math.min(100, Math.round(((w.current_stardust || 0) / (w.product_price || 1)) * 100));
-
-            return (
-              <div key={w.id} className="glass rounded-2xl p-5 border border-white/10 bg-zinc-900/60 space-y-3">
-                <div className="flex justify-between items-start">
-                  <div className="flex items-center gap-2">
-                    <span className="text-2xl">{w.cover_emoji}</span>
-                    <div>
-                      <h4 className="font-bold text-amber-100 text-sm">{w.product_name}</h4>
-                      <p className="text-[11px] text-zinc-500">
-                        {w.isBookmarkedOnly ? '❤️ 純愛心追番' : `🌟 贊助燃料：+${w.myInvestAmount} 星塵`}
-                      </p>
-                    </div>
-                  </div>
-                  <span className={`text-xs px-2.5 py-0.5 rounded-full font-bold ${
-                    isFulfilled ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40' : 'bg-amber-500/10 text-amber-300'
-                  }`}>
-                    {isFulfilled ? '🎉 已履約圓夢' : `集資中 ${progress}%`}
-                  </span>
-                </div>
-
-                {/* 創作者開箱感謝信 (審核通過 letter_status === 'approved' 才展示) */}
-                {w.letter_status === 'approved' && w.thank_you_letter && (
-                  <div className="bg-emerald-950/20 border border-emerald-400/30 rounded-xl p-3.5 space-y-2">
-                    <p className="text-xs font-bold text-emerald-300 flex items-center gap-1">💌 創作者終章開箱感謝信：</p>
-                    {w.unboxing_photo_url && (
-                      <div className="h-40 rounded-lg overflow-hidden border border-white/10">
-                        <img src={w.unboxing_photo_url} alt="開箱照" className="w-full h-full object-cover" />
-                      </div>
-                    )}
-                    <p className="text-xs text-zinc-200 leading-relaxed">{w.thank_you_letter}</p>
-                  </div>
-                )}
-
-                {/* 官方祝福區 */}
-                {w.admin_blessing && (
-                  <div className="bg-amber-500/10 border border-amber-400/20 rounded-xl p-2.5 text-[11px] text-amber-200/90">
-                    <span className="font-bold">👑 夢沙星空見證祝福：</span> {w.admin_blessing}
-                  </div>
-                )}
-              </div>
-            );
-          })}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+          {filtered.map((w, idx) => (
+            <TrackedWishCard key={w.id} wish={w} index={idx} />
+          ))}
         </div>
       )}
     </div>
