@@ -1,8 +1,28 @@
+// src/pages/AdminConsole.tsx
 import { useState, useEffect, useCallback } from 'react';
-import { X, Megaphone, Tag, Shield, Plus, Loader2, Ban, CheckCircle2, AlertTriangle, Trash2, LogOut, Users, ExternalLink } from 'lucide-react';
-import { supabase, type Story, type Tag as TagType, type Announcement } from '@/lib/supabase';
+import {
+  X,
+  Megaphone,
+  Tag,
+  Loader2,
+  Ban,
+  CheckCircle2,
+  AlertTriangle,
+  Trash2,
+  LogOut,
+  Users,
+  ExternalLink,
+} from 'lucide-react';
+import { supabase } from '@/lib/supabaseClient';
 import { useAuth } from '@/context/AuthContext';
-import { blockWish, fetchAllWishesForAdmin, isBlockedStatus, unblockWish, updateWish } from '@/lib/backend';
+import {
+  blockWish,
+  fetchAllWishesForAdmin,
+  isBlockedStatus,
+  unblockWish,
+  updateWish,
+} from '@/lib/backend';
+import type { Wish, Tag as TagType, Announcement } from '@/types/wish';
 
 type AdminTab = 'pending' | 'moderation' | 'users' | 'announcements' | 'tags';
 
@@ -22,7 +42,10 @@ export function AdminConsole({ onClose, onGoHome }: { onClose: () => void; onGoH
           <AlertTriangle className="w-12 h-12 text-red-400 mx-auto mb-4" />
           <h2 className="text-lg font-bold text-red-300 mb-2">權限不足</h2>
           <p className="text-sm text-gray-400 mb-4">此區域僅限管理員存取</p>
-          <button onClick={onGoHome} className="touch-btn w-full bg-amber-500/15 border border-amber-400/30 text-amber-200 rounded-xl py-3 hover:bg-amber-500/25 transition-all">
+          <button
+            onClick={onGoHome}
+            className="touch-btn w-full bg-amber-500/15 border border-amber-400/30 text-amber-200 rounded-xl py-3 hover:bg-amber-500/25 transition-all"
+          >
             返回首頁
           </button>
         </div>
@@ -32,7 +55,6 @@ export function AdminConsole({ onClose, onGoHome }: { onClose: () => void; onGoH
 
   return (
     <div className="fixed inset-0 z-50 space-bg overflow-y-auto">
-      {/* Header */}
       <div className="sticky top-0 z-10 glass-strong border-b border-red-400/10 px-4 sm:px-6 h-16 flex items-center justify-between">
         <button onClick={onGoHome} className="flex items-center gap-2 hover:opacity-80 transition-opacity flex-shrink-0">
           <span className="text-2xl">⏳</span>
@@ -47,18 +69,20 @@ export function AdminConsole({ onClose, onGoHome }: { onClose: () => void; onGoH
             <LogOut className="w-4 h-4" />
             <span className="hidden sm:inline">登出管理員</span>
           </button>
-          <button onClick={onClose} className="touch-btn rounded-full hover:bg-white/10 flex items-center justify-center text-gray-400 hover:text-white transition-colors">
+          <button
+            onClick={onClose}
+            className="touch-btn rounded-full hover:bg-white/10 flex items-center justify-center text-gray-400 hover:text-white transition-colors"
+          >
             <X className="w-5 h-5" />
           </button>
         </div>
       </div>
 
-      {/* 標籤導覽列 */}
       <div className="sticky top-16 z-10 glass border-b border-white/5 px-4 sm:px-6">
         <div className="flex gap-1 overflow-x-auto hide-scrollbar max-w-5xl mx-auto">
           <AdminTabButton id="pending" activeTab={activeTab} onClick={setActiveTab} icon={<CheckCircle2 className="w-4 h-4 text-amber-400" />} label="🚀 待審核願望" />
-          <AdminTabButton id="moderation" activeTab={activeTab} onClick={setActiveTab} icon={<Ban className="w-4 h-4" />} label="卡片審查與封鎖" />
-          <AdminTabButton id="users" activeTab={activeTab} onClick={setActiveTab} icon={<Users className="w-4 h-4" />} label="用戶名冊與停權 (Ban)" />
+          <AdminTabButton id="moderation" activeTab={activeTab} onClick={setActiveTab} icon={<Ban className="w-4 h-4" />} label="卡片審查與出貨" />
+          <AdminTabButton id="users" activeTab={activeTab} onClick={setActiveTab} icon={<Users className="w-4 h-4" />} label="用戶名冊 (Ban)" />
           <AdminTabButton id="announcements" activeTab={activeTab} onClick={setActiveTab} icon={<Megaphone className="w-4 h-4" />} label="公告部署" />
           <AdminTabButton id="tags" activeTab={activeTab} onClick={setActiveTab} icon={<Tag className="w-4 h-4" />} label="Tag 管理" />
         </div>
@@ -75,7 +99,19 @@ export function AdminConsole({ onClose, onGoHome }: { onClose: () => void; onGoH
   );
 }
 
-function AdminTabButton({ id, activeTab, onClick, icon, label }: { id: AdminTab; activeTab: AdminTab; onClick: (id: AdminTab) => void; icon: React.ReactNode; label: string }) {
+function AdminTabButton({
+  id,
+  activeTab,
+  onClick,
+  icon,
+  label,
+}: {
+  id: AdminTab;
+  activeTab: AdminTab;
+  onClick: (id: AdminTab) => void;
+  icon: React.ReactNode;
+  label: string;
+}) {
   return (
     <button
       onClick={() => onClick(id)}
@@ -88,9 +124,8 @@ function AdminTabButton({ id, activeTab, onClick, icon, label }: { id: AdminTab;
   );
 }
 
-// ===== 1. 待審核願望清單 (Pending Approval Tab) =====
 function PendingApprovalTab() {
-  const [stories, setStories] = useState<Story[]>([]);
+  const [stories, setStories] = useState<Wish[]>([]);
   const [loading, setLoading] = useState(true);
 
   const loadPending = useCallback(async () => {
@@ -117,7 +152,14 @@ function PendingApprovalTab() {
     loadPending();
   };
 
-  if (loading) return <div className="text-center py-16 text-gray-400"><Loader2 className="w-6 h-6 animate-spin mx-auto mb-2" />載入待審核願望...</div>;
+  if (loading) {
+    return (
+      <div className="text-center py-16 text-gray-400">
+        <Loader2 className="w-6 h-6 animate-spin mx-auto mb-2" />
+        載入待審核願望...
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4">
@@ -135,7 +177,7 @@ function PendingApprovalTab() {
 
       {stories.length === 0 ? (
         <div className="text-center py-16 text-zinc-500 border border-white/5 rounded-2xl bg-zinc-900/20">
-          🎉 目前所有願望皆已完成審核，星海一片安寧！
+          🎉 目前所有願望皆已完成審核！
         </div>
       ) : (
         <div className="space-y-3">
@@ -172,7 +214,6 @@ function PendingApprovalTab() {
                 </div>
               </div>
 
-              {/* 故事內文查驗 */}
               <div className="bg-black/40 rounded-xl p-3 text-xs text-zinc-300 leading-relaxed border border-white/5">
                 <p className="font-bold text-zinc-400 mb-1">【故事內文】</p>
                 {story.story_text}
@@ -180,13 +221,12 @@ function PendingApprovalTab() {
                 <span className="text-amber-200/90">{story.promise_text}</span>
               </div>
 
-              {/* 電商連結檢查 */}
-              {(story as any).product_url && (
+              {story.product_url && (
                 <div className="flex items-center gap-2 text-xs text-blue-300 bg-blue-500/10 px-3 py-1.5 rounded-lg border border-blue-500/20">
                   <ExternalLink className="w-3.5 h-3.5" />
                   <span>電商驗證連結：</span>
-                  <a href={(story as any).product_url} target="_blank" rel="noreferrer" className="underline truncate max-w-md">
-                    {(story as any).product_url}
+                  <a href={story.product_url} target="_blank" rel="noreferrer" className="underline truncate max-w-md">
+                    {story.product_url}
                   </a>
                 </div>
               )}
@@ -198,15 +238,12 @@ function PendingApprovalTab() {
   );
 }
 
-// ===== 2. 卡片審查分頁 (含：被檢舉、感謝信審核、滿額出貨、全站) =====
 function ModerationTab() {
-  const [stories, setStories] = useState<Story[]>([]);
+  const [stories, setStories] = useState<Wish[]>([]);
   const [loading, setLoading] = useState(true);
-  
   const [subTab, setSubTab] = useState<'reported' | 'letters' | 'fulfilled' | 'all'>('reported');
 
-  // 出貨審查彈窗狀態
-  const [shippingStory, setShippingStory] = useState<any | null>(null);
+  const [shippingStory, setShippingStory] = useState<Wish | null>(null);
   const [investmentsList, setInvestmentsList] = useState<any[]>([]);
   const [adminBlessing, setAdminBlessing] = useState('');
   const [loadingInvestments, setLoadingInvestments] = useState(false);
@@ -218,17 +255,21 @@ function ModerationTab() {
     setLoading(false);
   }, []);
 
-  useEffect(() => { loadStories(); }, [loadStories]);
+  useEffect(() => {
+    loadStories();
+  }, [loadStories]);
 
-  // 各類別名單篩選
-  const reportedWishes = stories.filter((s) => (s as any).is_reported && !isBlockedStatus(s.status));
-  const pendingLetters = stories.filter((s) => (s as any).letter_status === 'pending');
-  const fulfilledWishes = stories.filter((s) => (s.status === 'full_funded' || s.current_stardust >= s.product_price) && s.status !== 'fulfilled');
-  const allList = stories;
+  const reportedWishes = stories.filter((s) => s.is_reported && !isBlockedStatus(s.status));
+  const pendingLetters = stories.filter((s) => s.letter_status === 'pending');
+  const fulfilledWishes = stories.filter(
+    (s) =>
+      (s.status === 'full_funded' || Number(s.current_stardust) >= Number(s.product_price)) &&
+      s.status !== 'fulfilled'
+  );
 
   const handleApproveLetter = async (id: string) => {
     await updateWish(id, { letter_status: 'approved' });
-    alert('✅ 感謝信已審核通過！已正式推播至贊助者追番牆。');
+    alert('✅ 感謝信已審核通過！');
     loadStories();
   };
 
@@ -236,27 +277,24 @@ function ModerationTab() {
     const reason = prompt('請輸入感謝信駁回修改原因：', '感謝信內容過於簡略，或照片未清晰拍攝商品。');
     if (!reason) return;
     await updateWish(id, { letter_status: 'rejected', letter_reject_reason: reason });
-    alert('已駁回，創作者可根據理由重新修改提交。');
+    alert('已駁回，創作者可根據理由重新提交。');
     loadStories();
   };
 
-  // 🌟 修復核心 1：同時向 wish_id 與 story_id 撈取贊助與留言，並關聯暱稱
-  const handleOpenShippingModal = async (story: any) => {
-  setShippingStory(story);
-  setAdminBlessing('');
-  setLoadingInvestments(true);
+  const handleOpenShippingModal = async (story: Wish) => {
+    setShippingStory(story);
+    setAdminBlessing('');
+    setLoadingInvestments(true);
 
-  // 🌟 使用 .or 同時查詢 wish_id 或 story_id
-  const { data, error } = await supabase
-    .from('investments')
-    .select('*, users:user_id(anonymous_nickname)')
-    .or(`wish_id.eq.${story.id},story_id.eq.${story.id}`)
-    .order('created_at', { ascending: true });
+    const { data } = await supabase
+      .from('investments')
+      .select('*, users:user_id(anonymous_nickname)')
+      .or(`wish_id.eq.${story.id},story_id.eq.${story.id}`)
+      .order('created_at', { ascending: true });
 
-  console.log('查詢該卡片贊助紀錄結果:', data, error); // 可以在瀏覽器 Console 檢查
-  setInvestmentsList(data || []);
-  setLoadingInvestments(false);
-};
+    setInvestmentsList(data || []);
+    setLoadingInvestments(false);
+  };
 
   const handleToggleHideMessage = async (invId: string, currentHidden: boolean) => {
     await supabase.from('investments').update({ is_hidden: !currentHidden }).eq('id', invId);
@@ -265,21 +303,18 @@ function ModerationTab() {
     );
   };
 
-  // 🌟 修復核心 2：出貨時，將在途燃料結算為每位贊助者的永久 wallet_balance 星塵點數！
   const handleConfirmShipment = async () => {
     if (!shippingStory) return;
     setShippingSubmit(true);
     try {
       const defaultBlessing = '🌟 夢沙星空見證了這份純粹的善意，願這份溫暖伴隨你迎向嶄新的明天！';
-      
-      // 1. 抓取這筆願望的所有贊助人與金額
+
       const { data: invList } = await supabase
         .from('investments')
         .select('user_id, amount')
         .or(`wish_id.eq.${shippingStory.id},story_id.eq.${shippingStory.id}`);
 
       if (invList && invList.length > 0) {
-        // 匯總每位贊助者在該心願注入的總金額
         const userSums: Record<string, number> = {};
         invList.forEach((inv) => {
           if (inv.user_id) {
@@ -287,7 +322,6 @@ function ModerationTab() {
           }
         });
 
-        // 逐一結算至贊助者的榮譽點數 (wallet_balance)
         for (const [userId, addAmount] of Object.entries(userSums)) {
           const { data: userData } = await supabase
             .from('users')
@@ -303,14 +337,12 @@ function ModerationTab() {
         }
       }
 
-      // 2. 將願望正式轉為 fulfilled (履約完結)
       await updateWish(shippingStory.id, {
         status: 'fulfilled',
         admin_blessing: adminBlessing.trim() || defaultBlessing,
-        is_fulfilled_reviewed: true,
       });
 
-      alert('🎉 已完成出貨審查！在途燃料已全數結算為贊助者的星光榮譽點數，該願望已登陸追番牆！');
+      alert('🎉 已完成出貨審查！榮譽點數已全數結算！');
       setShippingStory(null);
       loadStories();
     } catch (e: any) {
@@ -336,7 +368,14 @@ function ModerationTab() {
     loadStories();
   };
 
-  if (loading) return <div className="text-center py-16 text-gray-400"><Loader2 className="w-6 h-6 animate-spin mx-auto mb-2" />載入審查中心...</div>;
+  if (loading) {
+    return (
+      <div className="text-center py-16 text-gray-400">
+        <Loader2 className="w-6 h-6 animate-spin mx-auto mb-2" />
+        載入審查中心...
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4">
@@ -344,7 +383,7 @@ function ModerationTab() {
         <h2 className="text-lg font-bold text-red-200 flex items-center gap-2">
           <Ban className="w-5 h-5" /> 卡片巡檢與物流出貨台
         </h2>
-        
+
         <div className="flex bg-zinc-900 border border-white/10 p-1 rounded-xl gap-1 overflow-x-auto hide-scrollbar">
           <button
             onClick={() => setSubTab('reported')}
@@ -354,7 +393,6 @@ function ModerationTab() {
           >
             🚩 被檢舉待查 ({reportedWishes.length})
           </button>
-          
           <button
             onClick={() => setSubTab('letters')}
             className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all whitespace-nowrap cursor-pointer ${
@@ -363,16 +401,14 @@ function ModerationTab() {
           >
             💌 感謝信審核 ({pendingLetters.length})
           </button>
-
           <button
             onClick={() => setSubTab('fulfilled')}
             className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all whitespace-nowrap cursor-pointer ${
               subTab === 'fulfilled' ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40' : 'text-zinc-400 hover:text-white'
             }`}
           >
-            📦 滿額待審查出貨 ({fulfilledWishes.length})
+            📦 滿額待出貨 ({fulfilledWishes.length})
           </button>
-
           <button
             onClick={() => setSubTab('all')}
             className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all whitespace-nowrap cursor-pointer ${
@@ -384,7 +420,6 @@ function ModerationTab() {
         </div>
       </div>
 
-      {/* 感謝信審核專屬面板 */}
       {subTab === 'letters' && (
         <div className="space-y-3">
           {pendingLetters.length === 0 ? (
@@ -434,7 +469,6 @@ function ModerationTab() {
         </div>
       )}
 
-      {/* 滿額待出貨列表 */}
       {subTab === 'fulfilled' && (
         <div className="space-y-3">
           {fulfilledWishes.length === 0 ? (
@@ -477,7 +511,6 @@ function ModerationTab() {
         </div>
       )}
 
-      {/* 待檢舉列表 */}
       {subTab === 'reported' && (
         <div className="space-y-3">
           {reportedWishes.length === 0 ? (
@@ -491,11 +524,11 @@ function ModerationTab() {
                   <h4 className="font-bold text-amber-100 text-sm">{story.product_name}</h4>
                   <div className="flex gap-2">
                     <button onClick={() => handleDismissReport(story.id)} className="px-2.5 py-1 text-xs bg-zinc-800 text-zinc-300 rounded-lg">駁回檢舉</button>
-                    <button onClick={() => handleConfirmBlock(story.id, (story as any).report_reason || '檢舉違規')} className="px-2.5 py-1 text-xs bg-red-500 text-white font-bold rounded-lg">確認下架</button>
+                    <button onClick={() => handleConfirmBlock(story.id, story.report_reason || '檢舉違規')} className="px-2.5 py-1 text-xs bg-red-500 text-white font-bold rounded-lg">確認下架</button>
                   </div>
                 </div>
                 <p className="text-xs text-red-300 bg-red-500/10 p-2 rounded-lg">
-                  檢舉理由：{(story as any).report_reason || '內容不符規範'}
+                  檢舉理由：{story.report_reason || '內容不符規範'}
                 </p>
               </div>
             ))
@@ -503,10 +536,9 @@ function ModerationTab() {
         </div>
       )}
 
-      {/* 全站卡片列表 */}
       {subTab === 'all' && (
         <div className="space-y-3">
-          {allList.map((story) => (
+          {stories.map((story) => (
             <div key={story.id} className="glass rounded-xl p-4 flex justify-between items-center border border-white/5 bg-zinc-900/40">
               <div>
                 <p className="font-bold text-sm text-amber-100">{story.product_name}</p>
@@ -524,7 +556,6 @@ function ModerationTab() {
         </div>
       )}
 
-      {/* 確認出貨與留言審核彈窗 */}
       {shippingStory && (
         <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-black/85 backdrop-blur-md overflow-y-auto">
           <div className="glass-strong rounded-3xl w-full max-w-xl p-6 glow-border border-emerald-400/30 bg-zinc-950 space-y-4 my-auto">
@@ -533,10 +564,11 @@ function ModerationTab() {
                 <h3 className="text-base font-bold text-emerald-300">📦 物流出貨與留言審核終章</h3>
                 <p className="text-xs text-zinc-400">願望：{shippingStory.product_name}</p>
               </div>
-              <button onClick={() => setShippingStory(null)} className="text-zinc-400 hover:text-white"><X className="w-5 h-5" /></button>
+              <button onClick={() => setShippingStory(null)} className="text-zinc-400 hover:text-white">
+                <X className="w-5 h-5" />
+              </button>
             </div>
 
-            {/* 贊助者留言查驗區 */}
             <div>
               <p className="text-xs font-bold text-amber-200 mb-2">贊助者漂流瓶留言名冊 ({investmentsList.length} 則)</p>
               <div className="max-h-48 overflow-y-auto space-y-2 pr-1 hide-scrollbar">
@@ -549,9 +581,7 @@ function ModerationTab() {
                     <div
                       key={inv.id}
                       className={`p-2.5 rounded-xl border text-xs flex justify-between items-center gap-2 ${
-                        inv.is_hidden
-                          ? 'bg-red-950/20 border-red-500/30 opacity-60'
-                          : 'bg-zinc-900 border-white/5'
+                        inv.is_hidden ? 'bg-red-950/20 border-red-500/30 opacity-60' : 'bg-zinc-900 border-white/5'
                       }`}
                     >
                       <div className="flex-1">
@@ -580,7 +610,6 @@ function ModerationTab() {
               </div>
             </div>
 
-            {/* 管理員官方祝福 */}
             <div>
               <label className="text-xs font-bold text-amber-200 block mb-1">
                 管理團隊官方祝福 <span className="text-zinc-500 font-normal">(留空將自動帶入公版溫暖祝福)</span>
@@ -595,7 +624,9 @@ function ModerationTab() {
             </div>
 
             <div className="flex gap-2 pt-2">
-              <button onClick={() => setShippingStory(null)} className="flex-1 py-2.5 text-xs border border-white/10 rounded-xl text-zinc-400">取消</button>
+              <button onClick={() => setShippingStory(null)} className="flex-1 py-2.5 text-xs border border-white/10 rounded-xl text-zinc-400">
+                取消
+              </button>
               <button
                 onClick={handleConfirmShipment}
                 disabled={shippingSubmit}
@@ -611,7 +642,6 @@ function ModerationTab() {
   );
 }
 
-// ===== 3. 用戶名冊與停權 (Users Management Tab) =====
 function UsersManagementTab() {
   const [users, setUsers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -627,7 +657,6 @@ function UsersManagementTab() {
     loadUsers();
   }, [loadUsers]);
 
-  // 停權 / 解除停權 切換
   const handleToggleBan = async (user: any) => {
     const isBanned = user.role === 'banned';
     const newRole = isBanned ? 'user' : 'banned';
@@ -684,7 +713,6 @@ function UsersManagementTab() {
   );
 }
 
-// ===== 4. 公告 Tab (原有功能優雅保留) =====
 function AnnouncementsTab() {
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
   const [title, setTitle] = useState('');
@@ -696,14 +724,18 @@ function AnnouncementsTab() {
     setAnnouncements((data as Announcement[]) || []);
   }, []);
 
-  useEffect(() => { loadAnnouncements(); }, [loadAnnouncements]);
+  useEffect(() => {
+    loadAnnouncements();
+  }, [loadAnnouncements]);
 
   const handlePublish = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!title || !body) return;
     setLoading(true);
     await supabase.from('announcements').insert({ title, body, is_active: true });
-    setTitle(''); setBody(''); setLoading(false);
+    setTitle('');
+    setBody('');
+    setLoading(false);
     loadAnnouncements();
   };
 
@@ -719,11 +751,33 @@ function AnnouncementsTab() {
 
   return (
     <div className="space-y-4">
-      <h2 className="text-lg font-bold text-amber-100 flex items-center gap-2"><Megaphone className="w-5 h-5 text-amber-300" /> 全站廣播公告</h2>
+      <h2 className="text-lg font-bold text-amber-100 flex items-center gap-2">
+        <Megaphone className="w-5 h-5 text-amber-300" /> 全站廣播公告
+      </h2>
       <form onSubmit={handlePublish} className="glass rounded-2xl p-5 glow-border space-y-3">
-        <input type="text" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="公告標題" className="w-full bg-zinc-900 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none" required />
-        <textarea value={body} onChange={(e) => setBody(e.target.value)} placeholder="公告內容..." rows={2} className="w-full bg-zinc-900 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none resize-none" required />
-        <button type="submit" disabled={loading} className="w-full py-2.5 bg-amber-500 hover:bg-amber-400 text-zinc-950 font-bold rounded-xl text-xs">{loading ? '發布中...' : '發布全站公告'}</button>
+        <input
+          type="text"
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          placeholder="公告標題"
+          className="w-full bg-zinc-900 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none"
+          required
+        />
+        <textarea
+          value={body}
+          onChange={(e) => setBody(e.target.value)}
+          placeholder="公告內容..."
+          rows={2}
+          className="w-full bg-zinc-900 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none resize-none"
+          required
+        />
+        <button
+          type="submit"
+          disabled={loading}
+          className="w-full py-2.5 bg-amber-500 hover:bg-amber-400 text-zinc-950 font-bold rounded-xl text-xs"
+        >
+          {loading ? '發布中...' : '發布全站公告'}
+        </button>
       </form>
       <div className="space-y-2">
         {announcements.map((ann) => (
@@ -733,8 +787,15 @@ function AnnouncementsTab() {
               <p className="text-zinc-400">{ann.body}</p>
             </div>
             <div className="flex gap-2">
-              <button onClick={() => handleToggle(ann)} className="px-2 py-1 rounded bg-white/5 border border-white/10 text-zinc-300">{ann.is_active ? '停用' : '啟用'}</button>
-              <button onClick={() => handleDelete(ann.id)} className="p-1 rounded text-red-400"><Trash2 className="w-4 h-4" /></button>
+              <button
+                onClick={() => handleToggle(ann)}
+                className="px-2 py-1 rounded bg-white/5 border border-white/10 text-zinc-300"
+              >
+                {ann.is_active ? '停用' : '啟用'}
+              </button>
+              <button onClick={() => handleDelete(ann.id)} className="p-1 rounded text-red-400">
+                <Trash2 className="w-4 h-4" />
+              </button>
             </div>
           </div>
         ))}
@@ -743,7 +804,6 @@ function AnnouncementsTab() {
   );
 }
 
-// ===== 5. Tags Tab (原有功能優雅保留) =====
 function TagsTab() {
   const [tags, setTags] = useState<TagType[]>([]);
   const [name, setName] = useState('');
@@ -754,14 +814,17 @@ function TagsTab() {
     setTags((data as TagType[]) || []);
   }, []);
 
-  useEffect(() => { loadTags(); }, [loadTags]);
+  useEffect(() => {
+    loadTags();
+  }, [loadTags]);
 
   const handleAdd = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name) return;
     const maxSort = tags.length > 0 ? Math.max(...tags.map((t) => t.sort_order)) : 0;
     await supabase.from('tags').insert({ name, icon, sort_order: maxSort + 1 });
-    setName(''); loadTags();
+    setName('');
+    loadTags();
   };
 
   const handleDelete = async (id: string) => {
@@ -771,16 +834,29 @@ function TagsTab() {
 
   return (
     <div className="space-y-4">
-      <h2 className="text-lg font-bold text-amber-100 flex items-center gap-2"><Tag className="w-5 h-5 text-amber-300" /> 分類標籤管理</h2>
+      <h2 className="text-lg font-bold text-amber-100 flex items-center gap-2">
+        <Tag className="w-5 h-5 text-amber-300" /> 分類標籤管理
+      </h2>
       <form onSubmit={handleAdd} className="glass rounded-2xl p-5 glow-border flex gap-2">
-        <input type="text" value={name} onChange={(e) => setName(e.target.value)} placeholder="新標籤名稱" className="flex-1 bg-zinc-900 border border-white/10 rounded-xl px-4 py-2 text-sm text-white focus:outline-none" required />
-        <button type="submit" className="px-4 py-2 bg-amber-500 hover:bg-amber-400 text-zinc-950 font-bold rounded-xl text-xs">新增標籤</button>
+        <input
+          type="text"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          placeholder="新標籤名稱"
+          className="flex-1 bg-zinc-900 border border-white/10 rounded-xl px-4 py-2 text-sm text-white focus:outline-none"
+          required
+        />
+        <button type="submit" className="px-4 py-2 bg-amber-500 hover:bg-amber-400 text-zinc-950 font-bold rounded-xl text-xs">
+          新增標籤
+        </button>
       </form>
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
         {tags.map((t) => (
           <div key={t.id} className="glass rounded-xl p-3 flex justify-between items-center text-xs">
             <span className="text-amber-200">{t.icon} #{t.name}</span>
-            <button onClick={() => handleDelete(t.id)} className="text-red-400 hover:text-red-300"><Trash2 className="w-3.5 h-3.5" /></button>
+            <button onClick={() => handleDelete(t.id)} className="text-red-400 hover:text-red-300">
+              <Trash2 className="w-3.5 h-3.5" />
+            </button>
           </div>
         ))}
       </div>
