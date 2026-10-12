@@ -26,35 +26,33 @@ export function SandEffectCard({ wish, index, showChatOnClick = true }: SandCard
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
 
-    const width = rect.width;
-    const height = rect.height;
+    const px = Math.round((x / rect.width) * 100);
+    const py = Math.round((y / rect.height) * 100);
 
-    const px = Math.round((x / width) * 100);
-    const py = Math.round((y / height) * 100);
+    const centerX = rect.width / 2;
+    const centerY = rect.height / 2;
 
-    const centerX = width / 2;
-    const centerY = height / 2;
-
-    const rotateX = ((y - centerY) / centerY) * -12;
-    const rotateY = ((x - centerX) / centerX) * 12;
+    // 輕微視差傾角 (-8deg ~ +8deg)
+    const rotateX = ((y - centerY) / centerY) * -8;
+    const rotateY = ((x - centerX) / centerX) * 8;
 
     card.style.setProperty('--pointer-x', `${px}%`);
     card.style.setProperty('--pointer-y', `${py}%`);
     card.style.setProperty('--rotate-x', `${rotateX}deg`);
     card.style.setProperty('--rotate-y', `${rotateY}deg`);
-    card.style.setProperty('--card-opacity', '1'); // 🌟 滑鼠懸停時 100% 綻放
+    card.style.setProperty('--glare-opacity', '1');
   }, []);
 
   const handleMouseEnter = () => {
     setIsInteracting(true);
-    cardRef.current?.style.setProperty('--card-opacity', '1');
+    cardRef.current?.style.setProperty('--glare-opacity', '1');
   };
 
   const handleMouseLeave = () => {
     setIsInteracting(false);
     const card = cardRef.current;
     if (!card) return;
-    card.style.setProperty('--card-opacity', '0.25'); // 🌟 移開時保留 25% 淡淡的常駐金屬光澤，不會全黑！
+    card.style.setProperty('--glare-opacity', '0');
     card.style.setProperty('--rotate-x', '0deg');
     card.style.setProperty('--rotate-y', '0deg');
   };
@@ -68,8 +66,8 @@ export function SandEffectCard({ wish, index, showChatOnClick = true }: SandCard
         onMouseLeave={handleMouseLeave}
         onClick={() => setShowChatModal(true)}
         className={`holo-card w-full h-[450px] select-none rounded-[2rem] p-1.5 cursor-pointer relative group transition-transform ${
-          isInteracting ? 'interacting' : ''
-        }`}
+  isFulfilled ? 'holo-border-gold' : ''
+}`}
         style={{
           transform: `perspective(800px) rotateX(var(--rotate-x, 0deg)) rotateY(var(--rotate-y, 0deg))`,
           animationDelay: `${index * 0.05}s`,
@@ -112,7 +110,7 @@ export function SandEffectCard({ wish, index, showChatOnClick = true }: SandCard
 
               {isFulfilled ? (
                 <span className="text-[11px] font-black tracking-wider px-3 py-1 rounded-full bg-gradient-to-r from-amber-300 via-yellow-200 to-amber-400 text-zinc-950 shadow-[0_0_18px_rgba(251,191,36,0.9)] flex items-center gap-1 animate-pulse">
-                  ✨ 寶可夢級全息閃卡
+                  ✨ 
                 </span>
               ) : (
                 <span className="text-[11px] font-mono text-zinc-400 bg-black/60 px-2.5 py-1 rounded-lg border border-white/5">
