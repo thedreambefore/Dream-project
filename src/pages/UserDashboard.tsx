@@ -1067,7 +1067,12 @@ function InvestedTab() {
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
           {filtered.map((w, idx) => (
-            <TrackedWishCard key={w.id} wish={w} index={idx} />
+            <SandEffectCard
+              key={w.id}
+              wish={w}
+              index={idx}
+              showChatOnClick={true}
+            />
           ))}
         </div>
       )}
