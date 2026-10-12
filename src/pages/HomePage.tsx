@@ -1,12 +1,13 @@
 // src/pages/HomePage.tsx
 import { useState, useEffect } from 'react';
-import { Sparkles, Loader2 } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 import { WishCard } from '@/components/WishCard';
+import { HomeHeroCarousel } from '@/components/HomeHeroCarousel';
 import { fetchPublicWishes, OFFICIAL_SPONSOR_ID } from '@/lib/backend';
 import { supabase } from '@/lib/supabaseClient';
 import type { Wish } from '@/types/wish';
 
-// 💖 官方常駐置頂贊助卡片（標準合法 UUID）
+// 💖 官方常駐置頂贊助卡片
 const OFFICIAL_SPONSOR_STORY: Wish = {
   id: OFFICIAL_SPONSOR_ID,
   user_id: '00000000-0000-0000-0000-000000000000',
@@ -80,19 +81,9 @@ export function HomePage() {
   });
 
   return (
-    <div className="max-w-6xl mx-auto px-6 pt-8 pb-32 relative z-10 animate-fade-in">
-      <header className="max-w-4xl mx-auto text-center my-12 px-6">
-        <div className="inline-flex items-center gap-2 bg-amber-500/10 border border-amber-500/20 rounded-full px-4 py-1 text-xs text-amber-400 font-medium mb-6 shadow-sm">
-          <Sparkles className="w-3.5 h-3.5 text-amber-300" />
-          <span>聽見世界的微小願望 · 匿名星塵交易所</span>
-        </div>
-        <h1 className="text-3xl sm:text-5xl font-black tracking-tight mb-4 leading-tight bg-gradient-to-b from-white via-slate-100 to-slate-400 bg-clip-text text-transparent">
-          用陌生人的善意，拼湊夢想的沙漏
-        </h1>
-        <p className="text-slate-400 text-sm sm:text-base max-w-xl mx-auto leading-relaxed">
-          這裡不看名氣，只聽故事。投入微小的心願燃料，當沙漏填滿時，漂流瓶留言將與夢想終章一同解鎖。
-        </p>
-      </header>
+    <div className="max-w-6xl mx-auto px-6 pt-4 pb-32 relative z-10 animate-fade-in">
+      {/* 🌟 核心：原標題與副標題升級為支援管理員即時增刪改的自動輪播公告欄 */}
+      <HomeHeroCarousel />
 
       {/* 標籤列 */}
       <div className="flex gap-2.5 overflow-x-auto pb-4 hide-scrollbar mb-10 border-b border-white/5">
