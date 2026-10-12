@@ -309,27 +309,62 @@ body {
 
 
 /* =========================================================
-   🌌 夢沙 · Trainer Gallery Holofoil (simeydotme 官方原生公式)
+   🌌 夢沙 · Trainer Gallery Holofoil (Vite/PostCSS 100% 合規版)
    ========================================================= */
 
 .holo-card {
   --pointer-x: 50%;
   --pointer-y: 50%;
-  --pointer-from-center: 0;
   --rotate-x: 0deg;
   --rotate-y: 0deg;
   --card-opacity: 0;
-  
   position: relative;
   transform-style: preserve-3d;
   perspective: 1000px;
   will-change: transform;
 }
 
-/* 🌟 Trainer Gallery: 雙層金屬炫彩薄膜 (Shine + Glare) */
+/* 🌟 Trainer Gallery 特卡薄膜 */
 .trainer-gallery-shine {
   position: absolute;
   inset: 0;
   border-radius: inherit;
   pointer-events: none;
-  z-ind
+  z-index: 20;
+  opacity: var(--card-opacity);
+  mix-blend-mode: color-dodge;
+  background-image: 
+    radial-gradient(
+      farthest-corner circle at var(--pointer-x) var(--pointer-y),
+      rgba(255, 255, 255, 0.8) 10%,
+      rgba(255, 255, 255, 0.35) 25%,
+      transparent 70%
+    ),
+    linear-gradient(
+      133deg,
+      rgba(255, 0, 0, 0.7) 0%,
+      rgba(255, 154, 0, 0.7) 10%,
+      rgba(208, 222, 33, 0.7) 20%,
+      rgba(79, 220, 74, 0.7) 30%,
+      rgba(63, 218, 216, 0.7) 40%,
+      rgba(47, 201, 226, 0.7) 50%,
+      rgba(28, 127, 238, 0.7) 60%,
+      rgba(95, 21, 242, 0.7) 70%,
+      rgba(186, 12, 248, 0.7) 80%,
+      rgba(251, 7, 217, 0.7) 90%,
+      rgba(255, 0, 0, 0.7) 100%
+    );
+  background-size: 200% 200%, 300% 300%;
+  background-position: 
+    center center,
+    calc(var(--pointer-x) * 1) calc(var(--pointer-y) * 1);
+  background-blend-mode: hard-light;
+  background-repeat: no-repeat;
+  filter: brightness(0.9) contrast(1.2);
+  transition: opacity 0.3s ease;
+}
+
+/* 金色微光外邊框 (標準 CSS box-shadow，杜絕 PostCSS mask 解析報錯) */
+.holo-border-gold {
+  box-shadow: 0 0 25px rgba(251, 191, 36, 0.25), inset 0 0 0 1px rgba(251, 191, 36, 0.5);
+}
