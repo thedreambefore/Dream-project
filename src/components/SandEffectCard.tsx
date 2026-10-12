@@ -35,33 +35,26 @@ export function SandEffectCard({ wish, index, showChatOnClick = true }: SandCard
     const centerX = width / 2;
     const centerY = height / 2;
 
-    // 視差 3D 傾角計算 (-15deg ~ +15deg)
     const rotateX = ((y - centerY) / centerY) * -12;
     const rotateY = ((x - centerX) / centerX) * 12;
 
-    // 計算離中心點距離 (0 ~ 1)
-    const distFromCenter = Math.sqrt(
-      Math.pow((x - centerX) / centerX, 2) + Math.pow((y - centerY) / centerY, 2)
-    );
-
     card.style.setProperty('--pointer-x', `${px}%`);
     card.style.setProperty('--pointer-y', `${py}%`);
-    card.style.setProperty('--background-x', `${px * 1.5}%`);
-    card.style.setProperty('--background-y', `${py * 1.5}%`);
-    card.style.setProperty('--pointer-from-center', `${Math.min(1, distFromCenter)}`);
     card.style.setProperty('--rotate-x', `${rotateX}deg`);
     card.style.setProperty('--rotate-y', `${rotateY}deg`);
-    card.style.setProperty('--card-opacity', '1');
+    card.style.setProperty('--card-opacity', '1'); // 🌟 滑鼠懸停時 100% 綻放
   }, []);
 
-  const handleMouseEnter = () => setIsInteracting(true);
+  const handleMouseEnter = () => {
+    setIsInteracting(true);
+    cardRef.current?.style.setProperty('--card-opacity', '1');
+  };
 
   const handleMouseLeave = () => {
     setIsInteracting(false);
     const card = cardRef.current;
     if (!card) return;
-    // 滑鼠移出時彈性復位
-    card.style.setProperty('--card-opacity', '0');
+    card.style.setProperty('--card-opacity', '0.25'); // 🌟 移開時保留 25% 淡淡的常駐金屬光澤，不會全黑！
     card.style.setProperty('--rotate-x', '0deg');
     card.style.setProperty('--rotate-y', '0deg');
   };
@@ -101,12 +94,13 @@ export function SandEffectCard({ wish, index, showChatOnClick = true }: SandCard
           {/* 🌟 2. 達成 100% 滿額 / 履約時啟動【寶可夢級物理全息閃卡雙薄膜】 */}
           {isFulfilled && (
             <>
-              {/* 彩虹全息折射層 */}
+              {/* 彩虹光柵折射薄膜 */}
               <div className="holo-shine" />
-              {/* 星空銀河碎金閃爍層 */}
+              {/* 純 CSS 碎星亮片層 */}
               <div className="holo-glitter" />
             </>
           )}
+
 
           {/* ===== 卡片前景內容 (z-30 確保不被閃卡遮蔽) ===== */}
           <div className="relative z-30">
