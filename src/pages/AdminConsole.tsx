@@ -394,4 +394,702 @@ function ModerationTab() {
           <button
             onClick={() => setSubTab('reported')}
             className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all whitespace-nowrap cursor-pointer ${
-              subTab === 'reported' ? 'bg-red-500/20 text-red-300
+              subTab === 'reported' ? 'bg-red-500/20 text-red-300 border border-red-500/40' : 'text-zinc-400 hover:text-white'
+            }`}
+          >
+            🚩 被檢舉待查 ({reportedWishes.length})
+          </button>
+          <button
+            onClick={() => setSubTab('letters')}
+            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all whitespace-nowrap cursor-pointer ${
+              subTab === 'letters' ? 'bg-purple-500/20 text-purple-300 border border-purple-500/40' : 'text-zinc-400 hover:text-white'
+            }`}
+          >
+            💌 感謝信審核 ({pendingLetters.length})
+          </button>
+          <button
+            onClick={() => setSubTab('fulfilled')}
+            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all whitespace-nowrap cursor-pointer ${
+              subTab === 'fulfilled' ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40' : 'text-zinc-400 hover:text-white'
+            }`}
+          >
+            📦 滿額待出貨 ({fulfilledWishes.length})
+          </button>
+          <button
+            onClick={() => setSubTab('all')}
+            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all whitespace-nowrap cursor-pointer ${
+              subTab === 'all' ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40' : 'text-zinc-400 hover:text-white'
+            }`}
+          >
+            🌐 全站卡片 ({stories.length})
+          </button>
+        </div>
+      </div>
+
+      {subTab === 'letters' && (
+        <div className="space-y-3">
+          {pendingLetters.length === 0 ? (
+            <div className="text-center py-16 text-zinc-500 border border-white/5 rounded-2xl bg-zinc-900/20">
+              目前無待審核的開箱感謝信。
+            </div>
+          ) : (
+            pendingLetters.map((story) => (
+              <div key={story.id} className="glass rounded-2xl p-5 border border-purple-500/30 bg-purple-950/10 space-y-3">
+                <div className="flex justify-between items-start gap-4">
+                  <div>
+                    <span className="text-xs font-bold text-purple-300 bg-purple-500/20 px-2.5 py-0.5 rounded-full">
+                      💌 創作者已提交開箱信待審
+                    </span>
+                    <h3 className="font-bold text-amber-100 text-base mt-2">{story.product_name}</h3>
+                  </div>
+
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => handleRejectLetter(story.id)}
+                      className="px-3 py-1.5 bg-red-500/20 border border-red-500/40 text-red-300 rounded-lg text-xs font-bold hover:bg-red-500/30"
+                    >
+                      駁回修改
+                    </button>
+                    <button
+                      onClick={() => handleApproveLetter(story.id)}
+                      className="px-3 py-1.5 bg-purple-500 text-zinc-950 font-bold rounded-lg text-xs hover:bg-purple-400"
+                    >
+                      ✓ 審核通過並推播
+                    </button>
+                  </div>
+                </div>
+
+                {story.unboxing_photo_url && (
+                  <div className="h-44 max-w-sm rounded-xl overflow-hidden border border-white/10">
+                    <img src={story.unboxing_photo_url} alt="開箱照" className="w-full h-full object-cover" />
+                  </div>
+                )}
+
+                <div className="bg-black/40 border border-white/5 rounded-xl p-3 text-xs text-zinc-200 leading-relaxed">
+                  <p className="font-bold text-zinc-400 mb-1">【創作者感謝信內文】</p>
+                  {story.thank_you_letter || '(無內文)'}
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      )}
+
+      {subTab === 'fulfilled' && (
+        <div className="space-y-3">
+          {fulfilledWishes.length === 0 ? (
+            <div className="text-center py-16 text-zinc-500 border border-white/5 rounded-2xl bg-zinc-900/20">
+              目前暫無滿額待出貨項目。
+            </div>
+          ) : (
+            fulfilledWishes.map((story) => (
+              <div key={story.id} className="glass rounded-2xl p-5 border border-emerald-500/30 bg-emerald-950/15 flex justify-between items-center gap-4">
+                <div>
+                  <span className="text-xs font-bold text-emerald-300 bg-emerald-500/20 px-2.5 py-0.5 rounded-full">
+                    🎉 募集已 100% 達成
+                  </span>
+                  <h3 className="font-bold text-amber-100 text-base mt-2">{story.product_name}</h3>
+                  <p className="text-xs text-zinc-400 mt-0.5">
+                    募集總額: NT$ {story.current_stardust.toLocaleString()} / NT$ {story.product_price.toLocaleString()}
+                  </p>
+                </div>
+                <div className="flex gap-2">
+                  {story.product_url && (
+                    <a
+                      href={story.product_url}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="px-3 py-2 bg-zinc-800 text-zinc-300 rounded-xl text-xs hover:bg-zinc-700 flex items-center gap-1"
+                    >
+                      查看商品
+                    </a>
+                  )}
+                  <button
+                    onClick={() => handleOpenShippingModal(story)}
+                    className="px-4 py-2 bg-emerald-500 hover:bg-emerald-400 text-zinc-950 font-bold rounded-xl text-xs flex items-center gap-1.5 shadow-lg"
+                  >
+                    📦 審核留言並確認出貨
+                  </button>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      )}
+
+      {subTab === 'reported' && (
+        <div className="space-y-3">
+          {reportedWishes.length === 0 ? (
+            <div className="text-center py-16 text-zinc-500 border border-white/5 rounded-2xl bg-zinc-900/20">
+              目前無被檢舉卡片。
+            </div>
+          ) : (
+            reportedWishes.map((story) => (
+              <div key={story.id} className="glass rounded-2xl p-4 border border-red-500/30 bg-red-950/15 space-y-2">
+                <div className="flex justify-between items-center">
+                  <h4 className="font-bold text-amber-100 text-sm">{story.product_name}</h4>
+                  <div className="flex gap-2">
+                    <button onClick={() => handleDismissReport(story.id)} className="px-2.5 py-1 text-xs bg-zinc-800 text-zinc-300 rounded-lg">駁回檢舉</button>
+                    <button onClick={() => handleConfirmBlock(story.id, story.report_reason || '檢舉違規')} className="px-2.5 py-1 text-xs bg-red-500 text-white font-bold rounded-lg">確認下架</button>
+                  </div>
+                </div>
+                <p className="text-xs text-red-300 bg-red-500/10 p-2 rounded-lg">
+                  檢舉理由：{story.report_reason || '內容不符規範'}
+                </p>
+              </div>
+            ))
+          )}
+        </div>
+      )}
+
+      {subTab === 'all' && (
+        <div className="space-y-3">
+          {stories.map((story) => (
+            <div key={story.id} className="glass rounded-xl p-4 flex justify-between items-center border border-white/5 bg-zinc-900/40">
+              <div>
+                <p className="font-bold text-sm text-amber-100">{story.product_name}</p>
+                <p className="text-xs text-zinc-500">狀態: {story.status} · 進度: {story.current_stardust}/{story.product_price}</p>
+              </div>
+              <div>
+                {isBlockedStatus(story.status) ? (
+                  <button onClick={() => handleUnblock(story.id)} className="px-2.5 py-1 bg-emerald-500/20 text-emerald-300 text-xs rounded-lg">解除封鎖</button>
+                ) : (
+                  <button onClick={() => handleConfirmBlock(story.id, '手動封鎖')} className="px-2.5 py-1 bg-red-500/20 text-red-300 text-xs rounded-lg">封鎖</button>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {shippingStory && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-black/85 backdrop-blur-md overflow-y-auto">
+          <div className="glass-strong rounded-3xl w-full max-w-xl p-6 glow-border border-emerald-400/30 bg-zinc-950 space-y-4 my-auto">
+            <div className="flex justify-between items-center border-b border-white/10 pb-3">
+              <div>
+                <h3 className="text-base font-bold text-emerald-300">📦 物流出貨與留言審核終章</h3>
+                <p className="text-xs text-zinc-400">願望：{shippingStory.product_name}</p>
+              </div>
+              <button onClick={() => setShippingStory(null)} className="text-zinc-400 hover:text-white">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div>
+              <p className="text-xs font-bold text-amber-200 mb-2">贊助者漂流瓶留言名冊 ({investmentsList.length} 則)</p>
+              <div className="max-h-48 overflow-y-auto space-y-2 pr-1 hide-scrollbar">
+                {loadingInvestments ? (
+                  <p className="text-xs text-zinc-500 text-center py-4">讀取留言中...</p>
+                ) : investmentsList.length === 0 ? (
+                  <p className="text-xs text-zinc-500 text-center py-4">此願望無留存留言。</p>
+                ) : (
+                  investmentsList.map((inv) => (
+                    <div
+                      key={inv.id}
+                      className={`p-2.5 rounded-xl border text-xs flex justify-between items-center gap-2 ${
+                        inv.is_hidden ? 'bg-red-950/20 border-red-500/30 opacity-60' : 'bg-zinc-900 border-white/5'
+                      }`}
+                    >
+                      <div className="flex-1">
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-amber-400 font-mono font-bold">+${inv.amount}</span>
+                          <span className="text-[10px] text-zinc-400">by {inv.users?.anonymous_nickname || '匿名星旅人'}</span>
+                        </div>
+                        <p className={`mt-0.5 ${inv.is_hidden ? 'line-through text-red-400' : 'text-zinc-200'}`}>
+                          {inv.message || '(無留言)'}
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleToggleHideMessage(inv.id, inv.is_hidden)}
+                        className={`text-[10px] px-2 py-1 rounded-lg border font-bold transition-all ${
+                          inv.is_hidden
+                            ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-300'
+                            : 'bg-red-500/10 border-red-500/30 text-red-300 hover:bg-red-500/20'
+                        }`}
+                      >
+                        {inv.is_hidden ? '復原顯示' : '🚫 剔除隱藏'}
+                      </button>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+
+            <div>
+              <label className="text-xs font-bold text-amber-200 block mb-1">
+                管理團隊官方祝福 <span className="text-zinc-500 font-normal">(留空將自動帶入公版溫暖祝福)</span>
+              </label>
+              <textarea
+                rows={2}
+                value={adminBlessing}
+                onChange={(e) => setAdminBlessing(e.target.value)}
+                placeholder="🌟 夢沙星空見證了這份純粹的善意，願這份溫暖伴隨你迎向嶄新的明天！"
+                className="w-full bg-zinc-900 border border-white/10 rounded-xl p-3 text-xs text-white resize-none focus:outline-none focus:border-emerald-400/50"
+              />
+            </div>
+
+            <div className="flex gap-2 pt-2">
+              <button onClick={() => setShippingStory(null)} className="flex-1 py-2.5 text-xs border border-white/10 rounded-xl text-zinc-400">
+                取消
+              </button>
+              <button
+                onClick={handleConfirmShipment}
+                disabled={shippingSubmit}
+                className="flex-1 py-2.5 text-xs bg-emerald-500 hover:bg-emerald-400 text-zinc-950 font-bold rounded-xl transition-all cursor-pointer"
+              >
+                {shippingSubmit ? '結算並出貨中...' : '確認完成出貨 (結算榮譽點數)'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ===== 3. 用戶管理 (Ban) =====
+function UsersManagementTab() {
+  const [users, setUsers] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const loadUsers = useCallback(async () => {
+    setLoading(true);
+    const { data } = await supabase.from('users').select('*').order('created_at', { ascending: false });
+    setUsers(data || []);
+    setLoading(false);
+  }, []);
+
+  useEffect(() => {
+    loadUsers();
+  }, [loadUsers]);
+
+  const handleToggleBan = async (user: any) => {
+    const isBanned = user.role === 'banned';
+    const newRole = isBanned ? 'user' : 'banned';
+    const actionText = isBanned ? '解除停權' : '永久停權 (Ban)';
+
+    if (!confirm(`確定要將用戶「${user.anonymous_nickname || user.id}」${actionText} 嗎？`)) return;
+
+    await supabase.from('users').update({ role: newRole }).eq('id', user.id);
+    loadUsers();
+  };
+
+  if (loading) return <div className="text-center py-16 text-gray-400">載入用戶名冊中...</div>;
+
+  return (
+    <div className="space-y-4">
+      <h2 className="text-lg font-bold text-amber-200 flex items-center gap-2">
+        <Users className="w-5 h-5 text-amber-400" /> 星旅人名冊與停權管理 (Ban)
+      </h2>
+      <p className="text-xs text-gray-400">管理員可直接管理註冊者權限，停權者將被限制發布與留言功能。</p>
+
+      <div className="space-y-2.5">
+        {users.map((u) => (
+          <div key={u.id} className="glass rounded-xl p-4 flex items-center justify-between border border-white/5 bg-zinc-900/50">
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="font-bold text-amber-100 text-sm">{u.anonymous_nickname || '匿名星旅人'}</span>
+                <span className={`text-[10px] px-2 py-0.5 rounded-full ${
+                  u.role === 'admin' ? 'bg-red-500/20 text-red-300 font-bold border border-red-500/30' :
+                  u.role === 'banned' ? 'bg-zinc-800 text-red-400 font-black' : 'bg-emerald-500/10 text-emerald-300'
+                }`}>
+                  {u.role === 'admin' ? '👑 管理員' : u.role === 'banned' ? '🚫 已停權 (Banned)' : '一般用戶'}
+                </span>
+                {u.is_phone_verified && <span className="text-[10px] text-emerald-400">✓ 手機已驗證</span>}
+              </div>
+              <p className="text-xs text-zinc-500 font-mono mt-1">ID: {u.id} · 錢包: {u.wallet_balance || 0} ✨</p>
+            </div>
+
+            {u.role !== 'admin' && (
+              <button
+                onClick={() => handleToggleBan(u)}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                  u.role === 'banned'
+                    ? 'bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 hover:bg-emerald-500/30'
+                    : 'bg-red-500/15 border border-red-500/30 text-red-300 hover:bg-red-500/25'
+                }`}
+              >
+                {u.role === 'banned' ? '解鎖還原' : '🚫 封鎖停權 (Ban)'}
+              </button>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ===== 4. 🌟 重點重構：公告部署全功能工作台 (支援列表/新增/編輯/刪除/狀態切換) =====
+function AnnouncementsTab() {
+  const [announcements, setAnnouncements] = useState<Announcement[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  // 新增表單狀態
+  const [title, setTitle] = useState('');
+  const [body, setBody] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // 編輯彈窗狀態
+  const [editingAnn, setEditingAnn] = useState<Announcement | null>(null);
+  const [editTitle, setEditTitle] = useState('');
+  const [editBody, setEditBody] = useState('');
+  const [isSavingEdit, setIsSavingEdit] = useState(false);
+
+  // 載入資料庫所有公告
+  const loadAnnouncements = useCallback(async () => {
+    setLoading(true);
+    const { data, error } = await supabase
+      .from('announcements')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    if (!error && data) {
+      setAnnouncements(data as Announcement[]);
+    }
+    setLoading(false);
+  }, []);
+
+  useEffect(() => {
+    loadAnnouncements();
+  }, [loadAnnouncements]);
+
+  // 新增發布
+  const handlePublish = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!title.trim() || !body.trim()) return alert('請填寫標題與內容');
+    setIsSubmitting(true);
+    try {
+      const { error } = await supabase.from('announcements').insert({
+        title: title.trim(),
+        body: body.trim(),
+        is_active: true,
+      });
+
+      if (error) throw error;
+      alert('✨ 公告發布成功！已同步上線至首頁輪播。');
+      setTitle('');
+      setBody('');
+      loadAnnouncements();
+    } catch (err: any) {
+      alert(`發布失敗: ${err.message}`);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  // 一鍵啟用 / 停用切換
+  const handleToggle = async (ann: Announcement) => {
+    try {
+      await supabase
+        .from('announcements')
+        .update({ is_active: !ann.is_active })
+        .eq('id', ann.id);
+
+      setAnnouncements((prev) =>
+        prev.map((item) => (item.id === ann.id ? { ...item, is_active: !ann.is_active } : item))
+      );
+    } catch (err: any) {
+      alert(`狀態切換失敗: ${err.message}`);
+    }
+  };
+
+  // 開啟編輯彈窗
+  const handleOpenEdit = (ann: Announcement) => {
+    setEditingAnn(ann);
+    setEditTitle(ann.title);
+    setEditBody(ann.body);
+  };
+
+  // 儲存編輯內容
+  const handleSaveEdit = async () => {
+    if (!editingAnn) return;
+    if (!editTitle.trim() || !editBody.trim()) return alert('請完整填寫標題與內容');
+    setIsSavingEdit(true);
+    try {
+      const { error } = await supabase
+        .from('announcements')
+        .update({
+          title: editTitle.trim(),
+          body: editBody.trim(),
+        })
+        .eq('id', editingAnn.id);
+
+      if (error) throw error;
+      alert('✅ 公告更新成功！');
+      setEditingAnn(null);
+      loadAnnouncements();
+    } catch (err: any) {
+      alert(`更新失敗: ${err.message}`);
+    } finally {
+      setIsSavingEdit(false);
+    }
+  };
+
+  // 刪除公告
+  const handleDelete = async (id: string) => {
+    if (!confirm('確定要永久刪除此則公告嗎？此動作無法復原。')) return;
+    try {
+      await supabase.from('announcements').delete().eq('id', id);
+      setAnnouncements((prev) => prev.filter((item) => item.id !== id));
+    } catch (err: any) {
+      alert(`刪除失敗: ${err.message}`);
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* 標題說明 */}
+      <div>
+        <h2 className="text-lg font-bold text-amber-100 flex items-center gap-2">
+          <Megaphone className="w-5 h-5 text-amber-300" /> 全站廣播公告部署管理
+        </h2>
+        <p className="text-xs text-zinc-400 mt-0.5">
+          在此發布與編輯的公告將直接進入首頁頂部星空廣播站進行流體自動輪播。
+        </p>
+      </div>
+
+      {/* 新增公告表單 */}
+      <form
+        onSubmit={handlePublish}
+        className="glass rounded-2xl p-5 glow-border space-y-3.5 bg-zinc-900/60 border border-amber-400/20"
+      >
+        <div className="flex items-center gap-1.5 text-xs font-bold text-amber-200">
+          <Plus className="w-4 h-4 text-amber-400" /> 發布新公告
+        </div>
+
+        <div>
+          <label className="text-xs text-zinc-400 block mb-1">公告主標題 (建議 15~25 字)</label>
+          <input
+            type="text"
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            placeholder="例如：跨年夜心願加碼活動正式上線！"
+            className="w-full bg-zinc-950 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-amber-400/50"
+            required
+          />
+        </div>
+
+        <div>
+          <label className="text-xs text-zinc-400 block mb-1">公告內文說明 (固定兩行規格展示)</label>
+          <textarea
+            value={body}
+            onChange={(e) => setBody(e.target.value)}
+            placeholder="請輸入欲廣播給所有星旅人的詳細溫暖訊息..."
+            rows={2}
+            className="w-full bg-zinc-950 border border-white/10 rounded-xl px-4 py-2.5 text-xs text-white focus:outline-none focus:border-amber-400/50 resize-none"
+            required
+          />
+        </div>
+
+        <button
+          type="submit"
+          disabled={isSubmitting}
+          className="w-full py-3 bg-gradient-to-r from-amber-500 to-yellow-600 hover:from-amber-400 hover:to-yellow-500 text-zinc-950 font-bold rounded-xl text-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
+        >
+          {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Megaphone className="w-4 h-4" />}
+          即刻部署發布至首頁廣播站
+        </button>
+      </form>
+
+      {/* 公告列表管理清單 */}
+      <div className="space-y-3">
+        <div className="flex justify-between items-center text-xs text-zinc-400 px-1 font-mono">
+          <span>現有公告列表 ({announcements.length} 則)</span>
+          <span>支援修改／啟用狀態切換</span>
+        </div>
+
+        {loading ? (
+          <div className="text-center py-10 text-zinc-500 text-xs">載入公告清單中...</div>
+        ) : announcements.length === 0 ? (
+          <div className="text-center py-12 border border-white/5 rounded-2xl bg-zinc-900/20 text-zinc-500 text-xs">
+            目前資料庫暫無自訂公告，首頁正呈現官方預設備用廣播。
+          </div>
+        ) : (
+          announcements.map((ann) => (
+            <div
+              key={ann.id}
+              className={`glass rounded-2xl p-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 border transition-all ${
+                ann.is_active ? 'border-amber-400/20 bg-zinc-900/50' : 'border-white/5 bg-zinc-950/40 opacity-70'
+              }`}
+            >
+              <div className="space-y-1 flex-1">
+                <div className="flex items-center gap-2">
+                  <span
+                    className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${
+                      ann.is_active
+                        ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                        : 'bg-zinc-800 text-zinc-400 border border-white/10'
+                    }`}
+                  >
+                    {ann.is_active ? '🟢 輪播啟用中' : '⚪ 已停用'}
+                  </span>
+                  <h4 className="font-bold text-amber-100 text-sm">{ann.title}</h4>
+                </div>
+                <p className="text-xs text-zinc-300 line-clamp-2 leading-relaxed">{ann.body}</p>
+                <p className="text-[10px] text-zinc-500 font-mono">
+                  發布時間：{new Date(ann.created_at).toLocaleString('zh-TW')}
+                </p>
+              </div>
+
+              {/* 操作按鈕群 */}
+              <div className="flex items-center gap-2 self-end sm:self-center flex-shrink-0">
+                <button
+                  type="button"
+                  onClick={() => handleToggle(ann)}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer border ${
+                    ann.is_active
+                      ? 'bg-zinc-800 border-white/10 text-zinc-300 hover:bg-zinc-700'
+                      : 'bg-emerald-500/15 border-emerald-500/30 text-emerald-300 hover:bg-emerald-500/25'
+                  }`}
+                >
+                  {ann.is_active ? '停用' : '啟用'}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => handleOpenEdit(ann)}
+                  className="px-3 py-1.5 rounded-xl text-xs font-bold bg-amber-500/15 border border-amber-400/30 text-amber-200 hover:bg-amber-500/25 transition-all flex items-center gap-1 cursor-pointer"
+                >
+                  <Edit3 className="w-3.5 h-3.5" /> 編輯
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => handleDelete(ann.id)}
+                  className="p-2 rounded-xl text-red-400 hover:text-red-300 hover:bg-red-500/10 transition-all cursor-pointer"
+                  title="刪除公告"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+
+      {/* ✏️ 編輯公告 Modal */}
+      {editingAnn && (
+        <div
+          className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-black/85 backdrop-blur-md scale-in"
+          onClick={() => setEditingAnn(null)}
+        >
+          <div
+            className="glass-strong rounded-3xl w-full max-w-lg p-6 glow-border border-amber-400/30 bg-zinc-950 space-y-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex justify-between items-center border-b border-white/10 pb-3">
+              <h3 className="text-base font-bold text-amber-200 flex items-center gap-2">
+                <Edit3 className="w-4 h-4 text-amber-400" /> 編輯公告內容
+              </h3>
+              <button onClick={() => setEditingAnn(null)} className="text-zinc-400 hover:text-white">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div>
+              <label className="text-xs text-zinc-400 block mb-1">公告主標題</label>
+              <input
+                type="text"
+                value={editTitle}
+                onChange={(e) => setEditTitle(e.target.value)}
+                className="w-full bg-zinc-900 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-amber-400/50"
+                required
+              />
+            </div>
+
+            <div>
+              <label className="text-xs text-zinc-400 block mb-1">公告內文說明</label>
+              <textarea
+                rows={3}
+                value={editBody}
+                onChange={(e) => setEditBody(e.target.value)}
+                className="w-full bg-zinc-900 border border-white/10 rounded-xl px-4 py-2.5 text-xs text-white focus:outline-none focus:border-amber-400/50 resize-none"
+                required
+              />
+            </div>
+
+            <div className="flex gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setEditingAnn(null)}
+                className="flex-1 py-2.5 text-xs border border-white/10 rounded-xl text-zinc-400 hover:text-white cursor-pointer"
+              >
+                取消
+              </button>
+              <button
+                type="button"
+                disabled={isSavingEdit}
+                onClick={handleSaveEdit}
+                className="flex-1 py-2.5 text-xs bg-amber-500 hover:bg-amber-400 text-zinc-950 font-bold rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1.5"
+              >
+                {isSavingEdit ? <Loader2 className="w-4 h-4 animate-spin" /> : '確認並儲存修改'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ===== 5. Tag 管理 =====
+function TagsTab() {
+  const [tags, setTags] = useState<TagType[]>([]);
+  const [name, setName] = useState('');
+  const [icon, setIcon] = useState('🏷️');
+
+  const loadTags = useCallback(async () => {
+    const { data } = await supabase.from('tags').select('*').order('sort_order', { ascending: true });
+    setTags((data as TagType[]) || []);
+  }, []);
+
+  useEffect(() => {
+    loadTags();
+  }, [loadTags]);
+
+  const handleAdd = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!name) return;
+    const maxSort = tags.length > 0 ? Math.max(...tags.map((t) => t.sort_order)) : 0;
+    await supabase.from('tags').insert({ name, icon, sort_order: maxSort + 1 });
+    setName('');
+    loadTags();
+  };
+
+  const handleDelete = async (id: string) => {
+    await supabase.from('tags').delete().eq('id', id);
+    loadTags();
+  };
+
+  return (
+    <div className="space-y-4">
+      <h2 className="text-lg font-bold text-amber-100 flex items-center gap-2">
+        <Tag className="w-5 h-5 text-amber-300" /> 分類標籤管理
+      </h2>
+      <form onSubmit={handleAdd} className="glass rounded-2xl p-5 glow-border flex gap-2">
+        <input
+          type="text"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          placeholder="新標籤名稱"
+          className="flex-1 bg-zinc-900 border border-white/10 rounded-xl px-4 py-2 text-sm text-white focus:outline-none"
+          required
+        />
+        <button type="submit" className="px-4 py-2 bg-amber-500 hover:bg-amber-400 text-zinc-950 font-bold rounded-xl text-xs">
+          新增標籤
+        </button>
+      </form>
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+        {tags.map((t) => (
+          <div key={t.id} className="glass rounded-xl p-3 flex justify-between items-center text-xs">
+            <span className="text-amber-200">{t.icon} #{t.name}</span>
+            <button onClick={() => handleDelete(t.id)} className="text-red-400 hover:text-red-300">
+              <Trash2 className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
