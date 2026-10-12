@@ -1,8 +1,9 @@
 // src/components/DriftBottleModal.tsx
 import { useState, useEffect } from 'react';
-import { X, Sparkles, MessageCircle, Loader2 } from 'lucide-react';
+import { X, MessageCircle, Loader2 } from 'lucide-react';
 import { supabase } from '@/lib/supabaseClient';
 import type { Wish, Investment } from '@/types/wish';
+import { WishCard } from './WishCard';
 
 interface DriftBottleModalProps {
   wish: Wish;
@@ -11,7 +12,7 @@ interface DriftBottleModalProps {
   onClose: () => void;
 }
 
-export function DriftBottleModal({ wish, progress, isFulfilled, onClose }: DriftBottleModalProps) {
+export function DriftBottleModal({ wish, onClose }: DriftBottleModalProps) {
   const [messages, setMessages] = useState<Investment[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -41,48 +42,12 @@ export function DriftBottleModal({ wish, progress, isFulfilled, onClose }: Drift
       onClick={onClose}
     >
       <div
-        className="max-w-4xl w-full h-[600px] flex flex-col md:flex-row gap-4 items-center justify-center"
+        className="max-w-4xl w-full h-[620px] flex flex-col md:flex-row gap-4 items-center justify-center"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* 左側：卡片本體懸浮展示 */}
-        <div className="w-full md:w-80 h-full flex-shrink-0 relative rounded-3xl overflow-hidden border border-amber-400/30 bg-zinc-950 p-6 flex flex-col justify-between shadow-2xl">
-          {isFulfilled && (
-            <>
-              <div className="trainer-gallery-shine" />
-              <div className="holo-glitter opacity-90" />
-            </>
-          )}
-
-          <div className="relative z-30 space-y-3">
-            <div className="flex items-center justify-between text-xs text-amber-300 font-mono">
-              <span className="flex items-center gap-1">
-                <Sparkles className="w-3.5 h-3.5" />
-                #{wish.tag_name}
-              </span>
-              <span>{isFulfilled ? '✨ 閃卡圓滿' : `集資 ${progress}%`}</span>
-            </div>
-
-            <h3 className="text-lg font-bold text-white flex items-center gap-2">
-              <span className="text-2xl">{wish.cover_emoji}</span>
-              <span className="line-clamp-2">{wish.product_name}</span>
-            </h3>
-
-            <p className="text-xs text-zinc-400 leading-relaxed max-h-36 overflow-y-auto hide-scrollbar">
-              {wish.story_text}
-            </p>
-          </div>
-
-          <div className="relative z-30 space-y-2 pt-4 border-t border-white/10">
-            <div className="h-1.5 w-full bg-white/10 rounded-full overflow-hidden">
-              <div
-                className={`h-full ${isFulfilled ? 'bg-amber-300' : 'bg-amber-500'}`}
-                style={{ width: `${progress}%` }}
-              />
-            </div>
-            <p className="text-[11px] font-mono text-amber-200">
-              進度：NT$ {(wish.current_stardust || 0).toLocaleString()} / {(wish.product_price || 0).toLocaleString()}
-            </p>
-          </div>
+        {/* 🌟 左側：直接復用同一張 WishCard (variant="preview")，保持相同比例與微光 */}
+        <div className="w-full md:w-80 h-full flex-shrink-0 flex items-center justify-center">
+          <WishCard wish={wish} variant="preview" />
         </div>
 
         {/* 右側：漂流瓶留言室 */}
