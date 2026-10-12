@@ -262,3 +262,47 @@ body {
     transform: rotateY(180deg);
   }
 }
+/* ✨ 全息金箔閃卡與星砂流動樣式 */
+@keyframes holoFoil {
+  0% { background-position: 0% 0%; }
+  50% { background-position: 100% 100%; }
+  100% { background-position: 0% 0%; }
+}
+
+@keyframes cardSpinBloom {
+  0% { transform: rotateY(0deg) scale(1); filter: brightness(1); }
+  50% { transform: rotateY(720deg) scale(1.08); filter: brightness(2.5); }
+  100% { transform: rotateY(0deg) scale(1); filter: brightness(1); }
+}
+
+/* 閃卡本體外層容器與流光 */
+.holo-foil {
+  background: linear-gradient(
+    135deg,
+    rgba(255, 215, 0, 0.15) 0%,
+    rgba(255, 105, 180, 0.15) 25%,
+    rgba(0, 191, 255, 0.15) 50%,
+    rgba(50, 205, 50, 0.15) 75%,
+    rgba(255, 215, 0, 0.15) 100%
+  );
+  background-size: 300% 300%;
+  animation: holoFoil 8s ease infinite;
+}
+
+.holo-glimmer {
+  background: linear-gradient(
+    115deg,
+    transparent 20%,
+    rgba(255, 255, 255, 0.25) 45%,
+    rgba(253, 224, 71, 0.4) 50%,
+    transparent 55%
+  );
+  background-size: 200% 200%;
+  animation: holoFoil 4s linear infinite;
+  mix-blend-mode: overlay;
+}
+
+/* 滿額時鍍閃卡激活動畫類別 */
+.card-bloom-active {
+  animation: cardSpinBloom 1.4s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
