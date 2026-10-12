@@ -309,15 +309,16 @@ body {
 
 
 /* =========================================================
-   🌌 夢沙 · 真正的 Cosmos Holo (純物理自然反光，無網格切線)
+   🌌 夢沙 · Trainer Gallery Holofoil (simeydotme 官方原生公式)
    ========================================================= */
 
 .holo-card {
   --pointer-x: 50%;
   --pointer-y: 50%;
+  --pointer-from-center: 0;
   --rotate-x: 0deg;
   --rotate-y: 0deg;
-  --glare-opacity: 0;
+  --card-opacity: 0;
   
   position: relative;
   transform-style: preserve-3d;
@@ -325,47 +326,10 @@ body {
   will-change: transform;
 }
 
-/* 🌟 1. 超高質感動態斜紋彩虹全息光譜 (Cosmos Prism) */
-.holo-shine {
+/* 🌟 Trainer Gallery: 雙層金屬炫彩薄膜 (Shine + Glare) */
+.trainer-gallery-shine {
   position: absolute;
   inset: 0;
   border-radius: inherit;
   pointer-events: none;
-  z-index: 20;
-  opacity: var(--glare-opacity);
-  mix-blend-mode: color-dodge;
-  background-image: 
-    /* 跟隨滑鼠的動態柔和高光斑 */
-    radial-gradient(
-      circle at var(--pointer-x) var(--pointer-y),
-      rgba(255, 255, 255, 0.7) 0%,
-      rgba(255, 255, 255, 0.2) 20%,
-      transparent 60%
-    ),
-    /* 真正的平滑連續彩虹光柵 (無硬邊、無色塊) */
-    repeating-linear-gradient(
-      115deg,
-      rgba(255, 119, 115, 0.2) 0%,
-      rgba(255, 237, 95, 0.2) 8%,
-      rgba(168, 255, 95, 0.2) 16%,
-      rgba(131, 255, 247, 0.2) 24%,
-      rgba(120, 148, 255, 0.2) 32%,
-      rgba(216, 117, 255, 0.2) 40%,
-      rgba(255, 119, 115, 0.2) 48%
-    );
-  background-size: 100% 100%, 250% 250%;
-  background-position: 
-    0 0,
-    calc(var(--pointer-x) * 1.5) calc(var(--pointer-y) * 1.5);
-  transition: opacity 0.3s ease;
-}
-
-/* 🌟 2. 玻璃瓶身外框：恢復通透純黑金星空，徹底消除髒黃色塑料感 */
-.glass-flask-inner {
-  position: absolute;
-  inset: 4px;
-  border-radius: 1.5rem;
-  background: #090a10; /* 純淨深邃的星空暗底 */
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
-  overflow: hidden;
-}
+  z-ind
