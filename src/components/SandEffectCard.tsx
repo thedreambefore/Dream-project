@@ -62,16 +62,17 @@ export function SandEffectCard({ wish, index, showChatOnClick = true }: SandCard
         onMouseEnter={handleMouseEnter}
         onMouseLeave={handleMouseLeave}
         onClick={() => setShowChatModal(true)}
-        className={`holo-card w-full h-[450px] select-none rounded-[2rem] p-1.5 cursor-pointer relative group transition-transform ${
-  isFulfilled ? 'holo-border-gold' : ''
-}`}
+        /* 🌟 改用 rounded-2xl，移除多餘的內縮 padding，讓邊框比例完整規整 */
+        className={`holo-card w-full h-[450px] select-none rounded-2xl cursor-pointer relative group transition-transform ${
+          isFulfilled ? 'holo-border-gold' : 'border border-white/10'
+        }`}
         style={{
           transform: `perspective(800px) rotateX(var(--rotate-x, 0deg)) rotateY(var(--rotate-y, 0deg))`,
           animationDelay: `${index * 0.05}s`,
         }}
       >
-        {/* 卡片玻璃瓶身底座 (四周預留半透明玻璃呼吸感) */}
-        <div className="glass-flask-inner relative w-full h-full p-5 flex flex-col justify-between border border-white/10 group-hover:border-amber-400/50 transition-colors">
+        {/* 卡片玻璃瓶身底座 (rounded-2xl 完全吻合外框) */}
+        <div className="glass-flask-inner relative w-full h-full p-5 flex flex-col justify-between group-hover:border-amber-400/30 transition-colors">
           
           {/* 🌟 1. 簡潔清澈的瓶中星砂 (無破圖網格，清透純淨) */}
           <div
