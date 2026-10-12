@@ -32,27 +32,24 @@ export function SandEffectCard({ wish, index, showChatOnClick = true }: SandCard
     const centerX = rect.width / 2;
     const centerY = rect.height / 2;
 
-    // 輕微視差傾角 (-8deg ~ +8deg)
-    const rotateX = ((y - centerY) / centerY) * -8;
-    const rotateY = ((x - centerX) / centerX) * 8;
+    const rotateX = ((y - centerY) / centerY) * -10;
+    const rotateY = ((x - centerX) / centerX) * 10;
 
     card.style.setProperty('--pointer-x', `${px}%`);
     card.style.setProperty('--pointer-y', `${py}%`);
     card.style.setProperty('--rotate-x', `${rotateX}deg`);
     card.style.setProperty('--rotate-y', `${rotateY}deg`);
-    card.style.setProperty('--glare-opacity', '1');
+    card.style.setProperty('--card-opacity', '1');
   }, []);
 
   const handleMouseEnter = () => {
-    setIsInteracting(true);
-    cardRef.current?.style.setProperty('--glare-opacity', '1');
+    cardRef.current?.style.setProperty('--card-opacity', '1');
   };
 
   const handleMouseLeave = () => {
-    setIsInteracting(false);
     const card = cardRef.current;
     if (!card) return;
-    card.style.setProperty('--glare-opacity', '0');
+    card.style.setProperty('--card-opacity', '0'); // 移開時淡出
     card.style.setProperty('--rotate-x', '0deg');
     card.style.setProperty('--rotate-y', '0deg');
   };
@@ -89,7 +86,7 @@ export function SandEffectCard({ wish, index, showChatOnClick = true }: SandCard
 
           {/* 🌟 2. 達成 100% 滿額時啟動動態光澤 (只保留乾淨的 holo-shine) */}
           {isFulfilled && (
-            <div className="holo-shine" />
+            <div className="trainer-gallery-shine" />
           )}
 
 
@@ -200,7 +197,7 @@ function WishDriftChatModal({
         <div className="w-full md:w-80 h-full flex-shrink-0 relative rounded-3xl overflow-hidden border border-amber-400/40 bg-zinc-950 p-5 flex flex-col justify-between shadow-2xl">
           {isFulfilled && (
             <>
-              <div className="holo-shine opacity-80" />
+              <div className="trainer-gallery-shine" /> 
               <div className="holo-glitter opacity-90" />
             </>
           )}
