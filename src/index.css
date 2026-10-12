@@ -309,113 +309,93 @@ body {
 
 
 /* =========================================================
-   🌌 夢沙 · 寶可夢級物理全息閃卡 (純 CSS 獨立渲染引擎)
+   🌌 夢沙 · 暗夜星光全息箔 (真實實體卡片質感)
    ========================================================= */
 
 .holo-card {
   --pointer-x: 50%;
   --pointer-y: 50%;
-  --pointer-from-center: 0;
-  --card-opacity: 0;
   --rotate-x: 0deg;
   --rotate-y: 0deg;
+  --glare-opacity: 0;
   
   position: relative;
   transform-style: preserve-3d;
-  perspective: 800px;
+  perspective: 1000px;
   will-change: transform;
-  transition: transform 0.4s cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
-.holo-card.interacting {
-  transition: none; /* 滑鼠移動時零延遲 */
-}
-
-/* 🌟 1. 七彩光柵折射薄膜 (Rainbow Diffraction Foil) */
+/* 🌟 1. 斜向物理掃光高光層 (真正的卡片反光，不是大色塊) */
 .holo-shine {
   position: absolute;
   inset: 0;
   border-radius: inherit;
   pointer-events: none;
   z-index: 20;
-  opacity: var(--card-opacity);
-  /* 使用 overlay + screen 確保深色背景下色彩也能飽和綻放 */
-  mix-blend-mode: screen;
+  opacity: var(--glare-opacity);
+  mix-blend-mode: color-dodge;
   background: 
-    /* 物理光斑聚焦點 (跟隨滑鼠) */
+    /* 核心物理光斑 (隨滑鼠移動) */
     radial-gradient(
       circle at var(--pointer-x) var(--pointer-y),
-      rgba(255, 255, 255, 0.8) 0%,
-      rgba(255, 255, 255, 0.4) 15%,
-      rgba(255, 255, 255, 0) 35%
+      rgba(255, 255, 255, 0.45) 0%,
+      rgba(255, 240, 180, 0.15) 20%,
+      transparent 50%
     ),
-    /* 45度角動態彩虹折射光譜 */
+    /* 極細緻 60 度稜鏡彩虹條紋，透光率低，絕不搶走卡片文字 */
     linear-gradient(
-      115deg,
+      125deg,
       transparent 0%,
-      rgba(255, 0, 128, 0.5) 15%,
-      rgba(255, 230, 0, 0.6) 30%,
-      rgba(0, 255, 136, 0.6) 45%,
-      rgba(0, 200, 255, 0.6) 60%,
-      rgba(170, 0, 255, 0.5) 75%,
+      rgba(255, 100, 100, 0.08) 30%,
+      rgba(255, 220, 100, 0.12) 40%,
+      rgba(100, 255, 200, 0.12) 50%,
+      rgba(100, 200, 255, 0.12) 60%,
+      rgba(200, 100, 255, 0.08) 70%,
       transparent 100%
     );
   background-position: 
     0 0,
-    calc((var(--pointer-x) - 50%) * 2) calc((var(--pointer-y) - 50%) * 2);
+    calc((var(--pointer-x) - 50%) * 1.5) calc((var(--pointer-y) - 50%) * 1.5);
   background-size: 100% 100%, 200% 200%;
   transition: opacity 0.3s ease;
 }
 
-/* 🌟 2. 純 CSS 銀白碎星亮片層 (Glitter Sparkles Layer - 無需外部圖檔) */
+/* 🌟 2. 幾何菱形星塵暗紋 (像真卡表面微浮雕一樣) */
 .holo-glitter {
   position: absolute;
   inset: 0;
   border-radius: inherit;
   pointer-events: none;
-  z-index: 21;
-  opacity: var(--card-opacity);
-  mix-blend-mode: color-dodge;
+  z-index: 19;
+  opacity: calc(var(--glare-opacity) * 0.4);
+  mix-blend-mode: overlay;
   background-image: 
-    /* 第一層碎金斑點 */
-    radial-gradient(1.5px 1.5px at 20% 30%, #ffffff, transparent),
-    radial-gradient(1.5px 1.5px at 70% 20%, #fde68a, transparent),
-    radial-gradient(1.5px 1.5px at 40% 70%, #ffffff, transparent),
-    radial-gradient(2px 2px at 80% 80%, #67e8f9, transparent),
-    radial-gradient(1.5px 1.5px at 15% 85%, #f472b6, transparent),
-    radial-gradient(2px 2px at 60% 45%, #ffffff, transparent),
-    radial-gradient(1.5px 1.5px at 90% 40%, #fde68a, transparent),
-    /* 第二層全息斜紋光柵線 */
-    repeating-linear-gradient(
-      135deg,
-      rgba(255, 255, 255, 0.05) 0px,
-      rgba(255, 255, 255, 0.05) 2px,
-      transparent 2px,
-      transparent 6px
-    );
-  background-size: 120px 120px, 120px 120px, 120px 120px, 120px 120px, 120px 120px, 120px 120px, 120px 120px, 100% 100%;
-  background-position: 
-    calc(var(--pointer-x) * 0.3) calc(var(--pointer-y) * 0.3),
-    calc(var(--pointer-x) * -0.2) calc(var(--pointer-y) * -0.2),
-    calc(var(--pointer-x) * 0.4) calc(var(--pointer-y) * 0.4),
-    calc(var(--pointer-x) * -0.3) calc(var(--pointer-y) * -0.3),
-    calc(var(--pointer-x) * 0.2) calc(var(--pointer-y) * 0.2),
-    calc(var(--pointer-x) * -0.4) calc(var(--pointer-y) * -0.4),
-    calc(var(--pointer-x) * 0.5) calc(var(--pointer-y) * 0.5),
-    0 0;
-  filter: brightness(1.4) contrast(1.5);
-  transition: opacity 0.3s ease;
+    radial-gradient(1px 1px at 25% 25%, #ffffff, transparent),
+    radial-gradient(1px 1px at 75% 75%, #fde68a, transparent),
+    radial-gradient(1px 1px at 50% 50%, #ffffff, transparent);
+  background-size: 40px 40px;
+  background-position: calc(var(--pointer-x) * 0.2) calc(var(--pointer-y) * 0.2);
 }
 
-/* 玻璃邊緣與星砂倒映槽 */
-.glass-flask-inner {
+/* 滿額卡片金色流光微邊框 */
+.holo-border-gold {
+  position: relative;
+}
+.holo-border-gold::after {
+  content: '';
   position: absolute;
-  inset: 6px;
-  border-radius: 1.5rem;
-  background: rgba(13, 14, 24, 0.85);
-  box-shadow: 
-    inset 0 0 20px rgba(251, 191, 36, 0.12),
-    inset 0 1px 2px rgba(255, 255, 255, 0.25);
-  backdrop-filter: blur(8px);
-  overflow: hidden;
+  inset: -1px;
+  border-radius: inherit;
+  padding: 1px;
+  background: linear-gradient(
+    135deg,
+    rgba(251, 191, 36, 0.6),
+    rgba(255, 255, 255, 0.2),
+    rgba(251, 191, 36, 0.6)
+  );
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+  z-index: 25;
 }
