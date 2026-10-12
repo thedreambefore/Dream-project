@@ -688,11 +688,28 @@ function WalletTab() {
   );
 }
 
+// ===== 我的心願 Tab：全面改用大一統 WishCard (variant="myWishes") + 感謝信彈窗 =====
 function MyWishesTab({ onEditWish: _onEditWish }: { onEditWish: () => void }) {
   const { session } = useAuth();
   const [myWishes, setMyWishes] = useState<Wish[]>([]);
   const [filterTag, setFilterTag] = useState<string>('all');
   const [loading, setLoading] = useState(true);
+
+  // 💌 感謝信撰寫狀態
+  const [letterWish, setLetterWish] = useState<Wish | null>(null);
+  const [thankYouLetter, setThankYouLetter] = useState('');
+  const [unboxingPhoto, setUnboxingPhoto] = useState<string | null>(null);
+  const [compressingPhoto, setCompressingPhoto] = useState(false);
+  const [savingLetter, setSavingLetter] = useState(false);
+
+  // ✏️ 重編願望狀態
+  const [editingWish, setEditingWish] = useState<Wish | null>(null);
+  const [editTitle, setEditTitle] = useState('');
+  const [editPrice, setEditPrice] = useState<number>(500);
+  const [editProductUrl, setEditProductUrl] = useState('');
+  const [editStory, setEditStory] = useState('');
+  const [editPromise, setEditPromise] = useState('');
+  const [savingEdit, setSavingEdit] = useState(false);
 
   const loadMyWishes = async () => {
     if (!session?.user?.id) return;
@@ -710,6 +727,105 @@ function MyWishesTab({ onEditWish: _onEditWish }: { onEditWish: () => void }) {
   useEffect(() => {
     loadMyWishes();
   }, [session?.user?.id]);
+
+  const handleStartEdit = (w: Wish) => {
+    setEditingWish(w);
+    setEditTitle(w.product_name || w.title || '');
+    setEditPrice(Number(w.product_price) || 500);
+    setEditProductUrl(w.product_url || '');
+    setEditStory(w.story_text || '');
+    setEditPromise(w.promise_text || '');
+  };
+
+  const handleResubmit = async () => {
+    if (!editingWish) return;
+    setSavingEdit(true);
+    try {
+      const { error } = await supabase
+        .from('wishes')
+        .update({
+          title: editTitle.trim(),
+          product_name: editTitle.trim(),
+          product_price: Number(editPrice),
+          product_url: editProductUrl.trim() || null,
+          story_text: editStory.trim(),
+          promise_text: editPromise.trim(),
+          status: 'pending',
+          block_reason: null,
+        })
+        .eq('id', editingWish.id);
+
+      if (error) throw error;
+      alert('✨ 已重新提交！請等待管理員審核。');
+      setEditingWish(null);
+      loadMyWishes();
+    } catch (e: any) {
+      alert(`更新失敗: ${e.message}`);
+    } finally {
+      setSavingEdit(false);
+    }
+  };
+
+  // 開啟撰寫開箱信彈窗
+  const handleOpenLetterModal = (w: Wish) => {
+    setLetterWish(w);
+    setThankYouLetter(w.thank_you_letter || '');
+    setUnboxingPhoto(w.unboxing_photo_url || null);
+  };
+
+  const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setCompressingPhoto(true);
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const img = new Image();
+      img.onload = () => {
+        const maxWidth = 800;
+        let width = img.width;
+        let height = img.height;
+        if (width > maxWidth) {
+          height = Math.round((height * maxWidth) / width);
+          width = maxWidth;
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          ctx.drawImage(img, 0, 0, width, height);
+          setUnboxingPhoto(canvas.toDataURL('image/jpeg', 0.7));
+        }
+        setCompressingPhoto(false);
+      };
+      img.src = event.target?.result as string;
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleSubmitLetter = async () => {
+    if (!letterWish || !thankYouLetter.trim()) return alert('請填寫感謝信內文');
+    setSavingLetter(true);
+    try {
+      await supabase
+        .from('wishes')
+        .update({
+          thank_you_letter: thankYouLetter.trim(),
+          unboxing_photo_url: unboxingPhoto,
+          letter_status: 'pending', // 送出人工審查
+          letter_reject_reason: null,
+        })
+        .eq('id', letterWish.id);
+
+      alert('💌 開箱感謝信已提交星際管理室審查！通過後將公開於所有贊助者的追番牆！');
+      setLetterWish(null);
+      loadMyWishes();
+    } catch (e: any) {
+      alert(`提交失敗: ${e.message}`);
+    } finally {
+      setSavingLetter(false);
+    }
+  };
 
   const filteredList = myWishes.filter((w) => {
     if (filterTag === 'all') return true;
@@ -759,14 +875,167 @@ function MyWishesTab({ onEditWish: _onEditWish }: { onEditWish: () => void }) {
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
           {filteredList.map((w, idx) => (
-            <WishCard key={w.id} wish={w} index={idx} variant="flask" />
+            <WishCard
+              key={w.id}
+              wish={w}
+              index={idx}
+              variant="myWishes"
+              onOpenLetterModal={handleOpenLetterModal}
+              onOpenEditModal={handleStartEdit}
+            />
           ))}
+        </div>
+      )}
+
+      {/* ✏️ 重新編輯送審 Modal */}
+      {editingWish && (
+        <div className="fixed inset-0 z-[65] flex items-center justify-center p-4 bg-black/85 backdrop-blur-md overflow-y-auto">
+          <div className="glass-strong rounded-2xl w-full max-w-lg p-6 glow-border border-amber-400/30 bg-zinc-950 space-y-4 my-auto">
+            <h3 className="text-base font-bold text-amber-200">修正內容重新送審</h3>
+            <div>
+              <label className="text-xs text-zinc-400 block mb-1">願望標題 (限 20 字)</label>
+              <input
+                type="text"
+                maxLength={20}
+                value={editTitle}
+                onChange={(e) => setEditTitle(e.target.value)}
+                className="w-full bg-zinc-900 border border-white/10 rounded-xl p-2.5 text-xs text-white"
+                required
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs text-zinc-400 block mb-1">目標星塵 (NT$)</label>
+                <input
+                  type="number"
+                  min={10}
+                  value={editPrice}
+                  onChange={(e) => setEditPrice(Number(e.target.value))}
+                  className="w-full bg-zinc-900 border border-white/10 rounded-xl p-2 text-xs text-amber-300 font-mono"
+                  required
+                />
+              </div>
+              <div>
+                <label className="text-xs text-zinc-400 block mb-1">電商連結</label>
+                <input
+                  type="url"
+                  value={editProductUrl}
+                  onChange={(e) => setEditProductUrl(e.target.value)}
+                  placeholder="https://..."
+                  className="w-full bg-zinc-900 border border-white/10 rounded-xl p-2 text-xs text-white"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="text-xs text-zinc-400 block mb-1">故事內文 (限 200 字)</label>
+              <textarea
+                rows={4}
+                maxLength={200}
+                value={editStory}
+                onChange={(e) => setEditStory(e.target.value)}
+                className="w-full bg-zinc-900 border border-white/10 rounded-xl p-2.5 text-xs text-white resize-none"
+                required
+              />
+            </div>
+
+            <div>
+              <label className="text-xs text-zinc-400 block mb-1">終章承諾</label>
+              <input
+                type="text"
+                value={editPromise}
+                onChange={(e) => setEditPromise(e.target.value)}
+                className="w-full bg-zinc-900 border border-white/10 rounded-xl p-2 text-xs text-white"
+              />
+            </div>
+
+            <div className="flex gap-2 pt-2">
+              <button
+                onClick={() => setEditingWish(null)}
+                className="flex-1 py-2.5 text-xs border border-white/10 rounded-xl text-zinc-400"
+              >
+                取消
+              </button>
+              <button
+                onClick={handleResubmit}
+                disabled={savingEdit}
+                className="flex-1 py-2.5 text-xs bg-amber-500 hover:bg-amber-400 text-zinc-950 font-bold rounded-xl"
+              >
+                {savingEdit ? '提交中...' : '確認更新並重新送審'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 💌 上傳／修改終章感謝信 Modal */}
+      {letterWish && (
+        <div className="fixed inset-0 z-[65] flex items-center justify-center p-4 bg-black/85 backdrop-blur-md overflow-y-auto">
+          <div className="glass-strong rounded-2xl w-full max-w-lg p-6 glow-border border-purple-500/30 bg-zinc-950 space-y-4 my-auto">
+            <h3 className="text-base font-bold text-purple-300">💌 發布開箱感謝信 (需經管理員審核)</h3>
+            <p className="text-xs text-zinc-400">
+              審核通過後將公開於所有贊助者的追番牆，審核期間將鎖定無法隨意變更。
+            </p>
+
+            <div>
+              <label className="text-xs text-zinc-400 block mb-1">開箱成果照片 (可選)</label>
+              <input
+                type="file"
+                accept="image/*"
+                onChange={handlePhotoUpload}
+                className="block w-full text-xs text-zinc-400 file:mr-2 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:bg-purple-500/20 file:text-purple-300"
+              />
+              {compressingPhoto && <p className="text-[10px] text-amber-300 mt-1">⏳ 照片壓縮中...</p>}
+              {unboxingPhoto && (
+                <div className="mt-2 relative h-32 rounded-xl overflow-hidden border border-white/10">
+                  <img src={unboxingPhoto} alt="預覽" className="w-full h-full object-cover" />
+                  <button
+                    type="button"
+                    onClick={() => setUnboxingPhoto(null)}
+                    className="absolute top-2 right-2 bg-black/70 text-red-400 text-xs px-2 py-0.5 rounded-md"
+                  >
+                    刪除
+                  </button>
+                </div>
+              )}
+            </div>
+
+            <div>
+              <label className="text-xs text-zinc-400 block mb-1">感謝信內文</label>
+              <textarea
+                rows={4}
+                value={thankYouLetter}
+                onChange={(e) => setThankYouLetter(e.target.value)}
+                placeholder="誠摯感謝每位陌生人星光的相助... 請分享您收到商品的心得與實現承諾的成果！"
+                className="w-full bg-zinc-900 border border-white/10 rounded-xl p-3 text-xs text-white resize-none"
+                required
+              />
+            </div>
+
+            <div className="flex gap-2">
+              <button
+                onClick={() => setLetterWish(null)}
+                className="flex-1 py-2.5 text-xs border border-white/10 rounded-xl text-zinc-400"
+              >
+                取消
+              </button>
+              <button
+                onClick={handleSubmitLetter}
+                disabled={savingLetter || compressingPhoto}
+                className="flex-1 py-2.5 text-xs bg-purple-500 text-zinc-950 font-bold rounded-xl"
+              >
+                {savingLetter ? '送出中...' : '提交審查'}
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>
   );
 }
 
+// ===== 追番牆 Tab：改用大一統 WishCard (variant="tracked") =====
 function InvestedTab() {
   const { session } = useAuth();
   const [trackedWishes, setTrackedWishes] = useState<Wish[]>([]);
@@ -844,7 +1113,7 @@ function InvestedTab() {
             <BookOpen className="w-5 h-5 text-amber-300" /> 心願追番結局牆
           </h2>
           <p className="text-xs text-zinc-400 mt-1">
-            正面重溫初衷與故事進度，滿額履約後點擊翻面解鎖創作者的親筆開箱終章！
+            點擊卡片翻面即可重溫初衷；點擊背面按鈕可開啟專屬漂流瓶與主角開箱信！
           </p>
         </div>
 
