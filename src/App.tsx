@@ -1,3 +1,4 @@
+// src/App.tsx
 import { useState, Component, ErrorInfo, ReactNode } from 'react';
 import { AuthProvider, useAuth } from '@/context/AuthContext';
 import { Starfield } from '@/components/Starfield';
@@ -9,14 +10,20 @@ import { AdminConsole } from '@/pages/AdminConsole';
 import { usePublicData } from '@/hooks/usePublicData';
 import { Shield } from 'lucide-react';
 
-// 🛡️ 錯誤防護盾牌 (Error Boundary) - 修正：移除未定義的變數引用
-interface Props { children: ReactNode; }
-interface State { hasError: boolean; }
+interface Props {
+  children: ReactNode;
+}
+interface State {
+  hasError: boolean;
+}
+
 class SafeShield extends Component<Props, State> {
   public state: State = { hasError: false };
-  public static getDerivedStateFromError(_: Error): State { return { hasError: true }; }
+  public static getDerivedStateFromError(_: Error): State {
+    return { hasError: true };
+  }
   public componentDidCatch(error: Error, errorInfo: ErrorInfo) {
-    console.log("🔒 夢沙防禦防護網已攔截並吃掉底層錯誤:", error, errorInfo);
+    console.error('🔒 夢沙防護網攔截到底層錯誤:', error, errorInfo);
   }
   public render() {
     if (this.state.hasError) {
@@ -40,14 +47,14 @@ class SafeShield extends Component<Props, State> {
 type View = 'home' | 'dashboard' | 'admin';
 
 function AppContent() {
-  const { loading, session, profile } = useAuth();
-  
-  let announcement = { title: "歡迎來到夢沙 DreamSand" };
+  const { loading, session, profile, isAdmin } = useAuth();
+
+  let announcement = { title: '歡迎來到夢沙 DreamSand' };
   try {
     const publicData = usePublicData();
     if (publicData?.announcement) announcement = publicData.announcement;
   } catch (e) {
-    console.error("攔截 usePublicData 異常");
+    console.error('攔截 usePublicData 異常');
   }
 
   const [view, setView] = useState<View>('home');
@@ -70,7 +77,7 @@ function AppContent() {
   };
 
   const handleOpenAdmin = () => {
-    if (profile?.role === 'admin') setView('admin');
+    if (isAdmin) setView('admin');
     else if (session) setView('admin');
     else setShowAuth(true);
   };
@@ -86,10 +93,13 @@ function AppContent() {
             onOpenDashboard={handleOpenDashboard}
             onOpenAdmin={handleOpenAdmin}
             announcement={
-              announcement 
-                ? (typeof announcement === 'object' 
-                    ? ((announcement as any).content || (announcement as any).text || (announcement as any).title || JSON.stringify(announcement)) 
-                    : String(announcement))
+              announcement
+                ? typeof announcement === 'object'
+                  ? (announcement as any).content ||
+                    (announcement as any).text ||
+                    (announcement as any).title ||
+                    JSON.stringify(announcement)
+                  : String(announcement)
                 : null
             }
           />
@@ -97,7 +107,6 @@ function AppContent() {
             <HomePage />
           </SafeShield>
 
-          {/* Secret admin entry — floating corner button */}
           {!session && (
             <button
               onClick={() => setShowAuth(true)}
