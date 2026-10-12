@@ -76,27 +76,20 @@ export function SandEffectCard({ wish, index, showChatOnClick = true }: SandCard
         {/* 卡片玻璃瓶身底座 (四周預留半透明玻璃呼吸感) */}
         <div className="glass-flask-inner relative w-full h-full p-5 flex flex-col justify-between border border-white/10 group-hover:border-amber-400/50 transition-colors">
           
-          {/* 🌟 1. 瓶中星砂流體層 (由 progress% 驅動高度升降) */}
+          {/* 🌟 1. 簡潔清澈的瓶中星砂 (無破圖網格，清透純淨) */}
           <div
-            className="absolute inset-x-0 bottom-0 pointer-events-none transition-all duration-1000 ease-out z-0"
+            className="absolute inset-x-0 bottom-0 pointer-events-none transition-all duration-1000 ease-out z-0 overflow-hidden"
             style={{ height: `${progress}%` }}
           >
-            {/* 星砂沉積體 */}
-            <div className="absolute inset-0 bg-gradient-to-t from-amber-600/50 via-amber-400/30 to-yellow-300/15 backdrop-blur-[1px]" />
-            {/* 星砂表面微光金色水平線 */}
-            <div className="absolute top-0 inset-x-0 h-1 bg-gradient-to-r from-transparent via-amber-300 to-transparent shadow-[0_0_15px_#f59e0b] animate-pulse" />
-            {/* 金砂顆粒質感遮罩 */}
-            <div className="absolute inset-0 bg-[radial-gradient(#fde68a_1.2px,transparent_1.2px)] [background-size:14px_14px] opacity-35" />
+            {/* 柔和金色漸層 */}
+            <div className="absolute inset-0 bg-gradient-to-t from-amber-500/15 via-amber-400/5 to-transparent" />
+            {/* 頂部細緻微光水平線 */}
+            <div className="absolute top-0 inset-x-0 h-[1.5px] bg-gradient-to-r from-transparent via-amber-400 to-transparent shadow-[0_0_12px_rgba(251,191,36,0.8)]" />
           </div>
 
-          {/* 🌟 2. 達成 100% 滿額 / 履約時啟動【寶可夢級物理全息閃卡雙薄膜】 */}
+          {/* 🌟 2. 達成 100% 滿額時啟動動態光澤 (只保留乾淨的 holo-shine) */}
           {isFulfilled && (
-            <>
-              {/* 彩虹光柵折射薄膜 */}
-              <div className="holo-shine" />
-              {/* 純 CSS 碎星亮片層 */}
-              <div className="holo-glitter" />
-            </>
+            <div className="holo-shine" />
           )}
 
 
