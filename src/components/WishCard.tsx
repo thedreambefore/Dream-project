@@ -1,5 +1,5 @@
 // src/components/WishCard.tsx
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import {
   Coins,
   Sparkles,
@@ -23,13 +23,6 @@ import { DriftBottleModal } from './DriftBottleModal';
 export interface WishCardProps {
   wish: Wish;
   index?: number;
-  /**
-   * 模式切換：
-   * - 'market': 首頁願望交易所
-   * - 'tracked': 個人中心追番結局牆
-   * - 'myWishes': 我的心願管理
-   * - 'preview': 放在 Modal 左側展示（禁用內部再彈窗，支援靜態展示）
-   */
   variant?: 'market' | 'tracked' | 'myWishes' | 'preview';
   onOpenLetterModal?: (wish: Wish) => void;
   onOpenEditModal?: (wish: Wish) => void;
@@ -43,8 +36,9 @@ export function WishCard({
   onOpenEditModal,
 }: WishCardProps) {
   const { session, isBanned, isAdmin, refreshProfile } = useAuth();
+  const cardContainerRef = useRef<HTMLDivElement>(null);
 
-  // 🌟 核心：全面改用手動狀態控制 3D 翻轉，點擊內部元件不冒泡
+  // 翻轉與彈窗狀態
   const [isFlipped, setIsFlipped] = useState(false);
   const [isBookmarked, setIsBookmarked] = useState(Boolean(wish.isBookmarked));
   const [showInvest, setShowInvest] = useState(false);
@@ -63,7 +57,45 @@ export function WishCard({
   const isFulfilled = wish.status === 'fulfilled' || progress >= 100;
   const isNearComplete = progress >= 90 && progress < 100;
 
-  // 查詢當前登入者是否已追番收藏
+  // 🌟 1. 常駐物理光學視差微轉動演算 (常駐全卡牌)
+  const handleMouseMove = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+    const card = cardContainerRef.current;
+    if (!card) return;
+
+    const rect = card.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+
+    const px = Math.round((x / rect.width) * 100);
+    const py = Math.round((y / rect.height) * 100);
+
+    const centerX = rect.width / 2;
+    const centerY = rect.height / 2;
+
+    // 細緻優雅的 ±8 度微角度微轉
+    const rotateX = ((y - centerY) / centerY) * -8;
+    const rotateY = ((x - centerX) / centerX) * 8;
+
+    card.style.setProperty('--pointer-x', `${px}%`);
+    card.style.setProperty('--pointer-y', `${py}%`);
+    card.style.setProperty('--rotate-x', `${rotateX}deg`);
+    card.style.setProperty('--rotate-y', `${rotateY}deg`);
+    card.style.setProperty('--card-opacity', '1');
+  }, []);
+
+  const handleMouseEnter = () => {
+    cardContainerRef.current?.style.setProperty('--card-opacity', '1');
+  };
+
+  const handleMouseLeave = () => {
+    const card = cardContainerRef.current;
+    if (!card) return;
+    card.style.setProperty('--card-opacity', '0');
+    card.style.setProperty('--rotate-x', '0deg');
+    card.style.setProperty('--rotate-y', '0deg');
+  };
+
+  // 查詢書籤收藏
   useEffect(() => {
     if (!session?.user?.id || isOfficial) return;
     supabase
@@ -77,7 +109,7 @@ export function WishCard({
       });
   }, [session?.user?.id, wish.id, isOfficial]);
 
-  // ❤️ 點擊收藏按鈕（阻斷冒泡，絕對不翻轉）
+  // ❤️ 收藏按鈕切換 (阻斷冒泡)
   const handleToggleBookmark = async (e: React.MouseEvent) => {
     e.stopPropagation();
     if (!session?.user?.id) {
@@ -108,7 +140,7 @@ export function WishCard({
     }
   };
 
-  // 下架/檢舉提交
+  // 下架/檢舉
   const handleConfirmAction = async () => {
     if (!actionReason.trim()) return alert('請填寫原因');
     setIsActionLoading(true);
@@ -129,7 +161,7 @@ export function WishCard({
     }
   };
 
-  // 隨機星宿星座微光生成
+  // 星宿隨機流光背景
   const constellationSeed = useMemo(() => {
     let hash = 0;
     const str = wish.id || 'seed';
@@ -149,14 +181,20 @@ export function WishCard({
 
   return (
     <>
+      {/* 最外層容器：負責常駐物理傾斜 */}
       <div
-        className="perspective-1000 w-full h-[430px] select-none cursor-pointer group"
-        style={{ animationDelay: `${index * 0.05}s` }}
-        onClick={() => {
-          // 點擊空白處切換翻轉狀態
-          setIsFlipped((prev) => !prev);
+        ref={cardContainerRef}
+        onMouseMove={handleMouseMove}
+        onMouseEnter={handleMouseEnter}
+        onMouseLeave={handleMouseLeave}
+        onClick={() => setIsFlipped((prev) => !prev)}
+        className="holo-card perspective-1000 w-full h-[430px] select-none cursor-pointer group transition-transform duration-200 ease-out"
+        style={{
+          transform: `perspective(1000px) rotateX(var(--rotate-x, 0deg)) rotateY(var(--rotate-y, 0deg))`,
+          animationDelay: `${index * 0.05}s`,
         }}
       >
+        {/* 內層容器：負責點擊 180 度翻面 */}
         <div
           className={`relative w-full h-full duration-700 transform-style-3d transition-transform ease-out ${
             isFlipped ? 'rotate-y-180' : ''
@@ -168,7 +206,7 @@ export function WishCard({
               isFulfilled ? 'holo-border-gold' : 'border-white/10'
             }`}
           >
-            {/* 滿額時 Trainer Gallery 全息閃光膜 */}
+            {/* 🌟 2. 只有在履約 (isFulfilled) 後，才會在卡面鍍上低飽和度的彩虹全息閃卡薄膜 */}
             {isFulfilled && <div className="trainer-gallery-shine" />}
 
             {/* 背景圖層 */}
@@ -209,7 +247,7 @@ export function WishCard({
             </div>
 
             {/* 頂部標籤與狀態 */}
-            <div>
+            <div className="relative z-30">
               <div className="flex items-center justify-between mb-3">
                 <span className="text-xs px-2.5 py-1 rounded-full bg-amber-500/15 border border-amber-400/30 text-amber-200 font-mono flex items-center gap-1 backdrop-blur-md">
                   <Sparkles className="w-3 text-amber-300" />
@@ -217,8 +255,8 @@ export function WishCard({
                 </span>
 
                 {isFulfilled ? (
-                  <span className="text-[10px] font-black tracking-wider px-2.5 py-0.5 rounded-full bg-gradient-to-r from-amber-300 via-yellow-200 to-amber-400 text-zinc-950 shadow-[0_0_12px_rgba(251,191,36,0.6)] animate-pulse">
-                    ✨ 圓滿履約
+                  <span className="text-[10px] font-black tracking-wider px-2.5 py-0.5 rounded-full bg-gradient-to-r from-amber-300 via-yellow-200 to-amber-400 text-zinc-950 shadow-[0_0_15px_rgba(251,191,36,0.7)] animate-pulse">
+                    ✨ 圓滿閃卡
                   </span>
                 ) : (
                   <span className="text-[10px] font-mono text-zinc-400 bg-black/60 px-2 py-0.5 rounded-md border border-white/5">
@@ -234,7 +272,7 @@ export function WishCard({
             </div>
 
             {/* 底部承諾與進度列 */}
-            <div className="space-y-3.5">
+            <div className="relative z-30 space-y-3.5">
               <div className="bg-black/50 border border-white/10 rounded-xl p-2.5 backdrop-blur-md">
                 <p className="text-[11px] text-zinc-400 line-clamp-1">
                   <span className="text-amber-300/80 font-bold">終章承諾：</span>
@@ -262,7 +300,7 @@ export function WishCard({
 
               <div className="text-center pt-1">
                 <p className="text-[11px] text-zinc-500 group-hover:text-amber-300/80 transition-colors flex items-center justify-center gap-1 font-medium">
-                  <span>👆</span> 點擊卡片翻面看完整故事與互動
+                  <span>👆</span> 點擊卡片翻面互動
                 </p>
               </div>
             </div>
@@ -313,7 +351,7 @@ export function WishCard({
               </p>
             </div>
 
-            {/* 進度與小功能列 (電商連結、漂流瓶、檢舉/下架) */}
+            {/* 進度與小功能列 */}
             <div className="flex justify-between items-center text-xs text-zinc-400 mb-2.5 px-0.5 font-mono">
               <div className="flex items-center gap-2">
                 <span>進度 {progress}%</span>
@@ -331,7 +369,6 @@ export function WishCard({
               </div>
 
               <div className="flex items-center gap-1.5">
-                {/* 漂流瓶留言室按鈕 */}
                 {variant !== 'preview' && (
                   <button
                     type="button"
@@ -345,7 +382,6 @@ export function WishCard({
                   </button>
                 )}
 
-                {/* 檢舉 / 下架按鈕 */}
                 {!isOfficial && (
                   <button
                     type="button"
@@ -369,9 +405,8 @@ export function WishCard({
               </div>
             </div>
 
-            {/* ================= 底部按鈕區 (依 variant 呈現) ================= */}
+            {/* 底部按鈕區 */}
             <div className="space-y-1.5">
-              {/* 1. 「我的心願」管理模式：呈現重編與感謝信上傳按鈕 */}
               {variant === 'myWishes' && (
                 <div className="flex gap-2">
                   {onOpenEditModal && wish.status !== 'fulfilled' && (
@@ -387,7 +422,6 @@ export function WishCard({
                     </button>
                   )}
 
-                  {/* 🌟 核心回歸：滿額 (full_funded) 或履約完結時，出現感謝信按鈕 */}
                   {(wish.status === 'full_funded' || wish.status === 'fulfilled' || progress >= 100) &&
                     onOpenLetterModal && (
                       <button
@@ -405,7 +439,6 @@ export function WishCard({
                 </div>
               )}
 
-              {/* 2. 「追番牆」模式：直接開啟詳細終章與留言彈窗 */}
               {variant === 'tracked' && (
                 <button
                   type="button"
@@ -420,7 +453,6 @@ export function WishCard({
                 </button>
               )}
 
-              {/* 3. 「首頁市集」模式：注入星塵或圓滿標籤 */}
               {variant === 'market' &&
                 (isFulfilled ? (
                   <div className="w-full text-center py-2.5 rounded-xl bg-emerald-500/20 border border-emerald-400/40 text-emerald-300 text-xs font-bold flex items-center justify-center gap-1">
@@ -452,7 +484,6 @@ export function WishCard({
         </div>
       </div>
 
-      {/* 贊助 Modal */}
       {showInvest && (
         <InvestModal
           story={wish}
@@ -463,7 +494,6 @@ export function WishCard({
         />
       )}
 
-      {/* 漂流瓶與終章結局共用 Modal（內部左側直接復用此 WishCard preview 版） */}
       {showDriftModal && (
         <DriftBottleModal
           wish={wish}
@@ -473,7 +503,6 @@ export function WishCard({
         />
       )}
 
-      {/* 檢舉 / 下架 Modal */}
       {showActionModal && (
         <div
           className="fixed inset-0 z-[65] flex items-center justify-center p-4 bg-black/75 backdrop-blur-md scale-in"
@@ -490,9 +519,7 @@ export function WishCard({
               {isAdmin ? '⚠️ 管理員強制下架卡片' : '🚩 檢舉不當願望故事'}
             </h3>
             <p className="text-xs text-zinc-400">
-              {isAdmin
-                ? `請輸入下架「${wish.product_name}」的理由：`
-                : '請填寫檢舉原因（將送交管理團隊查核）：'}
+              {isAdmin ? `請輸入下架「${wish.product_name}」的理由：` : '請填寫檢舉原因：'}
             </p>
             <textarea
               rows={3}
