@@ -1,16 +1,37 @@
+// src/pages/UserDashboard.tsx
 import { useState, useEffect } from 'react';
-import { X, Loader2, Wallet, BookOpen, Award, Plus, LogOut, UserCircle, Save, Sparkles, Coins, Heart } from 'lucide-react';
+import {
+  X,
+  Loader2,
+  BookOpen,
+  Award,
+  Plus,
+  LogOut,
+  UserCircle,
+  Save,
+  Sparkles,
+  Coins,
+  Heart,
+} from 'lucide-react';
 import { supabase } from '@/lib/supabaseClient';
 import { useAuth } from '@/context/AuthContext';
 import { PhoneVerificationModal } from '@/components/PhoneVerificationModal';
-import { SandEffectCard } from '@/components/SandEffectCard';
+import { WishCard } from '@/components/WishCard';
+import type { Wish } from '@/types/wish';
 
-// 🚨 補上先前遺漏的敏感詞定義，徹底消滅 Rollup traceVariable 崩潰
 const SENSITIVE_WORDS = ['詐騙', '匯款', '違禁品', '賭博', '毒品', '槍械'];
 
-type TabId = 'account' | 'myWishes' | 'publish' | 'wallet' | 'invested' | 'memorial';
+type TabId = 'account' | 'myWishes' | 'publish' | 'wallet' | 'invested';
 
-export function UserDashboard({ onClose, onGoHome, onOpenAdmin }: { onClose: () => void; onGoHome: () => void; onOpenAdmin?: () => void }) {
+export function UserDashboard({
+  onClose,
+  onGoHome,
+  onOpenAdmin,
+}: {
+  onClose: () => void;
+  onGoHome: () => void;
+  onOpenAdmin?: () => void;
+}) {
   const { profile, refreshProfile, logout } = useAuth();
   const [activeTab, setActiveTab] = useState<TabId>('account');
   const [showPhoneVerify, setShowPhoneVerify] = useState(false);
@@ -25,24 +46,40 @@ export function UserDashboard({ onClose, onGoHome, onOpenAdmin }: { onClose: () 
         </button>
         <div className="flex items-center gap-3">
           {profile?.role === 'admin' && onOpenAdmin && (
-            <button onClick={onOpenAdmin} className="bg-red-500/20 border border-red-400/40 text-red-200 text-xs px-3 py-1.5 rounded-xl font-bold animate-pulse">🛠️ 管理後台</button>
+            <button
+              onClick={onOpenAdmin}
+              className="bg-red-500/20 border border-red-400/40 text-red-200 text-xs px-3 py-1.5 rounded-xl font-bold animate-pulse"
+            >
+              🛠️ 管理後台
+            </button>
           )}
-          <button onClick={async () => { await logout(); window.location.reload(); }} className="flex items-center gap-1 text-xs text-red-300 hover:text-red-200 bg-red-500/10 border border-red-500/20 px-3 py-1.5 rounded-xl transition-all">
+          <button
+            onClick={async () => {
+              await logout();
+              window.location.reload();
+            }}
+            className="flex items-center gap-1 text-xs text-red-300 hover:text-red-200 bg-red-500/10 border border-red-500/20 px-3 py-1.5 rounded-xl transition-all"
+          >
             <LogOut className="w-3.5 h-3.5" /> <span>登出</span>
           </button>
-          <button onClick={onClose} className="rounded-full hover:bg-white/10 w-8 h-8 flex items-center justify-center text-gray-400 hover:text-white transition-colors"><X className="w-5 h-5" /></button>
+          <button
+            onClick={onClose}
+            className="rounded-full hover:bg-white/10 w-8 h-8 flex items-center justify-center text-gray-400 hover:text-white transition-colors"
+          >
+            <X className="w-5 h-5" />
+          </button>
         </div>
       </div>
 
       {/* 標籤切換列 */}
       <div className="sticky top-16 z-10 glass border-b border-white/5 px-4 sm:px-6 bg-zinc-950/60 backdrop-blur-sm">
         <div className="flex gap-1 overflow-x-auto hide-scrollbar max-w-4xl mx-auto">
-  <TabButton id="account" activeTab={activeTab} onClick={setActiveTab} icon={<UserCircle className="w-4 h-4" />} label="帳號資訊" />
-  <TabButton id="myWishes" activeTab={activeTab} onClick={setActiveTab} icon={<Sparkles className="w-4 h-4" />} label="我的心願" />
-  <TabButton id="publish" activeTab={activeTab} onClick={setActiveTab} icon={<Plus className="w-4 h-4" />} label="發布夢想" />
-  <TabButton id="wallet" activeTab={activeTab} onClick={setActiveTab} icon={<Award className="w-4 h-4" />} label="星光榮譽榜" />
-  <TabButton id="invested" activeTab={activeTab} onClick={setActiveTab} icon={<BookOpen className="w-4 h-4" />} label="追番牆" />
-</div>
+          <TabButton id="account" activeTab={activeTab} onClick={setActiveTab} icon={<UserCircle className="w-4 h-4" />} label="帳號資訊" />
+          <TabButton id="myWishes" activeTab={activeTab} onClick={setActiveTab} icon={<Sparkles className="w-4 h-4" />} label="我的心願" />
+          <TabButton id="publish" activeTab={activeTab} onClick={setActiveTab} icon={<Plus className="w-4 h-4" />} label="發布夢想" />
+          <TabButton id="wallet" activeTab={activeTab} onClick={setActiveTab} icon={<Award className="w-4 h-4" />} label="星光榮譽榜" />
+          <TabButton id="invested" activeTab={activeTab} onClick={setActiveTab} icon={<BookOpen className="w-4 h-4" />} label="追番牆" />
+        </div>
       </div>
 
       {/* 內文主區塊 */}
@@ -51,18 +88,43 @@ export function UserDashboard({ onClose, onGoHome, onOpenAdmin }: { onClose: () 
         {activeTab === 'myWishes' && <MyWishesTab onEditWish={() => setActiveTab('publish')} />}
         {activeTab === 'publish' && <PublishTab onRequireVerify={() => setShowPhoneVerify(true)} />}
         {activeTab === 'wallet' && <WalletTab />}
-        {/* 🌟 修正這裡：將原本的靜態 dummy div 替換為真正的 InvestedTab */}
         {activeTab === 'invested' && <InvestedTab />}
       </div>
 
-      {showPhoneVerify && <PhoneVerificationModal onClose={() => setShowPhoneVerify(false)} onVerified={async () => { await refreshProfile(); }} />}
+      {showPhoneVerify && (
+        <PhoneVerificationModal
+          onClose={() => setShowPhoneVerify(false)}
+          onVerified={async () => {
+            await refreshProfile();
+          }}
+        />
+      )}
     </div>
   );
 }
 
-function TabButton({ id, activeTab, onClick, icon, label }: { id: TabId; activeTab: TabId; onClick: (id: TabId) => void; icon: React.ReactNode; label: string }) {
+function TabButton({
+  id,
+  activeTab,
+  onClick,
+  icon,
+  label,
+}: {
+  id: TabId;
+  activeTab: TabId;
+  onClick: (id: TabId) => void;
+  icon: React.ReactNode;
+  label: string;
+}) {
   return (
-    <button onClick={() => onClick(id)} className={`flex items-center gap-1.5 px-5 py-3.5 border-b-2 transition-all text-sm whitespace-nowrap cursor-pointer ${activeTab === id ? 'border-amber-400 text-amber-200 font-bold bg-white/5' : 'border-transparent text-gray-400 hover:text-gray-200'}`}>
+    <button
+      onClick={() => onClick(id)}
+      className={`flex items-center gap-1.5 px-5 py-3.5 border-b-2 transition-all text-sm whitespace-nowrap cursor-pointer ${
+        activeTab === id
+          ? 'border-amber-400 text-amber-200 font-bold bg-white/5'
+          : 'border-transparent text-gray-400 hover:text-gray-200'
+      }`}
+    >
       {icon} {label}
     </button>
   );
@@ -90,15 +152,20 @@ function AccountTab() {
       }
 
       try {
-        const { data } = await supabase.from('users').select('*').eq('id', currentUserId).maybeSingle();
+        const { data } = await supabase
+          .from('users')
+          .select('*')
+          .eq('id', currentUserId)
+          .maybeSingle();
+
         if (data && isMounted) {
           setRealName(data.real_name ?? '');
-          setNickname(data.anonymous_nickname ?? '匿名小五郎');
+          setNickname(data.anonymous_nickname ?? '匿名星旅人');
           setPhone(data.phone ?? '');
           setAddress(data.address ?? '');
         } else if (profile && isMounted) {
           setRealName(profile.real_name ?? '');
-          setNickname(profile.anonymous_nickname ?? '匿名小五郎');
+          setNickname(profile.anonymous_nickname ?? '匿名星旅人');
           setPhone(profile.phone ?? '');
           setAddress(profile.address ?? '');
         }
@@ -109,7 +176,9 @@ function AccountTab() {
       }
     };
     loadUserData();
-    return () => { isMounted = false; };
+    return () => {
+      isMounted = false;
+    };
   }, [session?.user?.id, profile]);
 
   const handleSave = async (e: React.FormEvent) => {
@@ -126,13 +195,16 @@ function AccountTab() {
 
     setSaving(true);
     try {
-      const { error: upsertError } = await supabase.from('users').upsert({
-        id: currentUserId,
-        real_name: realName.trim(),
-        anonymous_nickname: nickname.trim() || '匿名小五郎',
-        phone: phone.trim(),
-        address: address.trim(),
-      }, { onConflict: 'id' });
+      const { error: upsertError } = await supabase.from('users').upsert(
+        {
+          id: currentUserId,
+          real_name: realName.trim() || null,
+          anonymous_nickname: nickname.trim() || '匿名星旅人',
+          phone: phone.trim() || null,
+          address: address.trim() || null,
+        },
+        { onConflict: 'id' }
+      );
 
       if (upsertError) throw upsertError;
 
@@ -165,31 +237,65 @@ function AccountTab() {
         <p className="text-sm font-mono text-amber-200">{session?.user?.email || '星旅人'}</p>
         <div className="mt-3">
           {profile?.is_phone_verified ? (
-            <span className="inline-flex items-center gap-1 text-xs px-3 py-1 rounded-full bg-green-500/10 border border-green-500/30 text-green-400">✓ 台灣手機強驗證已成功解鎖</span>
+            <span className="inline-flex items-center gap-1 text-xs px-3 py-1 rounded-full bg-green-500/10 border border-green-500/30 text-green-400">
+              ✓ 台灣手機強驗證已成功解鎖
+            </span>
           ) : (
-            <span className="inline-flex items-center gap-1 text-xs px-3 py-1 rounded-full bg-zinc-800 border border-white/5 text-gray-400">⚠️ 手機未強驗證（發布夢想功能受限）</span>
+            <span className="inline-flex items-center gap-1 text-xs px-3 py-1 rounded-full bg-zinc-800 border border-white/5 text-gray-400">
+              ⚠️ 手機未強驗證（發布夢想功能受限）
+            </span>
           )}
         </div>
       </div>
       <form onSubmit={handleSave} className="space-y-5 bg-white/5 border border-white/10 p-6 rounded-2xl glow-border">
         <div>
           <label className="block text-xs font-medium text-gray-300 mb-2">舞台真實姓名（物流核對用，不公開）</label>
-          <input type="text" value={realName} onChange={(e) => setRealName(e.target.value)} placeholder="例如：王小明" className="w-full bg-zinc-900/80 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-amber-400/50" />
+          <input
+            type="text"
+            value={realName}
+            onChange={(e) => setRealName(e.target.value)}
+            placeholder="例如：王小明"
+            className="w-full bg-zinc-900/80 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-amber-400/50"
+          />
         </div>
         <div>
           <label className="block text-xs font-medium text-gray-300 mb-2">匿名陌生人暱稱（平台顯示名稱）</label>
-          <input type="text" value={nickname} onChange={(e) => setNickname(e.target.value)} placeholder="請輸入全站顯示的匿名暱稱" className="w-full bg-zinc-900/80 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-amber-400/50" required />
+          <input
+            type="text"
+            value={nickname}
+            onChange={(e) => setNickname(e.target.value)}
+            placeholder="請輸入全站顯示的匿名暱稱"
+            className="w-full bg-zinc-900/80 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-amber-400/50"
+            required
+          />
         </div>
         <div>
           <label className="block text-xs font-medium text-gray-300 mb-2">聯絡電話（台灣手機號碼）</label>
-          <input type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="09xxxxxxxx" maxLength={10} className="w-full bg-zinc-900/80 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-amber-400/50" />
+          <input
+            type="tel"
+            value={phone}
+            onChange={(e) => setPhone(e.target.value)}
+            placeholder="09xxxxxxxx"
+            maxLength={10}
+            className="w-full bg-zinc-900/80 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-amber-400/50"
+          />
         </div>
         <div>
           <label className="block text-xs font-medium text-gray-300 mb-2">超商收件門市 / 寄送地址</label>
-          <input type="text" value={address} onChange={(e) => setAddress(e.target.value)} placeholder="例如：7-11 夢沙門市" className="w-full bg-zinc-900/80 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-amber-400/50" />
+          <input
+            type="text"
+            value={address}
+            onChange={(e) => setAddress(e.target.value)}
+            placeholder="例如：7-11 夢沙門市"
+            className="w-full bg-zinc-900/80 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-amber-400/50"
+          />
         </div>
         {error && <p className="text-red-400 text-xs bg-red-500/10 p-3 rounded-lg border border-red-500/20">{error}</p>}
-        <button type="submit" disabled={saving} className="w-full bg-gradient-to-r from-amber-500 to-yellow-600 text-gray-950 font-black text-sm py-3 rounded-xl hover:from-amber-400 hover:to-yellow-500 transition-all flex items-center justify-center gap-2 cursor-pointer">
+        <button
+          type="submit"
+          disabled={saving}
+          className="w-full bg-gradient-to-r from-amber-500 to-yellow-600 text-gray-950 font-black text-sm py-3 rounded-xl hover:from-amber-400 hover:to-yellow-500 transition-all flex items-center justify-center gap-2 cursor-pointer"
+        >
           {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
           {saved ? '✨ 星沙印記儲存成功！' : '儲存全站帳號設定'}
         </button>
@@ -198,9 +304,8 @@ function AccountTab() {
   );
 }
 
-// ===== 2. 發布夢想分頁 (Publish Tab) =====
 function PublishTab({ onRequireVerify }: { onRequireVerify: () => void }) {
-  const { session, profile } = useAuth();
+  const { session, profile, isBanned } = useAuth();
 
   const [title, setTitle] = useState('');
   const [story, setStory] = useState('');
@@ -209,8 +314,7 @@ function PublishTab({ onRequireVerify }: { onRequireVerify: () => void }) {
   const [productUrl, setProductUrl] = useState('');
   const [tagName, setTagName] = useState('學生苦讀中');
   const [coverEmoji, setCoverEmoji] = useState('✨');
-  
-  // 圖片上傳與壓縮預覽
+
   const [imageBase64, setImageBase64] = useState<string | null>(null);
   const [compressing, setCompressing] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -220,7 +324,6 @@ function PublishTab({ onRequireVerify }: { onRequireVerify: () => void }) {
   const tags = ['學生苦讀中', '面試大作戰', '毛孩的願望', '生日邊緣人', '創作旅途', '日常微光'];
   const emojis = ['✨', '💻', '📚', '🐾', '🎨', '🎵', '☕', '👟', '🎒', '🌱'];
 
-  // 📷 客戶端圖片壓縮引擎 (降畫質、壓至小尺寸，免佔伺服器空間)
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -235,7 +338,6 @@ function PublishTab({ onRequireVerify }: { onRequireVerify: () => void }) {
     reader.onload = (event) => {
       const img = new Image();
       img.onload = () => {
-        // 設定最大解析度為 800px (維持清晰同時檔案極小)
         const maxWidth = 800;
         let width = img.width;
         let height = img.height;
@@ -251,7 +353,6 @@ function PublishTab({ onRequireVerify }: { onRequireVerify: () => void }) {
         const ctx = canvas.getContext('2d');
         if (ctx) {
           ctx.drawImage(img, 0, 0, width, height);
-          // 壓至 70% 畫質 JPEG (通常只有 40~70KB)
           const compressedDataUrl = canvas.toDataURL('image/jpeg', 0.7);
           setImageBase64(compressedDataUrl);
         }
@@ -266,17 +367,16 @@ function PublishTab({ onRequireVerify }: { onRequireVerify: () => void }) {
     e.preventDefault();
     setError('');
 
-    if (profile?.role === 'banned') {
-      setError('🚫 您的帳號因違反平台規範已被停權，目前無法發布任何願望。');
+    if (isBanned) {
+      setError('🚫 您的帳號已被停權，無法發布任何願望。');
       return;
     }
-    // 1. 手機強驗證防線
+
     if (!profile?.is_phone_verified) {
       onRequireVerify();
       return;
     }
 
-    // 2. 敏感詞防護盾牌
     for (const word of SENSITIVE_WORDS) {
       if (title.includes(word) || story.includes(word) || promise.includes(word)) {
         setError(`防護盾牌提示：內容包含敏感詞 [ ${word} ]，請修正後再提交。`);
@@ -284,7 +384,6 @@ function PublishTab({ onRequireVerify }: { onRequireVerify: () => void }) {
       }
     }
 
-    // 3. 字數與數額檢查
     if (title.length > 20) {
       setError('標題不能超過 20 字');
       return;
@@ -303,10 +402,9 @@ function PublishTab({ onRequireVerify }: { onRequireVerify: () => void }) {
       const currentUserId = session?.user?.id;
       if (!currentUserId) throw new Error('請先登入');
 
-// 4. 寫入資料庫：同時帶上 title 與 product_name 達成 100% 相容
       const payload = {
         user_id: currentUserId,
-        title: title.trim(), // 🌟 補上這個！滿足 title NOT NULL 約束
+        title: title.trim(),
         product_name: title.trim(),
         product_price: Number(productPrice),
         current_stardust: 0,
@@ -321,11 +419,7 @@ function PublishTab({ onRequireVerify }: { onRequireVerify: () => void }) {
       };
 
       const { error: insertError } = await supabase.from('wishes').insert(payload);
-
-      if (insertError) {
-        console.error('Wishes 寫入錯誤詳情:', insertError);
-        throw insertError;
-      }
+      if (insertError) throw insertError;
 
       setSuccess(true);
       setTitle('');
@@ -334,7 +428,6 @@ function PublishTab({ onRequireVerify }: { onRequireVerify: () => void }) {
       setProductUrl('');
       setImageBase64(null);
     } catch (err: any) {
-      console.error('發布願望失敗:', err);
       setError(`發布失敗: ${err.message || '請確認網路狀態'}`);
     } finally {
       setSubmitting(false);
@@ -363,7 +456,6 @@ function PublishTab({ onRequireVerify }: { onRequireVerify: () => void }) {
         </div>
       ) : (
         <form onSubmit={handlePublishClick} className="space-y-5 bg-white/5 border border-white/10 p-6 rounded-2xl glow-border">
-          {/* 標題 (限 20 字) */}
           <div>
             <div className="flex justify-between items-center mb-1.5">
               <label className="text-xs font-medium text-gray-300">願望物品 / 核心目標 (限 20 字)</label>
@@ -376,13 +468,12 @@ function PublishTab({ onRequireVerify }: { onRequireVerify: () => void }) {
               value={title}
               maxLength={20}
               onChange={(e) => setTitle(e.target.value)}
-              placeholder="例如：二手電繪板 (供課後創作)"//標題範例
+              placeholder="例如：二手電繪板 (供課後創作)"
               className="w-full bg-zinc-900/80 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-amber-400/50"
               required
             />
           </div>
 
-          {/* 標籤與圖示選擇 */}
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-xs font-medium text-gray-300 mb-1.5">分類標籤</label>
@@ -415,7 +506,6 @@ function PublishTab({ onRequireVerify }: { onRequireVerify: () => void }) {
             </div>
           </div>
 
-          {/* 目標金額與電商連結 */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="block text-xs font-medium text-gray-300 mb-1.5">心願所需星塵 (NT$)</label>
@@ -430,7 +520,7 @@ function PublishTab({ onRequireVerify }: { onRequireVerify: () => void }) {
               />
             </div>
             <div>
-              <label className="block text-xs font-medium text-gray-300 mb-1.5">商品電商連結 (蝦皮 / MOMO / PChome)</label>
+              <label className="block text-xs font-medium text-gray-300 mb-1.5">商品電商連結</label>
               <input
                 type="url"
                 value={productUrl}
@@ -441,7 +531,6 @@ function PublishTab({ onRequireVerify }: { onRequireVerify: () => void }) {
             </div>
           </div>
 
-          {/* 圖片上傳與即時深空濾鏡預覽 */}
           <div>
             <label className="block text-xs font-medium text-gray-300 mb-1.5">
               情境照片上傳 <span className="text-zinc-500">(自動壓縮並套用星空濾鏡)</span>
@@ -454,24 +543,14 @@ function PublishTab({ onRequireVerify }: { onRequireVerify: () => void }) {
             />
             {compressing && <p className="text-xs text-amber-300 mt-1">⏳ 正在壓縮並生成星空濾鏡遮罩...</p>}
 
-            {/* 即時濾鏡預覽卡片 */}
             {imageBase64 && (
-              <div className="mt-3 relative h-36 rounded-xl overflow-hidden border border-amber-400/30 group">
-                <img
-                  src={imageBase64}
-                  alt="預覽"
-                  className="w-full h-full object-cover brightness-60 contrast-125"
-                />
-                {/* 強制同化為深色星空殘影遮罩 */}
+              <div className="mt-3 relative h-36 rounded-xl overflow-hidden border border-amber-400/30">
+                <img src={imageBase64} alt="預覽" className="w-full h-full object-cover brightness-60 contrast-125" />
                 <div className="absolute inset-0 bg-gradient-to-t from-[#0a0a1a] via-[#120e28]/85 to-[#241446]/60 mix-blend-overlay" />
                 <div className="absolute inset-0 bg-gradient-to-b from-transparent via-black/40 to-[#0a0a1a]" />
                 <div className="absolute bottom-2 left-3 right-3 flex justify-between items-center text-[10px] text-amber-200">
                   <span>✨ 星空殘影同化效果預覽成功</span>
-                  <button
-                    type="button"
-                    onClick={() => setImageBase64(null)}
-                    className="text-red-400 hover:text-red-300 underline"
-                  >
+                  <button type="button" onClick={() => setImageBase64(null)} className="text-red-400 hover:text-red-300 underline">
                     移除圖片
                   </button>
                 </div>
@@ -479,10 +558,9 @@ function PublishTab({ onRequireVerify }: { onRequireVerify: () => void }) {
             )}
           </div>
 
-          {/* 故事內文 (限 200 字) */}
           <div>
             <div className="flex justify-between items-center mb-1.5">
-              <label className="text-xs font-medium text-gray-300">您的困境故事 (限 200 字，背面展示)</label>
+              <label className="text-xs font-medium text-gray-300">您的困境故事 (限 200 字)</label>
               <span className={`text-[11px] font-mono ${story.length > 200 ? 'text-red-400 font-bold' : 'text-zinc-500'}`}>
                 {story.length}/200
               </span>
@@ -492,20 +570,19 @@ function PublishTab({ onRequireVerify }: { onRequireVerify: () => void }) {
               maxLength={200}
               value={story}
               onChange={(e) => setStory(e.target.value)}
-              placeholder="請誠摯分享您的故事與現狀。大家將投入心願燃料，共同推進進度條來追這份故事的結局..."
+              placeholder="請誠摯分享您的故事與現狀..."
               className="w-full bg-zinc-900/80 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-amber-400/50 resize-none"
               required
             />
           </div>
 
-          {/* 終章承諾 */}
           <div>
             <label className="block text-xs font-medium text-gray-300 mb-1.5">終章承諾 (滿願後的回饋，如開箱信、成果圖)</label>
             <input
               type="text"
               value={promise}
               onChange={(e) => setPromise(e.target.value)}
-              placeholder="例如：圓夢後將公開作品成果與手寫感謝卡！"//承諾範例
+              placeholder="例如：圓夢後將公開作品成果與手寫感謝卡！"
               className="w-full bg-zinc-900/80 border border-white/10 rounded-xl px-4 py-2.5 text-xs text-white focus:outline-none focus:border-amber-400/50"
             />
           </div>
@@ -526,8 +603,6 @@ function PublishTab({ onRequireVerify }: { onRequireVerify: () => void }) {
   );
 }
 
-
-// ===== 3. 星光榮譽館 (WalletTab：在途星塵暫存精準運算) =====
 function WalletTab() {
   const { session, profile } = useAuth();
   const [inTransitAmount, setInTransitAmount] = useState(0);
@@ -536,7 +611,6 @@ function WalletTab() {
   useEffect(() => {
     const calcTransit = async () => {
       if (!session?.user?.id) return;
-      // 撈取用戶所有贊助紀錄
       const { data: invData } = await supabase
         .from('investments')
         .select('amount, wish_id, story_id')
@@ -544,8 +618,6 @@ function WalletTab() {
 
       if (invData && invData.length > 0) {
         const wishIds = Array.from(new Set(invData.map((i) => i.wish_id || i.story_id).filter(Boolean)));
-        
-        // 查驗這些心願的履約狀態
         const { data: wishData } = await supabase
           .from('wishes')
           .select('id, product_name, status')
@@ -553,7 +625,6 @@ function WalletTab() {
 
         const wishMap = new Map(wishData?.map((w) => [w.id, w]) || []);
 
-        // 尚未真正履約出貨 (status !== 'fulfilled') 的全數歸入在途暫存區！
         const activeList = invData
           .filter((inv) => {
             const w = wishMap.get(inv.wish_id || inv.story_id);
@@ -565,8 +636,7 @@ function WalletTab() {
           }));
 
         setInTransitList(activeList);
-        const sum = activeList.reduce((acc, curr) => acc + (curr.amount || 0), 0);
-        setInTransitAmount(sum);
+        setInTransitAmount(activeList.reduce((acc, curr) => acc + (curr.amount || 0), 0));
       }
     };
     calcTransit();
@@ -618,28 +688,11 @@ function WalletTab() {
   );
 }
 
-// ===== 4. 我的心願館 (MyWishesTab：感謝信圖片上傳 + 審核閉環) =====
-function MyWishesTab({ onEditWish }: { onEditWish: () => void }) {
+function MyWishesTab({ onEditWish: _onEditWish }: { onEditWish: () => void }) {
   const { session } = useAuth();
-  const [myWishes, setMyWishes] = useState<any[]>([]);
+  const [myWishes, setMyWishes] = useState<Wish[]>([]);
   const [filterTag, setFilterTag] = useState<string>('all');
   const [loading, setLoading] = useState(true);
-
-  // ✏️ 重編願望狀態
-  const [editingWish, setEditingWish] = useState<any | null>(null);
-  const [editTitle, setEditTitle] = useState('');
-  const [editPrice, setEditPrice] = useState<number>(500);
-  const [editProductUrl, setEditProductUrl] = useState('');
-  const [editStory, setEditStory] = useState('');
-  const [editPromise, setEditPromise] = useState('');
-  const [savingEdit, setSavingEdit] = useState(false);
-
-  // 💌 感謝信撰寫狀態 (含圖片上傳)
-  const [letterWish, setLetterWish] = useState<any | null>(null);
-  const [thankYouLetter, setThankYouLetter] = useState('');
-  const [unboxingPhoto, setUnboxingPhoto] = useState<string | null>(null);
-  const [compressingPhoto, setCompressingPhoto] = useState(false);
-  const [savingLetter, setSavingLetter] = useState(false);
 
   const loadMyWishes = async () => {
     if (!session?.user?.id) return;
@@ -649,107 +702,20 @@ function MyWishesTab({ onEditWish }: { onEditWish: () => void }) {
       .select('*')
       .eq('user_id', session.user.id)
       .order('created_at', { ascending: false });
-    setMyWishes(data || []);
+
+    setMyWishes((data as Wish[]) || []);
     setLoading(false);
   };
 
-  useEffect(() => { loadMyWishes(); }, [session?.user?.id]);
-
-  const handleStartEdit = (w: any) => {
-    setEditingWish(w);
-    setEditTitle(w.product_name || w.title || '');
-    setEditPrice(Number(w.product_price) || 500);
-    setEditProductUrl(w.product_url || '');
-    setEditStory(w.story_text || '');
-    setEditPromise(w.promise_text || '');
-  };
-
-  const handleResubmit = async () => {
-    if (!editingWish) return;
-    setSavingEdit(true);
-    try {
-      const { error } = await supabase
-        .from('wishes')
-        .update({
-          title: editTitle.trim(),
-          product_name: editTitle.trim(),
-          product_price: Number(editPrice),
-          product_url: editProductUrl.trim() || null,
-          story_text: editStory.trim(),
-          promise_text: editPromise.trim(),
-          status: 'pending',
-          block_reason: null,
-        })
-        .eq('id', editingWish.id);
-
-      if (error) throw error;
-      alert('✨ 已重新提交！請等待管理員審核。');
-      setEditingWish(null);
-      loadMyWishes();
-    } catch (e: any) {
-      alert(`更新失敗: ${e.message}`);
-    } finally {
-      setSavingEdit(false);
-    }
-  };
-
-  // 📷 感謝信開箱照壓縮
-  const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setCompressingPhoto(true);
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const img = new Image();
-      img.onload = () => {
-        const maxWidth = 800;
-        let width = img.width;
-        let height = img.height;
-        if (width > maxWidth) {
-          height = Math.round((height * maxWidth) / width);
-          width = maxWidth;
-        }
-        const canvas = document.createElement('canvas');
-        canvas.width = width;
-        canvas.height = height;
-        const ctx = canvas.getContext('2d');
-        if (ctx) {
-          ctx.drawImage(img, 0, 0, width, height);
-          setUnboxingPhoto(canvas.toDataURL('image/jpeg', 0.7));
-        }
-        setCompressingPhoto(false);
-      };
-      img.src = event.target?.result as string;
-    };
-    reader.readAsDataURL(file);
-  };
-
-  // 送出感謝信審核 (鎖定不可直接改)
-  const handleSubmitLetter = async () => {
-    if (!letterWish || !thankYouLetter.trim()) return alert('請填寫感謝信內文');
-    setSavingLetter(true);
-    try {
-      await supabase.from('wishes').update({
-        thank_you_letter: thankYouLetter.trim(),
-        unboxing_photo_url: unboxingPhoto,
-        letter_status: 'pending', // 🌟 進入審核狀態，不可隨意修改！
-        letter_reject_reason: null,
-      }).eq('id', letterWish.id);
-      alert('💌 開箱感謝信已提交星際管理室審查！通過後將公開於所有贊助者的追番牆！');
-      setLetterWish(null);
-      loadMyWishes();
-    } catch (e: any) {
-      alert(`提交失敗: ${e.message}`);
-    } finally {
-      setSavingLetter(false);
-    }
-  };
+  useEffect(() => {
+    loadMyWishes();
+  }, [session?.user?.id]);
 
   const filteredList = myWishes.filter((w) => {
     if (filterTag === 'all') return true;
     if (filterTag === 'approved') return w.status === 'approved';
     if (filterTag === 'pending') return w.status === 'pending';
-    if (filterTag === 'blocked') return w.status === 'blocked' || w.status === '已封鎖';
+    if (filterTag === 'blocked') return w.status === 'blocked';
     if (filterTag === 'fulfilled') return w.status === 'fulfilled' || w.status === 'full_funded';
     return true;
   });
@@ -757,7 +723,7 @@ function MyWishesTab({ onEditWish }: { onEditWish: () => void }) {
   if (loading) return <div className="text-center py-16 text-zinc-500">正在探尋您的星願紀錄...</div>;
 
   return (
-    <div className="max-w-2xl space-y-5 animate-fade-in">
+    <div className="max-w-4xl space-y-5 animate-fade-in">
       <div className="flex justify-between items-center flex-wrap gap-2">
         <h2 className="text-xl font-bold text-amber-100 flex items-center gap-2">
           <Sparkles className="w-5 h-5 text-amber-300" /> 我的心願追蹤館
@@ -775,7 +741,9 @@ function MyWishesTab({ onEditWish }: { onEditWish: () => void }) {
               key={tab.id}
               onClick={() => setFilterTag(tab.id)}
               className={`px-2.5 py-1 rounded-lg transition-all ${
-                filterTag === tab.id ? 'bg-amber-500/20 text-amber-300 font-bold border border-amber-400/30' : 'text-zinc-400'
+                filterTag === tab.id
+                  ? 'bg-amber-500/20 text-amber-300 font-bold border border-amber-400/30'
+                  : 'text-zinc-400'
               }`}
             >
               {tab.label}
@@ -789,113 +757,22 @@ function MyWishesTab({ onEditWish }: { onEditWish: () => void }) {
           此分類下目前無心願。
         </div>
       ) : (
-        /* 🌟 替換為星砂波浪閃卡網格 */
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
           {filteredList.map((w, idx) => (
-            <SandEffectCard
-              key={w.id}
-              wish={w}
-              index={idx}
-              showChatOnClick={true}
-            />
+            <WishCard key={w.id} wish={w} index={idx} variant="flask" />
           ))}
-        </div>
-      )}
-
-      {/* ✏️ 完整重編彈窗 */}
-      {editingWish && (
-        <div className="fixed inset-0 z-[65] flex items-center justify-center p-4 bg-black/85 backdrop-blur-md overflow-y-auto">
-          <div className="glass-strong rounded-2xl w-full max-w-lg p-6 glow-border border-amber-400/30 bg-zinc-950 space-y-4 my-auto">
-            <h3 className="text-base font-bold text-amber-200">修正內容重新送審</h3>
-            <div>
-              <label className="text-xs text-zinc-400 block mb-1">願望標題 (限 20 字)</label>
-              <input type="text" maxLength={20} value={editTitle} onChange={(e) => setEditTitle(e.target.value)} className="w-full bg-zinc-900 border border-white/10 rounded-xl p-2.5 text-xs text-white" required />
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="text-xs text-zinc-400 block mb-1">目標星塵 (NT$)</label>
-                <input type="number" min={10} value={editPrice} onChange={(e) => setEditPrice(Number(e.target.value))} className="w-full bg-zinc-900 border border-white/10 rounded-xl p-2 text-xs text-amber-300 font-mono" required />
-              </div>
-              <div>
-                <label className="text-xs text-zinc-400 block mb-1">電商連結 (蝦皮/MOMO)</label>
-                <input type="url" value={editProductUrl} onChange={(e) => setEditProductUrl(e.target.value)} placeholder="https://..." className="w-full bg-zinc-900 border border-white/10 rounded-xl p-2 text-xs text-white" />
-              </div>
-            </div>
-
-            <div>
-              <label className="text-xs text-zinc-400 block mb-1">故事內文 (限 200 字)</label>
-              <textarea rows={4} maxLength={200} value={editStory} onChange={(e) => setEditStory(e.target.value)} className="w-full bg-zinc-900 border border-white/10 rounded-xl p-2.5 text-xs text-white resize-none" required />
-            </div>
-
-            <div>
-              <label className="text-xs text-zinc-400 block mb-1">終章承諾</label>
-              <input type="text" value={editPromise} onChange={(e) => setEditPromise(e.target.value)} className="w-full bg-zinc-900 border border-white/10 rounded-xl p-2 text-xs text-white" />
-            </div>
-
-            <div className="flex gap-2 pt-2">
-              <button onClick={() => setEditingWish(null)} className="flex-1 py-2.5 text-xs border border-white/10 rounded-xl text-zinc-400">取消</button>
-              <button onClick={handleResubmit} disabled={savingEdit} className="flex-1 py-2.5 text-xs bg-amber-500 hover:bg-amber-400 text-zinc-950 font-bold rounded-xl">
-                {savingEdit ? '提交中...' : '確認更新並重新送審'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* 💌 上傳終章感謝信彈窗 (含開箱照壓縮) */}
-      {letterWish && (
-        <div className="fixed inset-0 z-[65] flex items-center justify-center p-4 bg-black/85 backdrop-blur-md overflow-y-auto">
-          <div className="glass-strong rounded-2xl w-full max-w-lg p-6 glow-border border-emerald-400/30 bg-zinc-950 space-y-4 my-auto">
-            <h3 className="text-base font-bold text-emerald-300">💌 發布開箱感謝信 (需經管理員審核)</h3>
-            <p className="text-xs text-zinc-400">審核通過後將公開於所有贊助者的追番牆，審核期間將鎖定無法隨意變更。</p>
-
-            {/* 照片上傳 */}
-            <div>
-              <label className="text-xs text-zinc-400 block mb-1">開箱成果照片 (可選)</label>
-              <input type="file" accept="image/*" onChange={handlePhotoUpload} className="block w-full text-xs text-zinc-400 file:mr-2 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:bg-emerald-500/20 file:text-emerald-300" />
-              {compressingPhoto && <p className="text-[10px] text-amber-300 mt-1">⏳ 照片壓縮中...</p>}
-              {unboxingPhoto && (
-                <div className="mt-2 relative h-32 rounded-xl overflow-hidden border border-white/10">
-                  <img src={unboxingPhoto} alt="預覽" className="w-full h-full object-cover" />
-                  <button type="button" onClick={() => setUnboxingPhoto(null)} className="absolute top-2 right-2 bg-black/70 text-red-400 text-xs px-2 py-0.5 rounded-md">刪除</button>
-                </div>
-              )}
-            </div>
-
-            <div>
-              <label className="text-xs text-zinc-400 block mb-1">感謝信內文</label>
-              <textarea
-                rows={4}
-                value={thankYouLetter}
-                onChange={(e) => setThankYouLetter(e.target.value)}
-                placeholder="誠摯感謝每位陌生人星光的相助... 請分享您收到商品的心得與實現承諾的成果！"
-                className="w-full bg-zinc-900 border border-white/10 rounded-xl p-3 text-xs text-white resize-none"
-                required
-              />
-            </div>
-
-            <div className="flex gap-2">
-              <button onClick={() => setLetterWish(null)} className="flex-1 py-2.5 text-xs border border-white/10 rounded-xl text-zinc-400">取消</button>
-              <button onClick={handleSubmitLetter} disabled={savingLetter || compressingPhoto} className="flex-1 py-2.5 text-xs bg-emerald-500 text-zinc-950 font-bold rounded-xl">
-                {savingLetter ? '送出中...' : '提交審查'}
-              </button>
-            </div>
-          </div>
         </div>
       )}
     </div>
   );
 }
 
-// ===== 5. 追番牆 (InvestedTab：全卡片化 + 雙軌 AND 篩選器) =====
-
 function InvestedTab() {
   const { session } = useAuth();
-  const [trackedWishes, setTrackedWishes] = useState<any[]>([]);
+  const [trackedWishes, setTrackedWishes] = useState<Wish[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
-  const [sourceFilter, setSourceFilter] = useState<'all' | 'invested' | 'bookmarked'>('all'); // 第一軌：來源
-  const [statusFilter, setStatusFilter] = useState<'all' | 'funding' | 'fulfilled'>('all');   // 第二軌：進度
+  const [sourceFilter, setSourceFilter] = useState<'all' | 'invested' | 'bookmarked'>('all');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'funding' | 'fulfilled'>('all');
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -903,11 +780,15 @@ function InvestedTab() {
       if (!session?.user?.id) return;
       setLoading(true);
 
-      // 1. 撈取愛心
-      const { data: bData } = await supabase.from('bookmarks').select('wish_id').eq('user_id', session.user.id);
-      
-      // 2. 撈取贊助
-      const { data: iData } = await supabase.from('investments').select('wish_id, story_id, amount').eq('user_id', session.user.id);
+      const { data: bData } = await supabase
+        .from('bookmarks')
+        .select('wish_id')
+        .eq('user_id', session.user.id);
+
+      const { data: iData } = await supabase
+        .from('investments')
+        .select('wish_id, story_id, amount')
+        .eq('user_id', session.user.id);
 
       const investMap = new Map();
       iData?.forEach((inv) => {
@@ -921,7 +802,7 @@ function InvestedTab() {
       if (allWishIds.length > 0) {
         const { data: wishList } = await supabase.from('wishes').select('*').in('id', allWishIds);
         if (wishList) {
-          const merged = wishList.map((w) => ({
+          const merged: Wish[] = wishList.map((w: Wish) => ({
             ...w,
             myInvestAmount: investMap.get(w.id) || 0,
             hasInvested: investMap.has(w.id),
@@ -938,19 +819,15 @@ function InvestedTab() {
     loadTracked();
   }, [session?.user?.id]);
 
-  // 🌟 AND 交叉條件過濾
   const filtered = trackedWishes.filter((w) => {
-    // 關鍵字搜尋
     const matchSearch =
       (w.product_name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
       (w.tag_name || '').toLowerCase().includes(searchTerm.toLowerCase());
     if (!matchSearch) return false;
 
-    // 第一軌：來源篩選
     if (sourceFilter === 'invested' && !w.hasInvested) return false;
     if (sourceFilter === 'bookmarked' && !w.isBookmarkedOnly) return false;
 
-    // 第二軌：狀態篩選
     if (statusFilter === 'funding' && w.status === 'fulfilled') return false;
     if (statusFilter === 'fulfilled' && w.status !== 'fulfilled') return false;
 
@@ -961,7 +838,6 @@ function InvestedTab() {
 
   return (
     <div className="space-y-6 animate-fade-in">
-      {/* 頂部標題與搜尋 */}
       <div className="flex justify-between items-center gap-3 flex-wrap">
         <div>
           <h2 className="text-xl font-bold text-amber-100 flex items-center gap-2">
@@ -981,17 +857,13 @@ function InvestedTab() {
         />
       </div>
 
-      {/* 🌟 雙軌 AND 篩選按鈕列 (帶有分隔線與相異色彩) */}
       <div className="flex flex-wrap items-center gap-3 p-2 bg-zinc-900/60 rounded-2xl border border-white/5">
-        {/* 第一軌：追番類型 (琥珀/粉色) */}
         <div className="flex items-center gap-1">
           <span className="text-[10px] text-zinc-500 font-bold px-1.5">來源:</span>
           <button
             onClick={() => setSourceFilter('all')}
             className={`px-3 py-1 rounded-xl text-xs transition-all ${
-              sourceFilter === 'all'
-                ? 'bg-white/15 text-white font-bold'
-                : 'text-zinc-400 hover:text-white'
+              sourceFilter === 'all' ? 'bg-white/15 text-white font-bold' : 'text-zinc-400 hover:text-white'
             }`}
           >
             全部追番
@@ -1018,18 +890,14 @@ function InvestedTab() {
           </button>
         </div>
 
-        {/* 垂直分隔線 */}
         <div className="hidden sm:block w-[1px] h-5 bg-white/15 mx-1" />
 
-        {/* 第二軌：進度狀態 (翡翠/藍紫) */}
         <div className="flex items-center gap-1">
           <span className="text-[10px] text-zinc-500 font-bold px-1.5">狀態:</span>
           <button
             onClick={() => setStatusFilter('all')}
             className={`px-3 py-1 rounded-xl text-xs transition-all ${
-              statusFilter === 'all'
-                ? 'bg-white/15 text-white font-bold'
-                : 'text-zinc-400 hover:text-white'
+              statusFilter === 'all' ? 'bg-white/15 text-white font-bold' : 'text-zinc-400 hover:text-white'
             }`}
           >
             所有狀態
@@ -1057,7 +925,6 @@ function InvestedTab() {
         </div>
       </div>
 
-      {/* 卡片網格 (首頁同款 3D 排版) */}
       {filtered.length === 0 ? (
         <div className="text-center py-20 border border-white/5 rounded-2xl bg-zinc-900/30 text-zinc-500">
           {searchTerm || sourceFilter !== 'all' || statusFilter !== 'all'
@@ -1067,12 +934,7 @@ function InvestedTab() {
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
           {filtered.map((w, idx) => (
-            <SandEffectCard
-              key={w.id}
-              wish={w}
-              index={idx}
-              showChatOnClick={true}
-            />
+            <WishCard key={w.id} wish={w} index={idx} variant="tracked" />
           ))}
         </div>
       )}
