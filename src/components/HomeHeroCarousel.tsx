@@ -1,10 +1,9 @@
 // src/components/HomeHeroCarousel.tsx
 import { useState, useEffect } from 'react';
-import { Sparkles, ChevronLeft, ChevronRight, Megaphone } from 'lucide-react';
+import { Sparkles, ChevronLeft, ChevronRight } from 'lucide-react';
 import { supabase } from '@/lib/supabaseClient';
 import type { Announcement } from '@/types/wish';
 
-// 預設官方備用公告清單（無後台公告時優雅呈現）
 const DEFAULT_ANNOUNCEMENTS: Announcement[] = [
   {
     id: 'default-1',
@@ -32,8 +31,9 @@ const DEFAULT_ANNOUNCEMENTS: Announcement[] = [
 export function HomeHeroCarousel() {
   const [announcements, setAnnouncements] = useState<Announcement[]>(DEFAULT_ANNOUNCEMENTS);
   const [currentIndex, setCurrentIndex] = useState(0);
+  const [direction, setDirection] = useState<'left' | 'right'>('right');
+  const [isTransitioning, setIsTransitioning] = useState(false);
 
-  // 撈取資料庫啟用中的公告
   useEffect(() => {
     let isMounted = true;
     const fetchAnnouncements = async () => {
@@ -49,53 +49,94 @@ export function HomeHeroCarousel() {
     };
 
     fetchAnnouncements();
-    return () => { isMounted = false; };
+
+    // 實時監聽後台發布/更新
+    const channel = supabase
+      .channel('public-announcements')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'announcements' },
+        () => fetchAnnouncements()
+      )
+      .subscribe();
+
+    return () => {
+      isMounted = false;
+      supabase.removeChannel(channel);
+    };
   }, []);
 
-  // ⏰ 每 6 秒自動輪播滑動至下一則
-  useEffect(() => {
-    if (announcements.length <= 1) return;
-    const timer = setInterval(() => {
-      setCurrentIndex((prev) => (prev + 1) % announcements.length);
-    }, 6000);
-
-    return () => clearInterval(timer);
-  }, [announcements.length]);
+  // 左右切換處理
+  const switchSlide = (newIndex: number, dir: 'left' | 'right') => {
+    if (isTransitioning) return;
+    setDirection(dir);
+    setIsTransitioning(true);
+    setCurrentIndex(newIndex);
+    setTimeout(() => {
+      setIsTransitioning(false);
+    }, 400);
+  };
 
   const handlePrev = () => {
-    setCurrentIndex((prev) => (prev - 1 + announcements.length) % announcements.length);
+    const nextIdx = (currentIndex - 1 + announcements.length) % announcements.length;
+    switchSlide(nextIdx, 'left');
   };
 
   const handleNext = () => {
-    setCurrentIndex((prev) => (prev + 1) % announcements.length);
+    const nextIdx = (currentIndex + 1) % announcements.length;
+    switchSlide(nextIdx, 'right');
   };
+
+  // ⏰ 每 6.5 秒自動向右平滑滑動
+  useEffect(() => {
+    if (announcements.length <= 1) return;
+    const timer = setInterval(() => {
+      handleNext();
+    }, 6500);
+
+    return () => clearInterval(timer);
+  }, [currentIndex, announcements.length]);
 
   const current = announcements[currentIndex] || announcements[0];
 
   return (
-    <div className="max-w-4xl mx-auto px-4 sm:px-6 my-10 relative">
-      <div className="relative glass-strong rounded-3xl p-6 sm:p-10 border border-amber-400/20 shadow-2xl text-center overflow-hidden bg-zinc-950/70 backdrop-blur-md">
+    <div className="max-w-4xl mx-auto px-4 sm:px-6 my-8 relative">
+      <div className="relative glass-strong rounded-3xl p-6 sm:p-9 border border-amber-400/20 shadow-2xl text-center overflow-hidden bg-zinc-950/80 backdrop-blur-md">
         {/* 背景微光飾點 */}
         <div className="absolute top-0 inset-x-0 h-1 bg-gradient-to-r from-transparent via-amber-400/50 to-transparent" />
-        <div className="absolute -top-16 left-1/2 -translate-x-1/2 w-72 h-72 bg-amber-500/10 blur-3xl rounded-full pointer-events-none" />
+        <div className="absolute -top-16 left-1/2 -translate-x-1/2 w-80 h-80 bg-amber-500/10 blur-3xl rounded-full pointer-events-none" />
 
-        {/* 頂部 Badge */}
-        <div className="inline-flex items-center gap-2 bg-amber-500/10 border border-amber-500/20 rounded-full px-4 py-1 text-xs text-amber-300 font-medium mb-5 shadow-sm">
+        {/* 頂部 Badge 標籤 */}
+        <div className="inline-flex items-center gap-2 bg-amber-500/10 border border-amber-500/20 rounded-full px-4 py-1 text-xs text-amber-300 font-medium mb-4 shadow-sm">
           <Sparkles className="w-3.5 h-3.5 text-amber-300 animate-pulse" />
           <span>星空廣播站 · 公告 {currentIndex + 1} / {announcements.length}</span>
         </div>
 
-        {/* 輪播滑入滑出標題與內容 */}
-        <div key={current.id} className="min-h-[140px] flex flex-col justify-center animate-fade-in">
-          <h1 className="text-2xl sm:text-4xl font-black tracking-tight mb-3 leading-tight bg-gradient-to-b from-white via-slate-100 to-amber-200 bg-clip-text text-transparent">
-            {current.title}
-          </h1>
-          <p className="text-slate-300 text-xs sm:text-base max-w-2xl mx-auto leading-relaxed">
-            {current.body}
-          </p>
+        {/* 🌟 核心排版：標題與內文規範高度與尺寸，杜絕文字跳動 */}
+        <div className="relative min-h-[140px] flex flex-col justify-center overflow-hidden">
+          <div
+            key={current.id}
+            className={`transition-all duration-400 ease-out transform ${
+              isTransitioning
+                ? direction === 'right'
+                  ? 'opacity-0 translate-x-8 blur-sm'
+                  : 'opacity-0 -translate-x-8 blur-sm'
+                : 'opacity-100 translate-x-0 blur-0'
+            }`}
+          >
+            {/* 標題：鎖定尺寸 text-2xl ~ text-3xl */}
+            <h1 className="text-xl sm:text-3xl font-black tracking-tight mb-2.5 h-10 flex items-center justify-center bg-gradient-to-b from-white via-slate-100 to-amber-200 bg-clip-text text-transparent truncate">
+              {current.title}
+            </h1>
+
+            {/* 內文：固定 2 行並提供標準字型尺寸 */}
+            <p className="text-slate-300 text-xs sm:text-sm max-w-2xl mx-auto leading-relaxed line-clamp-2 h-10 flex items-center justify-center">
+              {current.body}
+            </p>
+          </div>
         </div>
 
-        {/* 左右切換按鈕 */}
+        {/* 左右切換箭頭 */}
         {announcements.length > 1 && (
           <>
             <button
@@ -114,11 +155,11 @@ export function HomeHeroCarousel() {
             </button>
 
             {/* 底部指示分頁點 */}
-            <div className="flex justify-center gap-1.5 mt-5">
+            <div className="flex justify-center gap-1.5 mt-4">
               {announcements.map((item, idx) => (
                 <button
                   key={item.id}
-                  onClick={() => setCurrentIndex(idx)}
+                  onClick={() => switchSlide(idx, idx > currentIndex ? 'right' : 'left')}
                   className={`h-1.5 rounded-full transition-all cursor-pointer ${
                     currentIndex === idx ? 'w-6 bg-amber-400' : 'w-1.5 bg-white/20 hover:bg-white/40'
                   }`}
