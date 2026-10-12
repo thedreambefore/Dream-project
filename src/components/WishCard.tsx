@@ -1,6 +1,18 @@
 // src/components/WishCard.tsx
-import { useState, useRef, useCallback, useEffect, useMemo } from 'react';
-import { Coins, Sparkles, Heart, Compass, ShieldAlert, Flag, MessageCircle, Lock, CheckCircle2 } from 'lucide-react';
+import { useState, useMemo, useEffect } from 'react';
+import {
+  Coins,
+  Sparkles,
+  Heart,
+  Compass,
+  ShieldAlert,
+  Flag,
+  MessageCircle,
+  MailCheck,
+  CheckCircle2,
+  FileEdit,
+  ExternalLink,
+} from 'lucide-react';
 import type { Wish } from '@/types/wish';
 import { supabase } from '@/lib/supabaseClient';
 import { useAuth } from '@/context/AuthContext';
@@ -10,37 +22,48 @@ import { DriftBottleModal } from './DriftBottleModal';
 
 export interface WishCardProps {
   wish: Wish;
-  index: number;
+  index?: number;
   /**
-   * 顯示型態：
-   * - 'market': 首頁市集模式（3D 懸停翻轉、下架/檢舉、注入燃料）
-   * - 'tracked': 追番牆模式（正面為故事進度，背面為開箱感謝信/官方祝福）
-   * - 'flask': 星砂波浪閃卡模式（點擊直接開漂流瓶留言室）
+   * 模式切換：
+   * - 'market': 首頁願望交易所
+   * - 'tracked': 個人中心追番結局牆
+   * - 'myWishes': 我的心願管理
+   * - 'preview': 放在 Modal 左側展示（禁用內部再彈窗，支援靜態展示）
    */
-  variant?: 'market' | 'tracked' | 'flask';
+  variant?: 'market' | 'tracked' | 'myWishes' | 'preview';
+  onOpenLetterModal?: (wish: Wish) => void;
+  onOpenEditModal?: (wish: Wish) => void;
 }
 
-export function WishCard({ wish, index, variant = 'market' }: WishCardProps) {
+export function WishCard({
+  wish,
+  index = 0,
+  variant = 'market',
+  onOpenLetterModal,
+  onOpenEditModal,
+}: WishCardProps) {
   const { session, isBanned, isAdmin, refreshProfile } = useAuth();
-  const cardRef = useRef<HTMLDivElement>(null);
 
-  // 狀態管理
+  // 🌟 核心：全面改用手動狀態控制 3D 翻轉，點擊內部元件不冒泡
   const [isFlipped, setIsFlipped] = useState(false);
   const [isBookmarked, setIsBookmarked] = useState(Boolean(wish.isBookmarked));
   const [showInvest, setShowInvest] = useState(false);
-  const [showChatModal, setShowChatModal] = useState(false);
+  const [showDriftModal, setShowDriftModal] = useState(false);
 
-  // 檢舉 / 下架彈窗
+  // 檢舉 / 管理員下架 Modal
   const [showActionModal, setShowActionModal] = useState(false);
   const [actionReason, setActionReason] = useState('');
   const [isActionLoading, setIsActionLoading] = useState(false);
 
   const isOfficial = wish.id === OFFICIAL_SPONSOR_ID;
-  const progress = Math.min(100, Math.round(((wish.current_stardust || 0) / (wish.product_price || 1)) * 100));
+  const progress = Math.min(
+    100,
+    Math.round(((wish.current_stardust || 0) / (wish.product_price || 1)) * 100)
+  );
   const isFulfilled = wish.status === 'fulfilled' || progress >= 100;
   const isNearComplete = progress >= 90 && progress < 100;
 
-  // 查詢書籤狀態
+  // 查詢當前登入者是否已追番收藏
   useEffect(() => {
     if (!session?.user?.id || isOfficial) return;
     supabase
@@ -54,7 +77,7 @@ export function WishCard({ wish, index, variant = 'market' }: WishCardProps) {
       });
   }, [session?.user?.id, wish.id, isOfficial]);
 
-  // 愛心收藏切換
+  // ❤️ 點擊收藏按鈕（阻斷冒泡，絕對不翻轉）
   const handleToggleBookmark = async (e: React.MouseEvent) => {
     e.stopPropagation();
     if (!session?.user?.id) {
@@ -85,41 +108,6 @@ export function WishCard({ wish, index, variant = 'market' }: WishCardProps) {
     }
   };
 
-  // 全息閃卡物理傾斜運算 (Trainer Gallery 演算法)
-  const handleMouseMove = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
-    if (variant !== 'flask') return;
-    const card = cardRef.current;
-    if (!card) return;
-
-    const rect = card.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
-
-    const px = Math.round((x / rect.width) * 100);
-    const py = Math.round((y / rect.height) * 100);
-
-    const centerX = rect.width / 2;
-    const centerY = rect.height / 2;
-
-    const rotateX = ((y - centerY) / centerY) * -10;
-    const rotateY = ((x - centerX) / centerX) * 10;
-
-    card.style.setProperty('--pointer-x', `${px}%`);
-    card.style.setProperty('--pointer-y', `${py}%`);
-    card.style.setProperty('--rotate-x', `${rotateX}deg`);
-    card.style.setProperty('--rotate-y', `${rotateY}deg`);
-    card.style.setProperty('--card-opacity', '1');
-  }, [variant]);
-
-  const handleMouseLeave = () => {
-    if (variant !== 'flask') return;
-    const card = cardRef.current;
-    if (!card) return;
-    card.style.setProperty('--card-opacity', '0');
-    card.style.setProperty('--rotate-x', '0deg');
-    card.style.setProperty('--rotate-y', '0deg');
-  };
-
   // 下架/檢舉提交
   const handleConfirmAction = async () => {
     if (!actionReason.trim()) return alert('請填寫原因');
@@ -141,7 +129,7 @@ export function WishCard({ wish, index, variant = 'market' }: WishCardProps) {
     }
   };
 
-  // 星宿背景計算
+  // 隨機星宿星座微光生成
   const constellationSeed = useMemo(() => {
     let hash = 0;
     const str = wish.id || 'seed';
@@ -159,119 +147,31 @@ export function WishCard({ wish, index, variant = 'market' }: WishCardProps) {
     };
   }, [wish.id]);
 
-  /* ========================================================
-     Variant: 'flask' (星砂波浪 + Trainer Gallery 閃卡)
-     ======================================================== */
-  if (variant === 'flask') {
-    return (
-      <>
-        <div
-          ref={cardRef}
-          onMouseMove={handleMouseMove}
-          onMouseEnter={() => cardRef.current?.style.setProperty('--card-opacity', '1')}
-          onMouseLeave={handleMouseLeave}
-          onClick={() => setShowChatModal(true)}
-          className={`holo-card w-full h-[450px] select-none rounded-2xl cursor-pointer relative group transition-transform ${
-            isFulfilled ? 'holo-border-gold' : 'border border-white/10'
-          }`}
-          style={{
-            transform: `perspective(800px) rotateX(var(--rotate-x, 0deg)) rotateY(var(--rotate-y, 0deg))`,
-            animationDelay: `${index * 0.05}s`,
-          }}
-        >
-          <div className="glass-flask-inner relative w-full h-full p-5 flex flex-col justify-between group-hover:border-amber-400/30 transition-colors">
-            {/* 瓶中星砂水面 */}
-            <div
-              className="absolute inset-x-0 bottom-0 pointer-events-none transition-all duration-1000 ease-out z-0 overflow-hidden"
-              style={{ height: `${progress}%` }}
-            >
-              <div className="absolute inset-0 bg-gradient-to-t from-amber-500/15 via-amber-400/5 to-transparent" />
-              <div className="absolute top-0 inset-x-0 h-[1.5px] bg-gradient-to-r from-transparent via-amber-400 to-transparent shadow-[0_0_12px_rgba(251,191,36,0.8)]" />
-            </div>
-
-            {isFulfilled && <div className="trainer-gallery-shine" />}
-
-            {/* 前景內容 */}
-            <div className="relative z-30">
-              <div className="flex items-center justify-between mb-3">
-                <span className="text-xs px-2.5 py-1 rounded-full bg-black/40 border border-amber-400/30 text-amber-200 font-mono flex items-center gap-1 backdrop-blur-md">
-                  <Sparkles className="w-3 text-amber-300" />
-                  #{wish.tag_name}
-                </span>
-
-                {isFulfilled ? (
-                  <span className="text-[11px] font-black tracking-wider px-3 py-1 rounded-full bg-gradient-to-r from-amber-300 via-yellow-200 to-amber-400 text-zinc-950 shadow-[0_0_18px_rgba(251,191,36,0.9)] flex items-center gap-1 animate-pulse">
-                    ✨ 圓滿閃卡
-                  </span>
-                ) : (
-                  <span className="text-[11px] font-mono text-zinc-400 bg-black/60 px-2.5 py-1 rounded-lg border border-white/5">
-                    瓶中星砂 {progress}%
-                  </span>
-                )}
-              </div>
-
-              <h3 className="font-bold text-amber-100 text-lg leading-snug line-clamp-2 mt-2 drop-shadow-md flex items-center gap-2">
-                <span className="text-2xl">{wish.cover_emoji}</span>
-                <span>{wish.product_name}</span>
-              </h3>
-            </div>
-
-            <div className="relative z-30 my-auto bg-black/60 border border-white/10 rounded-2xl p-3.5 backdrop-blur-md">
-              <p className="text-xs text-zinc-300 line-clamp-3 leading-relaxed text-justify">
-                {wish.story_text}
-              </p>
-            </div>
-
-            <div className="relative z-30 space-y-3">
-              <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl px-3 py-2 backdrop-blur-md">
-                <p className="text-[11px] text-amber-200/90 truncate">
-                  <span className="font-bold text-amber-300">終章承諾：</span>{wish.promise_text}
-                </p>
-              </div>
-
-              <div className="flex justify-between items-center text-xs font-mono text-zinc-300 pt-1">
-                <span className="flex items-center gap-1 text-amber-400 font-bold">
-                  <Coins className="w-3.5 h-3.5" />
-                  NT$ {(wish.current_stardust || 0).toLocaleString()} / {(wish.product_price || 0).toLocaleString()}
-                </span>
-                <span className="text-[11px] text-zinc-400 flex items-center gap-1 group-hover:text-amber-300 transition-colors">
-                  <MessageCircle className="w-3.5 h-3.5 text-amber-400" /> 漂流瓶留言室
-                </span>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {showChatModal && (
-          <DriftBottleModal
-            wish={wish}
-            progress={progress}
-            isFulfilled={isFulfilled}
-            onClose={() => setShowChatModal(false)}
-          />
-        )}
-      </>
-    );
-  }
-
-  /* ========================================================
-     Variant: 'market' (首頁) & 'tracked' (追番牆 3D 卡片)
-     ======================================================== */
   return (
     <>
       <div
-        className="perspective-1000 w-full h-[410px] select-none group fade-in-up cursor-pointer"
+        className="perspective-1000 w-full h-[430px] select-none cursor-pointer group"
         style={{ animationDelay: `${index * 0.05}s` }}
-        onClick={() => setIsFlipped((prev) => !prev)}
+        onClick={() => {
+          // 點擊空白處切換翻轉狀態
+          setIsFlipped((prev) => !prev);
+        }}
       >
         <div
-          className={`relative w-full h-full duration-700 transform-style-3d group-hover-flip transition-transform ease-out ${
+          className={`relative w-full h-full duration-700 transform-style-3d transition-transform ease-out ${
             isFlipped ? 'rotate-y-180' : ''
           }`}
         >
-          {/* ========== 正面 ========== */}
-          <div className="absolute inset-0 w-full h-full rounded-2xl glass glow-border overflow-hidden backface-hidden flex flex-col justify-between p-5 bg-zinc-950/90 shadow-2xl">
-            {/* 背景圖或星宿 */}
+          {/* ==================== 1. 正面 (故事前綴與進度) ==================== */}
+          <div
+            className={`absolute inset-0 w-full h-full rounded-2xl glass glow-border overflow-hidden backface-hidden flex flex-col justify-between p-5 bg-zinc-950/90 shadow-2xl ${
+              isFulfilled ? 'holo-border-gold' : 'border-white/10'
+            }`}
+          >
+            {/* 滿額時 Trainer Gallery 全息閃光膜 */}
+            {isFulfilled && <div className="trainer-gallery-shine" />}
+
+            {/* 背景圖層 */}
             <div className="absolute inset-0 pointer-events-none overflow-hidden -z-10">
               {wish.image_url ? (
                 <div className="relative w-full h-full">
@@ -308,6 +208,7 @@ export function WishCard({ wish, index, variant = 'market' }: WishCardProps) {
               )}
             </div>
 
+            {/* 頂部標籤與狀態 */}
             <div>
               <div className="flex items-center justify-between mb-3">
                 <span className="text-xs px-2.5 py-1 rounded-full bg-amber-500/15 border border-amber-400/30 text-amber-200 font-mono flex items-center gap-1 backdrop-blur-md">
@@ -315,34 +216,26 @@ export function WishCard({ wish, index, variant = 'market' }: WishCardProps) {
                   #{wish.tag_name}
                 </span>
 
-                {variant === 'tracked' ? (
-                  <span
-                    className={`text-[10px] px-2 py-0.5 rounded-full font-bold flex items-center gap-1 ${
-                      wish.isBookmarkedOnly
-                        ? 'bg-rose-500/15 text-rose-300 border border-rose-500/30'
-                        : 'bg-amber-500/15 text-amber-300 border border-amber-500/30'
-                    }`}
-                  >
-                    {wish.isBookmarkedOnly ? <Heart className="w-2.5 h-2.5 fill-current" /> : <Coins className="w-2.5 h-2.5" />}
-                    {wish.isBookmarkedOnly ? '純追番' : `已注燃料 $${wish.myInvestAmount || 0}`}
+                {isFulfilled ? (
+                  <span className="text-[10px] font-black tracking-wider px-2.5 py-0.5 rounded-full bg-gradient-to-r from-amber-300 via-yellow-200 to-amber-400 text-zinc-950 shadow-[0_0_12px_rgba(251,191,36,0.6)] animate-pulse">
+                    ✨ 圓滿履約
                   </span>
                 ) : (
-                  isFulfilled && (
-                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
-                      ✓ 已履約圓夢
-                    </span>
-                  )
+                  <span className="text-[10px] font-mono text-zinc-400 bg-black/60 px-2 py-0.5 rounded-md border border-white/5">
+                    集資中 {progress}%
+                  </span>
                 )}
               </div>
 
               <h3 className="font-bold text-amber-100 text-lg leading-snug line-clamp-2 mt-2 drop-shadow-md flex items-center gap-2">
-                <span>{wish.cover_emoji}</span>
+                <span className="text-2xl">{wish.cover_emoji}</span>
                 <span>{wish.product_name}</span>
               </h3>
             </div>
 
-            <div className="space-y-4">
-              <div className="bg-black/40 border border-white/10 rounded-xl p-2.5 backdrop-blur-md">
+            {/* 底部承諾與進度列 */}
+            <div className="space-y-3.5">
+              <div className="bg-black/50 border border-white/10 rounded-xl p-2.5 backdrop-blur-md">
                 <p className="text-[11px] text-zinc-400 line-clamp-1">
                   <span className="text-amber-300/80 font-bold">終章承諾：</span>
                   {wish.promise_text}
@@ -350,12 +243,12 @@ export function WishCard({ wish, index, variant = 'market' }: WishCardProps) {
               </div>
 
               <div className="space-y-1.5">
-                <div className="flex justify-between items-baseline text-xs">
-                  <span className="text-zinc-400 flex items-center gap-1 font-mono">
+                <div className="flex justify-between items-baseline text-xs font-mono">
+                  <span className="text-zinc-400 flex items-center gap-1">
                     <Coins className="w-3.5 h-3.5 text-amber-400" />
                     {(wish.current_stardust || 0).toLocaleString()} / {(wish.product_price || 0).toLocaleString()} 星塵
                   </span>
-                  <span className={`font-black font-mono ${isNearComplete ? 'text-amber-300 glow-text' : 'text-amber-200'}`}>
+                  <span className={`font-black ${isNearComplete ? 'text-amber-300 glow-text' : 'text-amber-200'}`}>
                     {progress}%
                   </span>
                 </div>
@@ -367,180 +260,194 @@ export function WishCard({ wish, index, variant = 'market' }: WishCardProps) {
                 </div>
               </div>
 
-              <div className="text-center">
-                <p className="text-[11px] text-zinc-500 group-hover:text-amber-300/70 transition-colors flex items-center justify-center gap-1">
-                  <span>🔄</span> 懸停翻轉揭曉故事
+              <div className="text-center pt-1">
+                <p className="text-[11px] text-zinc-500 group-hover:text-amber-300/80 transition-colors flex items-center justify-center gap-1 font-medium">
+                  <span>👆</span> 點擊卡片翻面看完整故事與互動
                 </p>
               </div>
             </div>
           </div>
 
-          {/* ========== 背面 ========== */}
+          {/* ==================== 2. 背面 (故事全文、互動按鈕、感謝信) ==================== */}
           <div className="absolute inset-0 w-full h-full rounded-2xl glass-strong glow-border p-5 flex flex-col justify-between backface-hidden rotate-y-180 bg-zinc-950/98 border border-amber-400/30 shadow-2xl">
-            {variant === 'tracked' ? (
-              // 追番結局面（開箱信 / 官方祝福）
-              <>
-                <div className="border-b border-white/10 pb-2 flex items-center justify-between">
-                  <span className="text-xs font-bold text-emerald-300 flex items-center gap-1">
-                    <Sparkles className="w-3.5 h-3.5" /> 故事終章結局
-                  </span>
-                  <span
-                    className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${
-                      isFulfilled
-                        ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
-                        : 'bg-zinc-800 text-zinc-400 border border-white/10'
+            {/* 背面頂部資訊列 */}
+            <div className="border-b border-white/10 pb-2.5">
+              <div className="flex items-center justify-between text-xs text-zinc-400 mb-1">
+                <span className="flex items-center gap-1 text-amber-300 truncate max-w-[200px]">
+                  <Compass className="w-3.5 h-3.5 flex-shrink-0" />
+                  {wish.anonymous_nickname || '匿名星旅人'} 的心願
+                </span>
+
+                {/* ❤️ 追番按鈕（點擊不翻面） */}
+                {!isOfficial && (
+                  <button
+                    type="button"
+                    onClick={handleToggleBookmark}
+                    className={`p-1.5 rounded-full border transition-all cursor-pointer ${
+                      isBookmarked
+                        ? 'bg-rose-500/20 border-rose-500/50 text-rose-400 scale-110 shadow-[0_0_10px_rgba(244,63,94,0.4)]'
+                        : 'bg-white/5 border-white/10 text-zinc-400 hover:text-white hover:bg-white/10'
                     }`}
+                    title={isBookmarked ? '已追番 (點擊取消)' : '加入追番牆'}
                   >
-                    {isFulfilled ? '🎉 圓夢履約達成' : '⏳ 募集中待解鎖'}
-                  </span>
-                </div>
+                    <Heart className={`w-3.5 h-3.5 ${isBookmarked ? 'fill-rose-400 text-rose-400' : ''}`} />
+                  </button>
+                )}
+              </div>
+              <h4 className="font-bold text-amber-100 text-sm truncate">{wish.product_name}</h4>
+            </div>
 
-                {!isFulfilled ? (
-                  <div className="flex-1 flex flex-col items-center justify-center text-center p-4 space-y-3">
-                    <div className="w-12 h-12 rounded-full bg-zinc-900 border border-white/10 flex items-center justify-center text-zinc-500 shadow-inner">
-                      <Lock className="w-6 h-6 animate-pulse" />
-                    </div>
-                    <div>
-                      <h5 className="text-sm font-bold text-zinc-300">終章信件封存中</h5>
-                      <p className="text-xs text-zinc-500 mt-1 leading-relaxed">
-                        當願望達成 100% 募資並經物流送達後，<br />
-                        主角親筆撰寫的開箱感謝信將在此自動點亮！
-                      </p>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="flex-1 overflow-y-auto space-y-3 my-2 pr-1 hide-scrollbar">
-                    {wish.unboxing_photo_url && (
-                      <div className="h-32 rounded-xl overflow-hidden border border-white/10 relative">
-                        <img
-                          src={wish.unboxing_photo_url}
-                          alt="開箱照"
-                          className="w-full h-full object-cover"
-                        />
-                        <span className="absolute bottom-1 right-2 text-[9px] bg-black/60 px-1.5 py-0.5 rounded text-zinc-300">
-                          📸 主角實拍開箱
-                        </span>
-                      </div>
-                    )}
+            {/* 故事內文 */}
+            <div className="relative my-2 flex-1 overflow-hidden">
+              <p className="text-xs text-zinc-300 leading-relaxed text-justify line-clamp-4">
+                {wish.story_text}
+              </p>
+              <div className="absolute bottom-0 inset-x-0 h-6 bg-gradient-to-t from-zinc-950 to-transparent pointer-events-none" />
+            </div>
 
-                    <div className="bg-emerald-950/20 border border-emerald-500/20 rounded-xl p-3 text-xs text-zinc-200 leading-relaxed">
-                      <p className="text-[11px] font-bold text-emerald-300 mb-1 flex items-center gap-1">
-                        <CheckCircle2 className="w-3.5 h-3.5" /> 主角感謝信：
-                      </p>
-                      {wish.thank_you_letter || '主角已順利收取夢想物資，感謝星空下每顆溫暖星塵的相助！'}
-                    </div>
+            {/* 承諾內容 */}
+            <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl px-3 py-2 mb-2">
+              <p className="text-[11px] text-amber-200/90 leading-tight">
+                <span className="font-bold text-amber-300">承諾：</span>
+                {wish.promise_text}
+              </p>
+            </div>
 
-                    {wish.admin_blessing && (
-                      <div className="bg-amber-500/10 border border-amber-400/20 rounded-xl p-2.5 text-[11px] text-amber-200/90 leading-tight">
-                        <span className="font-bold">👑 夢沙官方祝福：</span>
-                        {wish.admin_blessing}
-                      </div>
-                    )}
-                  </div>
+            {/* 進度與小功能列 (電商連結、漂流瓶、檢舉/下架) */}
+            <div className="flex justify-between items-center text-xs text-zinc-400 mb-2.5 px-0.5 font-mono">
+              <div className="flex items-center gap-2">
+                <span>進度 {progress}%</span>
+                {wish.product_url && (
+                  <a
+                    href={wish.product_url}
+                    target="_blank"
+                    rel="noreferrer"
+                    onClick={(e) => e.stopPropagation()}
+                    className="text-[10px] text-sky-400 hover:underline flex items-center gap-0.5"
+                  >
+                    <ExternalLink className="w-2.5 h-2.5" /> 商品
+                  </a>
+                )}
+              </div>
+
+              <div className="flex items-center gap-1.5">
+                {/* 漂流瓶留言室按鈕 */}
+                {variant !== 'preview' && (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setShowDriftModal(true);
+                    }}
+                    className="text-[10px] px-2 py-0.5 rounded-md bg-white/5 border border-white/10 text-amber-300 hover:bg-white/10 flex items-center gap-1 transition-all"
+                  >
+                    <MessageCircle className="w-3 h-3" /> 漂流瓶
+                  </button>
                 )}
 
-                <div className="text-center pt-2 border-t border-white/10">
-                  <span className="text-[11px] text-zinc-500">🔄 懸停或點擊翻回正面故事</span>
-                </div>
-              </>
-            ) : (
-              // 首頁市集面（完整故事、愛心追蹤、檢舉、贊助入口）
-              <>
-                <div className="border-b border-white/10 pb-3">
-                  <div className="flex items-center justify-between text-xs text-zinc-400 mb-1">
-                    <span className="flex items-center gap-1 text-amber-300">
-                      <Compass className="w-3.5 h-3.5" />
-                      {wish.anonymous_nickname || '匿名星旅人'} 的心願
-                    </span>
+                {/* 檢舉 / 下架按鈕 */}
+                {!isOfficial && (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (!isAdmin && isBanned) {
+                        alert('🚫 您的帳號已被停權，無法使用檢舉功能。');
+                        return;
+                      }
+                      setShowActionModal(true);
+                    }}
+                    className={`text-[10px] px-2 py-0.5 rounded-md flex items-center gap-1 transition-all ${
+                      isAdmin
+                        ? 'bg-red-500/20 text-red-300 hover:bg-red-500/30 border border-red-500/30 font-bold'
+                        : 'bg-white/5 text-zinc-500 hover:text-zinc-300 hover:bg-white/10'
+                    }`}
+                  >
+                    {isAdmin ? <><ShieldAlert className="w-3 h-3" /> 下架</> : <><Flag className="w-3 h-3" /> 檢舉</>}
+                  </button>
+                )}
+              </div>
+            </div>
 
-                    {!isOfficial && (
-                      <button
-                        type="button"
-                        onClick={handleToggleBookmark}
-                        className={`p-1.5 rounded-full border transition-all cursor-pointer ${
-                          isBookmarked
-                            ? 'bg-rose-500/20 border-rose-500/50 text-rose-400 scale-110 shadow-[0_0_10px_rgba(244,63,94,0.4)]'
-                            : 'bg-white/5 border-white/10 text-zinc-400 hover:text-white hover:bg-white/10'
-                        }`}
-                        title={isBookmarked ? '已追番 (點擊取消)' : '加入追番牆'}
-                      >
-                        <Heart className={`w-3.5 h-3.5 ${isBookmarked ? 'fill-rose-400 text-rose-400' : ''}`} />
-                      </button>
-                    )}
-                  </div>
-                  <h4 className="font-bold text-amber-100 text-sm truncate">{wish.product_name}</h4>
-                </div>
-
-                <div className="relative my-2 flex-1 overflow-hidden">
-                  <p className="text-xs text-zinc-300 leading-relaxed tracking-wide text-justify">
-                    {wish.story_text}
-                  </p>
-                  <div className="absolute bottom-0 inset-x-0 h-10 bg-gradient-to-t from-zinc-950 to-transparent pointer-events-none" />
-                </div>
-
-                <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl px-3 py-2 mb-2">
-                  <p className="text-[11px] text-amber-200/90 leading-tight">
-                    <span className="font-bold text-amber-300">承諾：</span>
-                    {wish.promise_text}
-                  </p>
-                </div>
-
-                <div className="flex justify-between items-center text-xs text-zinc-400 mb-2.5 px-1 font-mono">
-                  <span>需募: NT$ {(wish.product_price || 0).toLocaleString()}</span>
-                  <div className="flex items-center gap-2">
-                    <span className="text-amber-300 font-bold">進度 {progress}%</span>
-                    {!isOfficial && (
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          if (!isAdmin && isBanned) {
-                            alert('🚫 您的帳號已被停權，無法使用檢舉功能。');
-                            return;
-                          }
-                          setShowActionModal(true);
-                        }}
-                        className={`text-[10px] px-2 py-0.5 rounded-md flex items-center gap-1 transition-all ${
-                          isAdmin
-                            ? 'bg-red-500/20 text-red-300 hover:bg-red-500/30 border border-red-500/30 font-bold'
-                            : 'bg-white/5 text-zinc-500 hover:text-zinc-300 hover:bg-white/10'
-                        }`}
-                      >
-                        {isAdmin ? <><ShieldAlert className="w-3 h-3" /> 下架</> : <><Flag className="w-3 h-3" /> 檢舉</>}
-                      </button>
-                    )}
-                  </div>
-                </div>
-
-                <div>
-                  {isFulfilled ? (
-                    <div className="w-full text-center py-2.5 rounded-xl bg-emerald-500/20 border border-emerald-400/40 text-emerald-300 text-xs font-bold">
-                      🎉 此心願已圓滿達成履約
-                    </div>
-                  ) : (
+            {/* ================= 底部按鈕區 (依 variant 呈現) ================= */}
+            <div className="space-y-1.5">
+              {/* 1. 「我的心願」管理模式：呈現重編與感謝信上傳按鈕 */}
+              {variant === 'myWishes' && (
+                <div className="flex gap-2">
+                  {onOpenEditModal && wish.status !== 'fulfilled' && (
                     <button
                       type="button"
                       onClick={(e) => {
                         e.stopPropagation();
-                        if (isBanned) {
-                          alert('🚫 您的帳號已被停權，無法贊助願望。');
-                          return;
-                        }
-                        setShowInvest(true);
+                        onOpenEditModal(wish);
                       }}
-                      className={`w-full touch-btn py-3 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 transition-all shadow-lg cursor-pointer ${
-                        isNearComplete
-                          ? 'bg-gradient-to-r from-amber-400 to-yellow-500 text-zinc-950 pulse-gold font-black'
-                          : 'bg-gradient-to-r from-amber-500 to-yellow-600 hover:from-amber-400 hover:to-yellow-500 text-zinc-950 font-bold shadow-amber-500/20'
-                      }`}
+                      className="flex-1 py-2.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-xs font-bold rounded-xl flex items-center justify-center gap-1"
                     >
-                      <Coins className="w-3.5 h-3.5 fill-current" />
-                      {isNearComplete ? '🌟 搶下尾刀 · 助他圓夢' : '🌌 注入星塵 · 助他圓夢'}
+                      <FileEdit className="w-3.5 h-3.5" /> 編輯送審
                     </button>
                   )}
+
+                  {/* 🌟 核心回歸：滿額 (full_funded) 或履約完結時，出現感謝信按鈕 */}
+                  {(wish.status === 'full_funded' || wish.status === 'fulfilled' || progress >= 100) &&
+                    onOpenLetterModal && (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onOpenLetterModal(wish);
+                        }}
+                        className="flex-1 py-2.5 bg-purple-500 hover:bg-purple-400 text-zinc-950 text-xs font-black rounded-xl flex items-center justify-center gap-1 shadow-lg shadow-purple-500/20"
+                      >
+                        <MailCheck className="w-3.5 h-3.5" />
+                        {wish.thank_you_letter ? '修改開箱信' : '撰寫開箱信'}
+                      </button>
+                    )}
                 </div>
-              </>
-            )}
+              )}
+
+              {/* 2. 「追番牆」模式：直接開啟詳細終章與留言彈窗 */}
+              {variant === 'tracked' && (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setShowDriftModal(true);
+                  }}
+                  className="w-full py-2.5 bg-amber-500/20 hover:bg-amber-500/30 border border-amber-400/40 text-amber-200 text-xs font-bold rounded-xl flex items-center justify-center gap-1.5 transition-all"
+                >
+                  <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+                  {isFulfilled ? '✨ 查看主角開箱感謝信與結局' : '🍾 進入瓶中留言室查看結局進度'}
+                </button>
+              )}
+
+              {/* 3. 「首頁市集」模式：注入星塵或圓滿標籤 */}
+              {variant === 'market' &&
+                (isFulfilled ? (
+                  <div className="w-full text-center py-2.5 rounded-xl bg-emerald-500/20 border border-emerald-400/40 text-emerald-300 text-xs font-bold flex items-center justify-center gap-1">
+                    <CheckCircle2 className="w-3.5 h-3.5" /> 此心願已圓滿達成
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (isBanned) {
+                        alert('🚫 您的帳號已被停權，無法贊助願望。');
+                        return;
+                      }
+                      setShowInvest(true);
+                    }}
+                    className={`w-full py-3 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 transition-all shadow-lg cursor-pointer ${
+                      isNearComplete
+                        ? 'bg-gradient-to-r from-amber-400 to-yellow-500 text-zinc-950 pulse-gold font-black'
+                        : 'bg-gradient-to-r from-amber-500 to-yellow-600 hover:from-amber-400 hover:to-yellow-500 text-zinc-950 font-bold shadow-amber-500/20'
+                    }`}
+                  >
+                    <Coins className="w-3.5 h-3.5 fill-current" />
+                    {isNearComplete ? '🌟 搶下尾刀 · 助他圓夢' : '🌌 注入星塵 · 助他圓夢'}
+                  </button>
+                ))}
+            </div>
           </div>
         </div>
       </div>
@@ -556,7 +463,17 @@ export function WishCard({ wish, index, variant = 'market' }: WishCardProps) {
         />
       )}
 
-      {/* 檢舉 / 管理員下架 Modal */}
+      {/* 漂流瓶與終章結局共用 Modal（內部左側直接復用此 WishCard preview 版） */}
+      {showDriftModal && (
+        <DriftBottleModal
+          wish={wish}
+          progress={progress}
+          isFulfilled={isFulfilled}
+          onClose={() => setShowDriftModal(false)}
+        />
+      )}
+
+      {/* 檢舉 / 下架 Modal */}
       {showActionModal && (
         <div
           className="fixed inset-0 z-[65] flex items-center justify-center p-4 bg-black/75 backdrop-blur-md scale-in"
@@ -574,8 +491,8 @@ export function WishCard({ wish, index, variant = 'market' }: WishCardProps) {
             </h3>
             <p className="text-xs text-zinc-400">
               {isAdmin
-                ? `請輸入下架「${wish.product_name}」的違規理由，將立刻從首頁隱藏：`
-                : '請填寫檢舉原因（卡片會保留於首頁，並交由管理員核實定奪）：'}
+                ? `請輸入下架「${wish.product_name}」的理由：`
+                : '請填寫檢舉原因（將送交管理團隊查核）：'}
             </p>
             <textarea
               rows={3}
@@ -598,7 +515,7 @@ export function WishCard({ wish, index, variant = 'market' }: WishCardProps) {
                 onClick={handleConfirmAction}
                 className="flex-1 py-2 rounded-xl bg-red-500 hover:bg-red-400 text-white font-bold text-xs"
               >
-                {isActionLoading ? '處理中...' : isAdmin ? '確認下架隱藏' : '送出通報檢舉'}
+                {isActionLoading ? '處理中...' : isAdmin ? '確認下架' : '送出檢舉'}
               </button>
             </div>
           </div>
