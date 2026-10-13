@@ -1,13 +1,13 @@
 // src/pages/HomePage.tsx
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Loader2 } from 'lucide-react';
 import { WishCard } from '@/components/WishCard';
 import { HomeHeroCarousel } from '@/components/HomeHeroCarousel';
+import { LeaderboardWidget } from '@/components/LeaderboardWidget';
 import { fetchPublicWishes, OFFICIAL_SPONSOR_ID } from '@/lib/backend';
 import { supabase } from '@/lib/supabaseClient';
 import type { Wish } from '@/types/wish';
 
-// 💖 官方常駐置頂贊助卡片
 const OFFICIAL_SPONSOR_STORY: Wish = {
   id: OFFICIAL_SPONSOR_ID,
   user_id: '00000000-0000-0000-0000-000000000000',
@@ -28,6 +28,10 @@ export function HomePage() {
   const [activeTag, setActiveTag] = useState('全部故事');
   const [wishes, setWishes] = useState<Wish[]>([]);
   const [loading, setLoading] = useState(true);
+  const [highlightedWishId, setHighlightedWishId] = useState<string | null>(null);
+
+  // 用來存放卡片 DOM 參照以精準滑動定位
+  const cardRefs = useRef<Record<string, HTMLDivElement | null>>({});
 
   const tags = [
     '全部故事',
@@ -73,6 +77,23 @@ export function HomePage() {
     };
   }, []);
 
+  // 🎯 核心功能：點擊排行榜故事，自動平滑滑動並高亮該卡片
+  const handleScrollToWish = (wishId: string) => {
+    // 若該卡片被當前 Tag 隱藏，自動切換至「全部故事」確保卡片在畫面中
+    if (activeTag !== '全部故事') {
+      setActiveTag('全部故事');
+    }
+
+    setTimeout(() => {
+      const targetEl = cardRefs.current[wishId];
+      if (targetEl) {
+        targetEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        setHighlightedWishId(wishId);
+        setTimeout(() => setHighlightedWishId(null), 2500); // 2.5 秒後淡出高亮
+      }
+    }, 100);
+  };
+
   const filteredWishes = wishes.filter((item) => {
     if (activeTag === '全部故事') return true;
     const cleanTag = activeTag.replace('#', '');
@@ -81,8 +102,13 @@ export function HomePage() {
 
   return (
     <div className="max-w-6xl mx-auto px-6 pt-4 pb-32 relative z-10 animate-fade-in">
+      {/* 1. 動態公告輪播 */}
       <HomeHeroCarousel />
 
+      {/* 2. 🌟 全新星光排行榜 Widget (臨門一腳 % 數最高 + 本週/全時間 總星塵最高) */}
+      <LeaderboardWidget wishes={wishes} onScrollToWish={handleScrollToWish} />
+
+      {/* 3. 分類標籤列 */}
       <div className="flex gap-2.5 overflow-x-auto pb-4 hide-scrollbar mb-10 border-b border-white/5">
         {tags.map((tag) => (
           <button
@@ -99,6 +125,7 @@ export function HomePage() {
         ))}
       </div>
 
+      {/* 4. 願望交易所卡片網格 */}
       {loading ? (
         <div className="py-24 text-center">
           <Loader2 className="w-8 h-8 text-amber-300 animate-spin mx-auto mb-3" />
@@ -106,9 +133,22 @@ export function HomePage() {
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {filteredWishes.map((story, index) => (
-            <WishCard key={story.id} wish={story} index={index} variant="market" />
-          ))}
+          {filteredWishes.map((story, index) => {
+            const isTargetHighlight = highlightedWishId === story.id;
+            return (
+              <div
+                key={story.id}
+                ref={(el) => (cardRefs.current[story.id] = el)}
+                className={`transition-all duration-500 rounded-2xl ${
+                  isTargetHighlight
+                    ? 'ring-4 ring-amber-400 shadow-[0_0_35px_rgba(251,191,36,0.9)] scale-[1.03]'
+                    : ''
+                }`}
+              >
+                <WishCard wish={story} index={index} variant="market" />
+              </div>
+            );
+          })}
         </div>
       )}
     </div>
