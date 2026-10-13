@@ -21,7 +21,7 @@ import type { Wish } from '@/types/wish';
 
 const SENSITIVE_WORDS = ['詐騙', '匯款', '違禁品', '賭博', '毒品', '槍械'];
 
-type TabId = 'account' | 'myWishes' | 'publish' | 'wallet' | 'invested';
+export type TabId = 'account' | 'myWishes' | 'publish' | 'wallet' | 'invested';
 
 export function UserDashboard({
   onClose,
@@ -35,8 +35,13 @@ export function UserDashboard({
   initialTab?: TabId;
 }) {
   const { profile, refreshProfile, logout } = useAuth();
-  const [activeTab, setActiveTab] = useState<TabId>('initialTab');
+  const [activeTab, setActiveTab] = useState<TabId>(initialTab);
   const [showPhoneVerify, setShowPhoneVerify] = useState(false);
+
+  // 當外部傳入的 initialTab 改變時同步更新
+  useEffect(() => {
+    setActiveTab(initialTab);
+  }, [initialTab]);
 
   return (
     <div className="fixed inset-0 z-50 space-bg overflow-y-auto bg-zinc-950 text-white select-none">
@@ -60,13 +65,13 @@ export function UserDashboard({
               await logout();
               window.location.reload();
             }}
-            className="flex items-center gap-1 text-xs text-red-300 hover:text-red-200 bg-red-500/10 border border-red-500/20 px-3 py-1.5 rounded-xl transition-all"
+            className="flex items-center gap-1 text-xs text-red-300 hover:text-red-200 bg-red-500/10 border border-red-500/20 px-3 py-1.5 rounded-xl transition-all cursor-pointer"
           >
             <LogOut className="w-3.5 h-3.5" /> <span>登出</span>
           </button>
           <button
             onClick={onClose}
-            className="rounded-full hover:bg-white/10 w-8 h-8 flex items-center justify-center text-gray-400 hover:text-white transition-colors"
+            className="rounded-full hover:bg-white/10 w-8 h-8 flex items-center justify-center text-gray-400 hover:text-white transition-colors cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
@@ -132,6 +137,7 @@ function TabButton({
   );
 }
 
+// ===== 1. 帳號資訊 Tab =====
 function AccountTab() {
   const { session, profile, refreshProfile } = useAuth();
   const [realName, setRealName] = useState('');
@@ -306,6 +312,7 @@ function AccountTab() {
   );
 }
 
+// ===== 2. 發布夢想 Tab =====
 function PublishTab({ onRequireVerify }: { onRequireVerify: () => void }) {
   const { session, profile, isBanned } = useAuth();
 
@@ -605,14 +612,13 @@ function PublishTab({ onRequireVerify }: { onRequireVerify: () => void }) {
   );
 }
 
-// ===== 🌟 升級版：星光貢獻榮譽館 (落實雙軌殿堂完整清單) =====
+// ===== 3. 🌟 升級版：星光貢獻榮譽館 (雙軌殿堂完整清單) =====
 function WalletTab() {
   const { session, profile } = useAuth();
   const [hallTab, setHallTab] = useState<'fulfilled' | 'inTransit'>('fulfilled');
 
   // 個人在途數據
   const [myInTransitAmount, setMyInTransitAmount] = useState(0);
-  const [myInTransitList, setMyInTransitList] = useState<any[]>([]);
 
   // 全站榜單數據
   const [fulfilledTopUsers, setFulfilledTopUsers] = useState<any[]>([]);
@@ -651,7 +657,6 @@ function WalletTab() {
             }));
 
           if (isMounted) {
-            setMyInTransitList(activeList);
             setMyInTransitAmount(activeList.reduce((acc, curr) => acc + (curr.amount || 0), 0));
           }
         }
@@ -669,7 +674,7 @@ function WalletTab() {
         setFulfilledTopUsers(fulfilledData);
       }
 
-      // 3. 殿堂軌道 B：在途燃料守護者前 10 名 (即時匯總未出貨的 investments)
+      // 3. 殿堂軌道 B：在途燃料守護者前 10 名
       const { data: allActiveInvs } = await supabase
         .from('investments')
         .select('user_id, amount, wish_id, story_id, users:user_id(anonymous_nickname)');
@@ -718,7 +723,6 @@ function WalletTab() {
 
       {/* 個人星光總覽雙卡 */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        {/* 卡片 1：已履約榮譽星塵 */}
         <div className="bg-gradient-to-br from-amber-500/15 via-zinc-900 to-zinc-950 border border-amber-500/20 p-5 rounded-2xl glow-border">
           <p className="text-zinc-400 text-[11px] font-bold tracking-wider mb-1">
             已圓滿履約見證星塵 (HONOR)
@@ -731,7 +735,6 @@ function WalletTab() {
           <p className="text-[10px] text-zinc-500 mt-1.5">故事完成開箱履約後轉化之永久印記</p>
         </div>
 
-        {/* 卡片 2：進行中在途燃料 */}
         <div className="bg-zinc-900/70 border border-white/10 p-5 rounded-2xl">
           <p className="text-zinc-400 text-[11px] font-bold tracking-wider mb-1">
             進行中在途燃料 (IN TRANSIT)
@@ -832,7 +835,7 @@ function WalletTab() {
   );
 }
 
-// ===== 我的心願 Tab：全面改用大一統 WishCard (variant="myWishes") + 感謝信彈窗 =====
+// ===== 4. 我的心願 Tab =====
 function MyWishesTab({ onEditWish: _onEditWish }: { onEditWish: () => void }) {
   const { session } = useAuth();
   const [myWishes, setMyWishes] = useState<Wish[]>([]);
@@ -910,7 +913,6 @@ function MyWishesTab({ onEditWish: _onEditWish }: { onEditWish: () => void }) {
     }
   };
 
-  // 開啟撰寫開箱信彈窗
   const handleOpenLetterModal = (w: Wish) => {
     setLetterWish(w);
     setThankYouLetter(w.thank_you_letter || '');
@@ -956,7 +958,7 @@ function MyWishesTab({ onEditWish: _onEditWish }: { onEditWish: () => void }) {
         .update({
           thank_you_letter: thankYouLetter.trim(),
           unboxing_photo_url: unboxingPhoto,
-          letter_status: 'pending', // 送出人工審查
+          letter_status: 'pending',
           letter_reject_reason: null,
         })
         .eq('id', letterWish.id);
@@ -1000,10 +1002,10 @@ function MyWishesTab({ onEditWish: _onEditWish }: { onEditWish: () => void }) {
             <button
               key={tab.id}
               onClick={() => setFilterTag(tab.id)}
-              className={`px-2.5 py-1 rounded-lg transition-all ${
+              className={`px-2.5 py-1 rounded-lg transition-all cursor-pointer ${
                 filterTag === tab.id
                   ? 'bg-amber-500/20 text-amber-300 font-bold border border-amber-400/30'
-                  : 'text-zinc-400'
+                  : 'text-zinc-400 hover:text-white'
               }`}
             >
               {tab.label}
@@ -1097,14 +1099,14 @@ function MyWishesTab({ onEditWish: _onEditWish }: { onEditWish: () => void }) {
             <div className="flex gap-2 pt-2">
               <button
                 onClick={() => setEditingWish(null)}
-                className="flex-1 py-2.5 text-xs border border-white/10 rounded-xl text-zinc-400"
+                className="flex-1 py-2.5 text-xs border border-white/10 rounded-xl text-zinc-400 cursor-pointer"
               >
                 取消
               </button>
               <button
                 onClick={handleResubmit}
                 disabled={savingEdit}
-                className="flex-1 py-2.5 text-xs bg-amber-500 hover:bg-amber-400 text-zinc-950 font-bold rounded-xl"
+                className="flex-1 py-2.5 text-xs bg-amber-500 hover:bg-amber-400 text-zinc-950 font-bold rounded-xl cursor-pointer"
               >
                 {savingEdit ? '提交中...' : '確認更新並重新送審'}
               </button>
@@ -1137,7 +1139,7 @@ function MyWishesTab({ onEditWish: _onEditWish }: { onEditWish: () => void }) {
                   <button
                     type="button"
                     onClick={() => setUnboxingPhoto(null)}
-                    className="absolute top-2 right-2 bg-black/70 text-red-400 text-xs px-2 py-0.5 rounded-md"
+                    className="absolute top-2 right-2 bg-black/70 text-red-400 text-xs px-2 py-0.5 rounded-md cursor-pointer"
                   >
                     刪除
                   </button>
@@ -1160,14 +1162,14 @@ function MyWishesTab({ onEditWish: _onEditWish }: { onEditWish: () => void }) {
             <div className="flex gap-2">
               <button
                 onClick={() => setLetterWish(null)}
-                className="flex-1 py-2.5 text-xs border border-white/10 rounded-xl text-zinc-400"
+                className="flex-1 py-2.5 text-xs border border-white/10 rounded-xl text-zinc-400 cursor-pointer"
               >
                 取消
               </button>
               <button
                 onClick={handleSubmitLetter}
                 disabled={savingLetter || compressingPhoto}
-                className="flex-1 py-2.5 text-xs bg-purple-500 text-zinc-950 font-bold rounded-xl"
+                className="flex-1 py-2.5 text-xs bg-purple-500 hover:bg-purple-400 text-zinc-950 font-bold rounded-xl cursor-pointer"
               >
                 {savingLetter ? '送出中...' : '提交審查'}
               </button>
@@ -1179,7 +1181,7 @@ function MyWishesTab({ onEditWish: _onEditWish }: { onEditWish: () => void }) {
   );
 }
 
-// ===== 追番牆 Tab：改用大一統 WishCard (variant="tracked") =====
+// ===== 5. 追番牆 Tab =====
 function InvestedTab() {
   const { session } = useAuth();
   const [trackedWishes, setTrackedWishes] = useState<Wish[]>([]);
@@ -1275,7 +1277,7 @@ function InvestedTab() {
           <span className="text-[10px] text-zinc-500 font-bold px-1.5">來源:</span>
           <button
             onClick={() => setSourceFilter('all')}
-            className={`px-3 py-1 rounded-xl text-xs transition-all ${
+            className={`px-3 py-1 rounded-xl text-xs transition-all cursor-pointer ${
               sourceFilter === 'all' ? 'bg-white/15 text-white font-bold' : 'text-zinc-400 hover:text-white'
             }`}
           >
@@ -1283,7 +1285,7 @@ function InvestedTab() {
           </button>
           <button
             onClick={() => setSourceFilter('invested')}
-            className={`px-3 py-1 rounded-xl text-xs transition-all flex items-center gap-1 ${
+            className={`px-3 py-1 rounded-xl text-xs transition-all flex items-center gap-1 cursor-pointer ${
               sourceFilter === 'invested'
                 ? 'bg-amber-500/25 border border-amber-400/40 text-amber-200 font-bold'
                 : 'text-zinc-400 hover:text-amber-200'
@@ -1293,7 +1295,7 @@ function InvestedTab() {
           </button>
           <button
             onClick={() => setSourceFilter('bookmarked')}
-            className={`px-3 py-1 rounded-xl text-xs transition-all flex items-center gap-1 ${
+            className={`px-3 py-1 rounded-xl text-xs transition-all flex items-center gap-1 cursor-pointer ${
               sourceFilter === 'bookmarked'
                 ? 'bg-rose-500/25 border border-rose-400/40 text-rose-200 font-bold'
                 : 'text-zinc-400 hover:text-rose-200'
@@ -1309,7 +1311,7 @@ function InvestedTab() {
           <span className="text-[10px] text-zinc-500 font-bold px-1.5">狀態:</span>
           <button
             onClick={() => setStatusFilter('all')}
-            className={`px-3 py-1 rounded-xl text-xs transition-all ${
+            className={`px-3 py-1 rounded-xl text-xs transition-all cursor-pointer ${
               statusFilter === 'all' ? 'bg-white/15 text-white font-bold' : 'text-zinc-400 hover:text-white'
             }`}
           >
@@ -1317,7 +1319,7 @@ function InvestedTab() {
           </button>
           <button
             onClick={() => setStatusFilter('funding')}
-            className={`px-3 py-1 rounded-xl text-xs transition-all ${
+            className={`px-3 py-1 rounded-xl text-xs transition-all cursor-pointer ${
               statusFilter === 'funding'
                 ? 'bg-sky-500/20 border border-sky-400/30 text-sky-200 font-bold'
                 : 'text-zinc-400 hover:text-sky-200'
@@ -1327,7 +1329,7 @@ function InvestedTab() {
           </button>
           <button
             onClick={() => setStatusFilter('fulfilled')}
-            className={`px-3 py-1 rounded-xl text-xs transition-all ${
+            className={`px-3 py-1 rounded-xl text-xs transition-all cursor-pointer ${
               statusFilter === 'fulfilled'
                 ? 'bg-emerald-500/20 border border-emerald-400/30 text-emerald-200 font-bold'
                 : 'text-zinc-400 hover:text-emerald-200'
