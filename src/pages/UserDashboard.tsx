@@ -321,18 +321,27 @@ function PublishTab({ onRequireVerify }: { onRequireVerify: () => void }) {
   const [promise, setPromise] = useState('');
   const [productPrice, setProductPrice] = useState<number>(500);
   const [productUrl, setProductUrl] = useState('');
-  const [tagName, setTagName] = useState('學生苦讀中');
+  
+  // 🌟 動態從資料庫 tags 載入
+  const [tags, setTags] = useState<Tag[]>([]);
+  const [tagName, setTagName] = useState('');
   const [coverEmoji, setCoverEmoji] = useState('✨');
 
-  const [imageBase64, setImageBase64] = useState<string | null>(null);
-  const [compressing, setCompressing] = useState(false);
-  const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState('');
-  const [success, setSuccess] = useState(false);
+  useEffect(() => {
+    supabase
+      .from('tags')
+      .select('*')
+      .order('sort_order', { ascending: true })
+      .then(({ data }) => {
+        if (data && data.length > 0) {
+          setTags(data as Tag[]);
+          setTagName(data[0].name);
+        }
+      });
+  }, []);
 
-  const tags = ['學生苦讀中', '面試大作戰', '毛孩的願望', '生日邊緣人', '創作旅途', '日常微光'];
   const emojis = ['✨', '💻', '📚', '🐾', '🎨', '🎵', '☕', '👟', '🎒', '🌱'];
-
+  
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -483,19 +492,26 @@ function PublishTab({ onRequireVerify }: { onRequireVerify: () => void }) {
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs font-medium text-gray-300 mb-1.5">分類標籤</label>
+          <div>
+            <label className="block text-xs font-medium text-gray-300 mb-1.5">分類標籤</label>
+            {tags.length > 0 ? (
               <select
                 value={tagName}
                 onChange={(e) => setTagName(e.target.value)}
                 className="w-full bg-zinc-900/80 border border-white/10 rounded-xl px-3 py-2.5 text-xs text-amber-200 focus:outline-none focus:border-amber-400/50"
               >
                 {tags.map((t) => (
-                  <option key={t} value={t} className="bg-zinc-900 text-white">#{t}</option>
+                  <option key={t.id} value={t.name} className="bg-zinc-900 text-white">
+                    {t.icon} #{t.name}
+                  </option>
                 ))}
               </select>
-            </div>
+            ) : (
+              <div className="w-full bg-zinc-900/50 border border-white/10 rounded-xl px-3 py-2.5 text-xs text-zinc-500">
+                星空尚無標籤，請聯絡管理員設定
+              </div>
+            )}
+          </div>
             <div>
               <label className="block text-xs font-medium text-gray-300 mb-1.5">願望星宿圖示</label>
               <div className="flex gap-1.5 overflow-x-auto pb-1 hide-scrollbar">
