@@ -8,6 +8,10 @@ import { fetchPublicWishes, OFFICIAL_SPONSOR_ID } from '@/lib/backend';
 import { supabase } from '@/lib/supabaseClient';
 import type { Wish } from '@/types/wish';
 
+interface HomePageProps {
+  onOpenHonorHall: () => void;
+}
+
 const OFFICIAL_SPONSOR_STORY: Wish = {
   id: OFFICIAL_SPONSOR_ID,
   user_id: '00000000-0000-0000-0000-000000000000',
@@ -24,13 +28,12 @@ const OFFICIAL_SPONSOR_STORY: Wish = {
   created_at: '2025-01-01T00:00:00.000Z',
 };
 
-export function HomePage() {
+export function HomePage({ onOpenHonorHall }: HomePageProps) {
   const [activeTag, setActiveTag] = useState('全部故事');
   const [wishes, setWishes] = useState<Wish[]>([]);
   const [loading, setLoading] = useState(true);
   const [highlightedWishId, setHighlightedWishId] = useState<string | null>(null);
 
-  // 用來存放卡片 DOM 參照以精準滑動定位
   const cardRefs = useRef<Record<string, HTMLDivElement | null>>({});
 
   const tags = [
@@ -77,9 +80,8 @@ export function HomePage() {
     };
   }, []);
 
-  // 🎯 核心功能：點擊排行榜故事，自動平滑滑動並高亮該卡片
+  // 點擊平滑滾動並高亮卡片
   const handleScrollToWish = (wishId: string) => {
-    // 若該卡片被當前 Tag 隱藏，自動切換至「全部故事」確保卡片在畫面中
     if (activeTag !== '全部故事') {
       setActiveTag('全部故事');
     }
@@ -89,7 +91,7 @@ export function HomePage() {
       if (targetEl) {
         targetEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
         setHighlightedWishId(wishId);
-        setTimeout(() => setHighlightedWishId(null), 2500); // 2.5 秒後淡出高亮
+        setTimeout(() => setHighlightedWishId(null), 2500);
       }
     }, 100);
   };
@@ -102,13 +104,15 @@ export function HomePage() {
 
   return (
     <div className="max-w-6xl mx-auto px-6 pt-4 pb-32 relative z-10 animate-fade-in">
-      {/* 1. 動態公告輪播 */}
       <HomeHeroCarousel />
 
-      {/* 2. 🌟 全新星光排行榜 Widget (臨門一腳 % 數最高 + 本週/全時間 總星塵最高) */}
-      <LeaderboardWidget wishes={wishes} onScrollToWish={handleScrollToWish} />
+      {/* 🌟 徽章式星光榜微縮區（支援展開與跳轉殿堂） */}
+      <LeaderboardWidget
+        wishes={wishes}
+        onScrollToWish={handleScrollToWish}
+        onOpenHonorHall={onOpenHonorHall}
+      />
 
-      {/* 3. 分類標籤列 */}
       <div className="flex gap-2.5 overflow-x-auto pb-4 hide-scrollbar mb-10 border-b border-white/5">
         {tags.map((tag) => (
           <button
@@ -125,7 +129,6 @@ export function HomePage() {
         ))}
       </div>
 
-      {/* 4. 願望交易所卡片網格 */}
       {loading ? (
         <div className="py-24 text-center">
           <Loader2 className="w-8 h-8 text-amber-300 animate-spin mx-auto mb-3" />
