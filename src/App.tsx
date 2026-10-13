@@ -5,7 +5,7 @@ import { Starfield } from '@/components/Starfield';
 import { Navbar } from '@/components/Navbar';
 import { AuthModal } from '@/components/AuthModal';
 import { HomePage } from '@/pages/HomePage';
-import { UserDashboard, TabId } from '@/pages/UserDashboard';
+import { UserDashboard, type TabId } from '@/pages/UserDashboard';
 import { AdminConsole } from '@/pages/AdminConsole';
 import { Shield } from 'lucide-react';
 

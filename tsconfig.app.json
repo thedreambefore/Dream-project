@@ -14,11 +14,13 @@
     "noEmit": true,
     "jsx": "react-jsx",
 
-    /* Path alias — depth-invariant imports for src (@/foo === src/foo from any file) */
-    "baseUrl": ".",
+    /* 現代標準路徑別名（TypeScript 5+ 不再需要 baseUrl） */
     "paths": {
-      "@/*": ["src/*"]
+      "@/*": ["./src/*"]
     },
+
+    /* 靜音向下相容提示（可選保護防線） */
+    "ignoreDeprecations": "6.0",
 
     /* Linting */
     "strict": true,
