@@ -14,12 +14,13 @@ interface Props {
 }
 interface State {
   hasError: boolean;
+  error?: Error;
 }
 
 class SafeShield extends Component<Props, State> {
   public state: State = { hasError: false };
-  public static getDerivedStateFromError(_: Error): State {
-    return { hasError: true };
+  public static getDerivedStateFromError(error: Error): State {
+    return { hasError: true, error };
   }
   public componentDidCatch(error: Error, errorInfo: ErrorInfo) {
     console.error('🔒 夢沙防護網攔截到底層錯誤:', error, errorInfo);
@@ -27,12 +28,17 @@ class SafeShield extends Component<Props, State> {
   public render() {
     if (this.state.hasError) {
       return (
-        <div className="space-bg min-h-screen relative text-white p-24 text-center">
-          <h1 className="text-3xl font-bold text-amber-200 mb-4">星空微光調校中</h1>
-          <p className="text-gray-400 text-sm mb-6">部分星塵資料正在同步，請稍候重新載入。</p>
+        <div className="space-bg min-h-screen relative text-white p-12 text-center flex flex-col items-center justify-center">
+          <h1 className="text-2xl font-bold text-amber-200 mb-2">星空微光調校中</h1>
+          <p className="text-gray-400 text-xs mb-4">系統攔截到底層加載異常，請嘗試重新載入。</p>
+          {this.state.error && (
+            <pre className="text-left text-[11px] text-red-300 bg-red-950/40 border border-red-500/30 p-4 rounded-xl max-w-xl w-full overflow-auto mb-6 font-mono">
+              {this.state.error.message}
+            </pre>
+          )}
           <button
             onClick={() => window.location.reload()}
-            className="px-4 py-2 bg-amber-500/20 border border-amber-400/40 text-amber-200 rounded-xl text-sm"
+            className="px-5 py-2.5 bg-amber-500/20 border border-amber-400/40 text-amber-200 rounded-xl text-xs hover:bg-amber-500/30 transition-all cursor-pointer"
           >
             重新連結星空
           </button>
@@ -42,7 +48,6 @@ class SafeShield extends Component<Props, State> {
     return this.props.children;
   }
 }
-
 type View = 'home' | 'dashboard' | 'admin';
 
 function AppContent() {

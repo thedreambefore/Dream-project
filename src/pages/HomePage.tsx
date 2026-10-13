@@ -1,12 +1,16 @@
 // src/pages/HomePage.tsx
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, lazy, Suspense } from 'react';
 import { Loader2 } from 'lucide-react';
-import { WishCard } from '@/components/WishCard';
 import { HomeHeroCarousel } from '@/components/HomeHeroCarousel';
 import { LeaderboardWidget } from '@/components/LeaderboardWidget';
 import { fetchPublicWishes } from '@/lib/backend';
 import { supabase } from '@/lib/supabaseClient';
 import type { Wish, Tag } from '@/types/wish';
+
+// 🌟 核心關鍵：改為 Lazy Import，徹底排除 Rollup 在打包時產生的循環初始化 TDZ 錯誤
+const WishCard = lazy(() =>
+  import('@/components/WishCard').then((module) => ({ default: module.WishCard }))
+);
 
 interface HomePageProps {
   onOpenHonorHall: () => void;
@@ -30,7 +34,7 @@ export function HomePage({ onOpenHonorHall }: HomePageProps) {
     setTags((data as Tag[]) || []);
   };
 
-  // 2. 讀取願望（包含資料庫中的官方常駐卡）
+  // 2. 讀取願望
   const loadWishes = async () => {
     try {
       const realWishes = await fetchPublicWishes();
@@ -92,7 +96,7 @@ export function HomePage({ onOpenHonorHall }: HomePageProps) {
         onOpenHonorHall={onOpenHonorHall}
       />
 
-      {/* 動態標籤列（資料庫有標籤才列出，未建立時只顯示全部故事） */}
+      {/* 動態標籤列 */}
       <div className="flex gap-2.5 overflow-x-auto pb-4 hide-scrollbar mb-10 border-b border-white/5">
         <button
           onClick={() => setActiveTag('全部故事')}
@@ -133,19 +137,27 @@ export function HomePage({ onOpenHonorHall }: HomePageProps) {
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {filteredWishes.map((story, index) => (
-            <div
-              key={story.id}
-              ref={(el) => (cardRefs.current[story.id] = el)}
-              className={`transition-all duration-500 rounded-2xl ${
-                highlightedWishId === story.id
-                  ? 'ring-4 ring-amber-400 shadow-[0_0_35px_rgba(251,191,36,0.9)] scale-[1.03]'
-                  : ''
-              }`}
-            >
-              <WishCard wish={story} index={index} variant="market" />
-            </div>
-          ))}
+          <Suspense
+            fallback={
+              <div className="col-span-full py-16 text-center text-xs text-amber-200/50">
+                星砂卡片凝聚中...
+              </div>
+            }
+          >
+            {filteredWishes.map((story, index) => (
+              <div
+                key={story.id}
+                ref={(el) => (cardRefs.current[story.id] = el)}
+                className={`transition-all duration-500 rounded-2xl ${
+                  highlightedWishId === story.id
+                    ? 'ring-4 ring-amber-400 shadow-[0_0_35px_rgba(251,191,36,0.9)] scale-[1.03]'
+                    : ''
+                }`}
+              >
+                <WishCard wish={story} index={index} variant="market" />
+              </div>
+            ))}
+          </Suspense>
         </div>
       )}
     </div>
