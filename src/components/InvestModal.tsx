@@ -90,17 +90,17 @@ export function InvestModal({ story, onClose }: { story: Wish; onClose: () => vo
 
     setLoading(true);
     try {
-      if (!isOfficial) {
-        // 寫入贊助紀錄
-        await supabase.from('investments').insert({
-          user_id: session.user.id,
-          wish_id: story.id,
-          story_id: story.id,
-          amount: Number(amount),
-          message: message.trim() || '默默為你注入了一份星塵！',
-          is_hidden: false,
-        });
+      // 🌟 1. 無論是否官方卡，皆正式寫入 investments 贊助紀錄
+      await supabase.from('investments').insert({
+        user_id: session.user.id,
+        wish_id: story.id,
+        story_id: story.id,
+        amount: Number(amount),
+        message: message.trim() || '默默為你注入了一份星塵！',
+        is_hidden: false,
+      });
 
+      if (!isOfficial) {
         // 自動加入追番
         await supabase.from('bookmarks').upsert({
           user_id: session.user.id,
@@ -108,14 +108,16 @@ export function InvestModal({ story, onClose }: { story: Wish; onClose: () => vo
         }, { onConflict: 'user_id,wish_id' });
       }
 
-      const newTotal = (story.current_stardust || 0) + amount;
+      // 🌟 2. 計算新星塵並正式回寫 DB wishes 表
+      const newTotal = Number(story.current_stardust || 0) + Number(amount);
       const newStatus = (!isOfficial && newTotal >= story.product_price) ? 'full_funded' : story.status;
 
-      if (!isOfficial) {
-        await updateWish(story.id, { current_stardust: newTotal, status: newStatus });
-      } else {
-        story.current_stardust = newTotal;
-      }
+      await updateWish(story.id, {
+        current_stardust: newTotal,
+        status: newStatus,
+      });
+
+      story.current_stardust = newTotal;
 
       await refreshProfile();
       setSuccess(true);
