@@ -639,7 +639,7 @@ function PublishTab({ onRequireVerify }: { onRequireVerify: () => void }) {
   );
 }
 
-// ===== 3. 星光貢獻榮譽館 =====
+// ===== 3. 星光貢獻榮譽館 (修正精確在途星塵統計) =====
 function WalletTab() {
   const { session, profile } = useAuth();
   const [hallTab, setHallTab] = useState<'fulfilled' | 'inTransit'>('fulfilled');
@@ -655,36 +655,30 @@ function WalletTab() {
     const loadHallData = async () => {
       setLoadingHall(true);
 
-      if (session?.user?.id) {
-        const { data: invData } = await supabase
+      // 1. 先抓取全站「尚未履約出貨」的心願清單（status !== 'fulfilled'）
+      const { data: activeWishes } = await supabase
+        .from('wishes')
+        .select('id')
+        .neq('status', 'fulfilled');
+
+      const activeWishIdSet = new Set(activeWishes?.map((w) => w.id) || []);
+
+      // 2. 計算登入者個人「真正在途燃料」
+      if (session?.user?.id && activeWishIdSet.size > 0) {
+        const { data: myInvs } = await supabase
           .from('investments')
           .select('amount, wish_id, story_id')
           .eq('user_id', session.user.id);
 
-        if (invData && invData.length > 0) {
-          const wishIds = Array.from(new Set(invData.map((i) => i.wish_id || i.story_id).filter(Boolean)));
-          const { data: wishData } = await supabase
-            .from('wishes')
-            .select('id, product_name, status')
-            .in('id', wishIds);
-
-          const wishMap = new Map(wishData?.map((w) => [w.id, w]) || []);
-          const activeList = invData
-            .filter((inv) => {
-              const w = wishMap.get(inv.wish_id || inv.story_id);
-              return w && w.status !== 'fulfilled';
-            })
-            .map((inv) => ({
-              amount: inv.amount,
-              product_name: wishMap.get(inv.wish_id || inv.story_id)?.product_name || '進行中心願',
-            }));
-
-          if (isMounted) {
-            setMyInTransitAmount(activeList.reduce((acc, curr) => acc + (curr.amount || 0), 0));
-          }
+        if (myInvs && isMounted) {
+          const totalInTransit = myInvs
+            .filter((inv) => activeWishIdSet.has(inv.wish_id || inv.story_id))
+            .reduce((sum, inv) => sum + Number(inv.amount || 0), 0);
+          setMyInTransitAmount(totalInTransit);
         }
       }
 
+      // 3. 傳奇引路榜（已履約結算累積榮譽 wallet_balance 前 10 名）
       const { data: fulfilledData } = await supabase
         .from('users')
         .select('id, anonymous_nickname, wallet_balance')
@@ -696,28 +690,37 @@ function WalletTab() {
         setFulfilledTopUsers(fulfilledData);
       }
 
-      const { data: allActiveInvs } = await supabase
-        .from('investments')
-        .select('user_id, amount, wish_id, story_id, users:user_id(anonymous_nickname)');
+      // 4. 在途守護榜（只撈取未履約願望的投資，統計在途燃料 TOP 10）
+      if (activeWishIdSet.size > 0) {
+        const { data: allInvs } = await supabase
+          .from('investments')
+          .select('user_id, amount, wish_id, story_id, users:user_id(anonymous_nickname)');
 
-      if (allActiveInvs && isMounted) {
-        const userTransitMap: Record<string, { nickname: string; total: number }> = {};
-        allActiveInvs.forEach((inv) => {
-          if (inv.user_id) {
-            const nick = (inv as any).users?.anonymous_nickname || '匿名星旅人';
-            if (!userTransitMap[inv.user_id]) {
-              userTransitMap[inv.user_id] = { nickname: nick, total: 0 };
+        if (allInvs && isMounted) {
+          const userTransitMap: Record<string, { nickname: string; total: number }> = {};
+          
+          allInvs.forEach((inv) => {
+            const wid = inv.wish_id || inv.story_id;
+            // 關鍵：只計入仍在途的願望
+            if (wid && activeWishIdSet.has(wid) && inv.user_id) {
+              const nick = (inv as any).users?.anonymous_nickname || '匿名星旅人';
+              if (!userTransitMap[inv.user_id]) {
+                userTransitMap[inv.user_id] = { nickname: nick, total: 0 };
+              }
+              userTransitMap[inv.user_id].total += Number(inv.amount || 0);
             }
-            userTransitMap[inv.user_id].total += Number(inv.amount || 0);
-          }
-        });
+          });
 
-        const sortedTransit = Object.entries(userTransitMap)
-          .map(([id, val]) => ({ id, anonymous_nickname: val.nickname, amount: val.total }))
-          .sort((a, b) => b.amount - a.amount)
-          .slice(0, 10);
+          const sortedTransit = Object.entries(userTransitMap)
+            .map(([id, val]) => ({ id, anonymous_nickname: val.nickname, amount: val.total }))
+            .filter((u) => u.amount > 0)
+            .sort((a, b) => b.amount - a.amount)
+            .slice(0, 10);
 
-        setInTransitTopUsers(sortedTransit);
+          setInTransitTopUsers(sortedTransit);
+        }
+      } else if (isMounted) {
+        setInTransitTopUsers([]);
       }
 
       if (isMounted) setLoadingHall(false);
