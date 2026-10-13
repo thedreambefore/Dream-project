@@ -1,18 +1,20 @@
+// src/components/InvestModal.tsx
 import { useState, useMemo } from 'react';
 import { X, Lock, Loader2, Heart, Sparkles } from 'lucide-react';
-import { supabase, type Story } from '@/lib/supabase';
+import { supabase } from '@/lib/supabaseClient';
+import type { Wish } from '@/types/wish';
 import { useAuth } from '@/context/AuthContext';
 import { AuthModal } from './AuthModal';
-import { updateWish } from '@/lib/backend';
+import { updateWish, OFFICIAL_SPONSOR_ID } from '@/lib/backend';
 
-export function InvestModal({ story, onClose }: { story: Story; onClose: () => void }) {
+export function InvestModal({ story, onClose }: { story: Wish; onClose: () => void }) {
   const { session, refreshProfile } = useAuth();
-  const isOfficial = story.id === '00000000-0000-0000-0000-000000000001' || story.id === 'demo-story-001';
+  const isOfficial = story.id === OFFICIAL_SPONSOR_ID;
 
   // 計算該心願當前真正剩餘所需的星塵數額
   const remainingNeed = isOfficial ? 999999 : Math.max(0, story.product_price - (story.current_stardust || 0));
 
-  // 預設金額：若剩餘需求小於 100 則預設為剩餘量，否則為 100
+  // 預設金額
   const defaultAmount = isOfficial ? 100 : Math.min(100, remainingNeed > 0 ? remainingNeed : 10);
   const [amount, setAmount] = useState<number>(defaultAmount);
   const [customInput, setCustomInput] = useState<string>('');
@@ -23,7 +25,7 @@ export function InvestModal({ story, onClose }: { story: Story; onClose: () => v
   const [success, setSuccess] = useState(false);
   const [showAuth, setShowAuth] = useState(false);
 
-  // 🧮 三段式服務費計算
+  // 三段式服務費計算
   const feeDetails = useMemo(() => {
     const validAmount = Math.max(0, amount || 0);
     if (validAmount < 10 && !isOfficial) {
@@ -41,7 +43,7 @@ export function InvestModal({ story, onClose }: { story: Story; onClose: () => v
   }, [amount, isOfficial]);
 
   const handleSelectPreset = (val: number) => {
-    if (!isOfficial && val > remainingNeed) return; // 防呆
+    if (!isOfficial && val > remainingNeed) return;
     setAmount(val);
     setCustomInput('');
     setError('');
@@ -89,17 +91,17 @@ export function InvestModal({ story, onClose }: { story: Story; onClose: () => v
     setLoading(true);
     try {
       if (!isOfficial) {
-        // 寫入贊助紀錄：同時帶上 wish_id 與 story_id 避免關聯失效
+        // 寫入贊助紀錄
         await supabase.from('investments').insert({
           user_id: session.user.id,
-          wish_id: story.id,      // 🌟 保證 wish_id 寫入
-          story_id: story.id,     // 🌟 保證相容欄位 story_id 寫入
+          wish_id: story.id,
+          story_id: story.id,
           amount: Number(amount),
-          message: message.trim() || '默默為你注入了一份星塵！', // 避免空值造成 null
+          message: message.trim() || '默默為你注入了一份星塵！',
           is_hidden: false,
         });
 
-        // 🌟 自動加入使用者的追番列表！
+        // 自動加入追番
         await supabase.from('bookmarks').upsert({
           user_id: session.user.id,
           wish_id: story.id,
@@ -107,7 +109,6 @@ export function InvestModal({ story, onClose }: { story: Story; onClose: () => v
       }
 
       const newTotal = (story.current_stardust || 0) + amount;
-      // 達到目標金額後狀態轉為 full_funded（待出貨）
       const newStatus = (!isOfficial && newTotal >= story.product_price) ? 'full_funded' : story.status;
 
       if (!isOfficial) {
@@ -116,9 +117,7 @@ export function InvestModal({ story, onClose }: { story: Story; onClose: () => v
         story.current_stardust = newTotal;
       }
 
-      // 付款後刷新 Context（在途星塵暫存區會立刻加上這筆！）
       await refreshProfile();
-
       setSuccess(true);
       setTimeout(() => onClose(), 2200);
     } catch (err: any) {
@@ -133,7 +132,7 @@ export function InvestModal({ story, onClose }: { story: Story; onClose: () => v
   return (
     <>
       <div
-        className="fixed inset-0 z-[55] flex items-center justify-center p-4 bg-black/75 backdrop-blur-md scale-in overflow-y-auto"
+        className="fixed inset-0 z-[85] flex items-center justify-center p-4 bg-black/75 backdrop-blur-md scale-in overflow-y-auto"
         onClick={onClose}
       >
         <div
@@ -166,12 +165,11 @@ export function InvestModal({ story, onClose }: { story: Story; onClose: () => v
                     )}
                   </p>
                 </div>
-                <button onClick={onClose} className="rounded-full hover:bg-white/10 p-1 text-gray-400 hover:text-white">
+                <button onClick={onClose} className="rounded-full hover:bg-white/10 p-1 text-gray-400 hover:text-white cursor-pointer">
                   <X className="w-5 h-5" />
                 </button>
               </div>
 
-              {/* 50 字留言 */}
               <div>
                 <div className="flex items-center justify-between mb-2">
                   <label className="text-sm font-bold text-amber-100">✍️ 封存您的 50 字溫暖留言</label>
@@ -189,7 +187,6 @@ export function InvestModal({ story, onClose }: { story: Story; onClose: () => v
 
               <hr className="border-white/10" />
 
-              {/* 選擇心願燃料金額 */}
               <div>
                 <div className="flex justify-between items-center mb-3">
                   <label className="text-sm font-bold text-amber-100">✨ 選擇心願燃料金額</label>
@@ -200,7 +197,6 @@ export function InvestModal({ story, onClose }: { story: Story; onClose: () => v
                   )}
                 </div>
 
-                {/* 快捷按鈕 (超過上限自動反灰禁用) */}
                 <div className="grid grid-cols-3 gap-2.5 mb-3">
                   {[30, 100, 500].map((preset) => {
                     const isDisabled = !isOfficial && preset > remainingNeed;
@@ -227,7 +223,6 @@ export function InvestModal({ story, onClose }: { story: Story; onClose: () => v
                   })}
                 </div>
 
-                {/* 自訂資助金額 (受限於 remainingNeed) */}
                 <div className="flex items-center gap-2 bg-zinc-900/90 border border-white/10 rounded-xl px-3.5 py-2.5 focus-within:border-amber-400/50">
                   <span className="text-xs text-gray-300 whitespace-nowrap">✍️ 自訂資助金額：</span>
                   <input
@@ -245,7 +240,6 @@ export function InvestModal({ story, onClose }: { story: Story; onClose: () => v
 
               <hr className="border-white/10" />
 
-              {/* 結帳明細 */}
               <div className="bg-zinc-900/70 border border-amber-400/15 rounded-2xl p-4 space-y-2">
                 <div className="flex justify-between text-xs text-gray-300">
                   <span>• 願望資助金額：</span>
@@ -261,7 +255,6 @@ export function InvestModal({ story, onClose }: { story: Story; onClose: () => v
                 </div>
               </div>
 
-              {/* 金流選擇 */}
               <div className="flex items-center justify-center gap-3 text-xs">
                 <button
                   type="button"
