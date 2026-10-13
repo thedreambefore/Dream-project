@@ -4,47 +4,33 @@ import { Loader2 } from 'lucide-react';
 import { WishCard } from '@/components/WishCard';
 import { HomeHeroCarousel } from '@/components/HomeHeroCarousel';
 import { LeaderboardWidget } from '@/components/LeaderboardWidget';
-import { fetchPublicWishes, OFFICIAL_SPONSOR_ID } from '@/lib/backend';
+import { fetchPublicWishes } from '@/lib/backend';
 import { supabase } from '@/lib/supabaseClient';
-import type { Wish } from '@/types/wish';
+import type { Wish, Tag } from '@/types/wish';
 
 interface HomePageProps {
   onOpenHonorHall: () => void;
 }
 
-const OFFICIAL_SPONSOR_STORY: Wish = {
-  id: OFFICIAL_SPONSOR_ID,
-  user_id: '00000000-0000-0000-0000-000000000000',
-  product_name: '💖 守護夢沙星空 · 平台伺服器與營運基金',
-  product_price: 99999999,
-  current_stardust: 0,
-  tag_name: '官方營運支持',
-  cover_emoji: '🪐',
-  story_text:
-    '夢沙 DreamSand 致力於打造一個完全匿名的溫暖心願避風港。您的每一筆微小心願燃料，都將全數投入網站運作，讓這片星空永不熄滅。',
-  promise_text: '平台將持續發布重大更新與維護伺服器。',
-  status: 'approved',
-  block_reason: null,
-  created_at: '2025-01-01T00:00:00.000Z',
-};
-
 export function HomePage({ onOpenHonorHall }: HomePageProps) {
   const [activeTag, setActiveTag] = useState('全部故事');
+  const [tags, setTags] = useState<Tag[]>([]);
   const [wishes, setWishes] = useState<Wish[]>([]);
   const [loading, setLoading] = useState(true);
   const [highlightedWishId, setHighlightedWishId] = useState<string | null>(null);
 
   const cardRefs = useRef<Record<string, HTMLDivElement | null>>({});
 
-  const tags = [
-    '全部故事',
-    '#官方營運支持',
-    '#學生苦讀中',
-    '#面試大作戰',
-    '#毛孩的願望',
-    '#生日邊緣人',
-  ];
+  // 1. 動態讀取 tags 資料表
+  const loadTags = async () => {
+    const { data } = await supabase
+      .from('tags')
+      .select('*')
+      .order('sort_order', { ascending: true });
+    setTags((data as Tag[]) || []);
+  };
 
+  // 2. 讀取願望（包含資料庫中的官方常駐卡）
   const loadWishes = async () => {
     try {
       const realWishes = await fetchPublicWishes();
@@ -53,26 +39,23 @@ export function HomePage({ onOpenHonorHall }: HomePageProps) {
         const isCompletedStatus = w.status === 'full_funded' || w.status === 'fulfilled';
         return !isFull && !isCompletedStatus;
       });
-
-      setWishes([OFFICIAL_SPONSOR_STORY, ...activeWishes]);
+      setWishes(activeWishes);
     } catch (err) {
-      console.warn('載入願望異常，使用保底模式:', err);
-      setWishes([OFFICIAL_SPONSOR_STORY]);
+      console.warn('載入願望異常:', err);
+      setWishes([]);
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
+    loadTags();
     loadWishes();
 
     const channel = supabase
-      .channel('public-wishes-realtime')
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'wishes' },
-        () => loadWishes()
-      )
+      .channel('home-realtime-channel')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'wishes' }, () => loadWishes())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'tags' }, () => loadTags())
       .subscribe();
 
     return () => {
@@ -80,11 +63,8 @@ export function HomePage({ onOpenHonorHall }: HomePageProps) {
     };
   }, []);
 
-  // 點擊平滑滾動並高亮卡片
   const handleScrollToWish = (wishId: string) => {
-    if (activeTag !== '全部故事') {
-      setActiveTag('全部故事');
-    }
+    if (activeTag !== '全部故事') setActiveTag('全部故事');
 
     setTimeout(() => {
       const targetEl = cardRefs.current[wishId];
@@ -106,27 +86,40 @@ export function HomePage({ onOpenHonorHall }: HomePageProps) {
     <div className="max-w-6xl mx-auto px-6 pt-4 pb-32 relative z-10 animate-fade-in">
       <HomeHeroCarousel />
 
-      {/* 🌟 徽章式星光榜微縮區（支援展開與跳轉殿堂） */}
       <LeaderboardWidget
         wishes={wishes}
         onScrollToWish={handleScrollToWish}
         onOpenHonorHall={onOpenHonorHall}
       />
 
+      {/* 動態標籤列（資料庫有標籤才列出，未建立時只顯示全部故事） */}
       <div className="flex gap-2.5 overflow-x-auto pb-4 hide-scrollbar mb-10 border-b border-white/5">
-        {tags.map((tag) => (
-          <button
-            key={tag}
-            onClick={() => setActiveTag(tag)}
-            className={`px-4 py-2 rounded-full text-xs sm:text-sm font-medium border whitespace-nowrap transition-all duration-300 cursor-pointer ${
-              activeTag === tag
-                ? 'bg-amber-500 text-slate-950 border-amber-400 shadow-[0_0_15px_rgba(245,158,11,0.35)] font-bold'
-                : 'bg-zinc-900/60 text-slate-400 border-white/10 hover:border-amber-400/30 hover:text-slate-200'
-            }`}
-          >
-            {tag}
-          </button>
-        ))}
+        <button
+          onClick={() => setActiveTag('全部故事')}
+          className={`px-4 py-2 rounded-full text-xs sm:text-sm font-medium border whitespace-nowrap transition-all duration-300 cursor-pointer ${
+            activeTag === '全部故事'
+              ? 'bg-amber-500 text-slate-950 border-amber-400 shadow-[0_0_15px_rgba(245,158,11,0.35)] font-bold'
+              : 'bg-zinc-900/60 text-slate-400 border-white/10 hover:border-amber-400/30 hover:text-slate-200'
+          }`}
+        >
+          全部故事
+        </button>
+        {tags.map((t) => {
+          const tagNameWithHash = `#${t.name}`;
+          return (
+            <button
+              key={t.id}
+              onClick={() => setActiveTag(tagNameWithHash)}
+              className={`px-4 py-2 rounded-full text-xs sm:text-sm font-medium border whitespace-nowrap transition-all duration-300 cursor-pointer ${
+                activeTag === tagNameWithHash
+                  ? 'bg-amber-500 text-slate-950 border-amber-400 shadow-[0_0_15px_rgba(245,158,11,0.35)] font-bold'
+                  : 'bg-zinc-900/60 text-slate-400 border-white/10 hover:border-amber-400/30 hover:text-slate-200'
+              }`}
+            >
+              {t.icon} #{t.name}
+            </button>
+          );
+        })}
       </div>
 
       {loading ? (
@@ -134,24 +127,25 @@ export function HomePage({ onOpenHonorHall }: HomePageProps) {
           <Loader2 className="w-8 h-8 text-amber-300 animate-spin mx-auto mb-3" />
           <p className="text-gray-400 text-xs tracking-wider">正在搜尋星空中的願望故事...</p>
         </div>
+      ) : filteredWishes.length === 0 ? (
+        <div className="py-24 text-center border border-white/5 rounded-3xl bg-zinc-950/40 text-zinc-500 text-sm">
+          此分類下目前尚無許願星光
+        </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {filteredWishes.map((story, index) => {
-            const isTargetHighlight = highlightedWishId === story.id;
-            return (
-              <div
-                key={story.id}
-                ref={(el) => (cardRefs.current[story.id] = el)}
-                className={`transition-all duration-500 rounded-2xl ${
-                  isTargetHighlight
-                    ? 'ring-4 ring-amber-400 shadow-[0_0_35px_rgba(251,191,36,0.9)] scale-[1.03]'
-                    : ''
-                }`}
-              >
-                <WishCard wish={story} index={index} variant="market" />
-              </div>
-            );
-          })}
+          {filteredWishes.map((story, index) => (
+            <div
+              key={story.id}
+              ref={(el) => (cardRefs.current[story.id] = el)}
+              className={`transition-all duration-500 rounded-2xl ${
+                highlightedWishId === story.id
+                  ? 'ring-4 ring-amber-400 shadow-[0_0_35px_rgba(251,191,36,0.9)] scale-[1.03]'
+                  : ''
+              }`}
+            >
+              <WishCard wish={story} index={index} variant="market" />
+            </div>
+          ))}
         </div>
       )}
     </div>
