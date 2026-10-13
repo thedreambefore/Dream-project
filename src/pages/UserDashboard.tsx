@@ -17,7 +17,7 @@ import { supabase } from '@/lib/supabaseClient';
 import { useAuth } from '@/context/AuthContext';
 import { PhoneVerificationModal } from '@/components/PhoneVerificationModal';
 import { WishCard } from '@/components/WishCard';
-import type { Wish } from '@/types/wish';
+import type { Wish, Tag } from '@/types/wish';
 
 const SENSITIVE_WORDS = ['詐騙', '匯款', '違禁品', '賭博', '毒品', '槍械'];
 
@@ -38,7 +38,6 @@ export function UserDashboard({
   const [activeTab, setActiveTab] = useState<TabId>(initialTab);
   const [showPhoneVerify, setShowPhoneVerify] = useState(false);
 
-  // 當外部傳入的 initialTab 改變時同步更新
   useEffect(() => {
     setActiveTab(initialTab);
   }, [initialTab]);
@@ -312,7 +311,7 @@ function AccountTab() {
   );
 }
 
-// ===== 2. 發布夢想 Tab =====
+// ===== 2. 發布夢想 Tab (動態串接 Tags 表) =====
 function PublishTab({ onRequireVerify }: { onRequireVerify: () => void }) {
   const { session, profile, isBanned } = useAuth();
 
@@ -321,11 +320,17 @@ function PublishTab({ onRequireVerify }: { onRequireVerify: () => void }) {
   const [promise, setPromise] = useState('');
   const [productPrice, setProductPrice] = useState<number>(500);
   const [productUrl, setProductUrl] = useState('');
-  
-  // 🌟 動態從資料庫 tags 載入
+
+  // 🌟 動態從資料庫 tags 資料表獲取
   const [tags, setTags] = useState<Tag[]>([]);
   const [tagName, setTagName] = useState('');
   const [coverEmoji, setCoverEmoji] = useState('✨');
+
+  const [imageBase64, setImageBase64] = useState<string | null>(null);
+  const [compressing, setCompressing] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState(false);
 
   useEffect(() => {
     supabase
@@ -341,7 +346,7 @@ function PublishTab({ onRequireVerify }: { onRequireVerify: () => void }) {
   }, []);
 
   const emojis = ['✨', '💻', '📚', '🐾', '🎨', '🎵', '☕', '👟', '🎒', '🌱'];
-  
+
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -392,6 +397,11 @@ function PublishTab({ onRequireVerify }: { onRequireVerify: () => void }) {
 
     if (!profile?.is_phone_verified) {
       onRequireVerify();
+      return;
+    }
+
+    if (!tagName.trim()) {
+      setError('請選擇分類標籤（如無標籤請通知管理員於後台建立）');
       return;
     }
 
@@ -492,26 +502,27 @@ function PublishTab({ onRequireVerify }: { onRequireVerify: () => void }) {
             />
           </div>
 
-          <div>
-            <label className="block text-xs font-medium text-gray-300 mb-1.5">分類標籤</label>
-            {tags.length > 0 ? (
-              <select
-                value={tagName}
-                onChange={(e) => setTagName(e.target.value)}
-                className="w-full bg-zinc-900/80 border border-white/10 rounded-xl px-3 py-2.5 text-xs text-amber-200 focus:outline-none focus:border-amber-400/50"
-              >
-                {tags.map((t) => (
-                  <option key={t.id} value={t.name} className="bg-zinc-900 text-white">
-                    {t.icon} #{t.name}
-                  </option>
-                ))}
-              </select>
-            ) : (
-              <div className="w-full bg-zinc-900/50 border border-white/10 rounded-xl px-3 py-2.5 text-xs text-zinc-500">
-                星空尚無標籤，請聯絡管理員設定
-              </div>
-            )}
-          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-medium text-gray-300 mb-1.5">分類標籤</label>
+              {tags.length > 0 ? (
+                <select
+                  value={tagName}
+                  onChange={(e) => setTagName(e.target.value)}
+                  className="w-full bg-zinc-900/80 border border-white/10 rounded-xl px-3 py-2.5 text-xs text-amber-200 focus:outline-none focus:border-amber-400/50"
+                >
+                  {tags.map((t) => (
+                    <option key={t.id} value={t.name} className="bg-zinc-900 text-white">
+                      {t.icon} #{t.name}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <div className="w-full bg-zinc-900/50 border border-white/10 rounded-xl px-3 py-2.5 text-xs text-zinc-500">
+                  星空尚無標籤，請聯絡管理員設定
+                </div>
+              )}
+            </div>
             <div>
               <label className="block text-xs font-medium text-gray-300 mb-1.5">願望星宿圖示</label>
               <div className="flex gap-1.5 overflow-x-auto pb-1 hide-scrollbar">
@@ -520,7 +531,7 @@ function PublishTab({ onRequireVerify }: { onRequireVerify: () => void }) {
                     key={em}
                     type="button"
                     onClick={() => setCoverEmoji(em)}
-                    className={`w-9 h-9 rounded-lg text-base flex-shrink-0 transition-all ${
+                    className={`w-9 h-9 rounded-lg text-base flex-shrink-0 transition-all cursor-pointer ${
                       coverEmoji === em ? 'bg-amber-500/30 border border-amber-400' : 'bg-white/5 border border-white/10'
                     }`}
                   >
@@ -575,7 +586,7 @@ function PublishTab({ onRequireVerify }: { onRequireVerify: () => void }) {
                 <div className="absolute inset-0 bg-gradient-to-b from-transparent via-black/40 to-[#0a0a1a]" />
                 <div className="absolute bottom-2 left-3 right-3 flex justify-between items-center text-[10px] text-amber-200">
                   <span>✨ 星空殘影同化效果預覽成功</span>
-                  <button type="button" onClick={() => setImageBase64(null)} className="text-red-400 hover:text-red-300 underline">
+                  <button type="button" onClick={() => setImageBase64(null)} className="text-red-400 hover:text-red-300 underline cursor-pointer">
                     移除圖片
                   </button>
                 </div>
@@ -628,15 +639,12 @@ function PublishTab({ onRequireVerify }: { onRequireVerify: () => void }) {
   );
 }
 
-// ===== 3. 🌟 升級版：星光貢獻榮譽館 (雙軌殿堂完整清單) =====
+// ===== 3. 星光貢獻榮譽館 =====
 function WalletTab() {
   const { session, profile } = useAuth();
   const [hallTab, setHallTab] = useState<'fulfilled' | 'inTransit'>('fulfilled');
 
-  // 個人在途數據
   const [myInTransitAmount, setMyInTransitAmount] = useState(0);
-
-  // 全站榜單數據
   const [fulfilledTopUsers, setFulfilledTopUsers] = useState<any[]>([]);
   const [inTransitTopUsers, setInTransitTopUsers] = useState<any[]>([]);
   const [loadingHall, setLoadingHall] = useState(true);
@@ -647,7 +655,6 @@ function WalletTab() {
     const loadHallData = async () => {
       setLoadingHall(true);
 
-      // 1. 撈取個人在途燃料
       if (session?.user?.id) {
         const { data: invData } = await supabase
           .from('investments')
@@ -678,7 +685,6 @@ function WalletTab() {
         }
       }
 
-      // 2. 殿堂軌道 A：已履約榮譽星塵前 10 名
       const { data: fulfilledData } = await supabase
         .from('users')
         .select('id, anonymous_nickname, wallet_balance')
@@ -690,7 +696,6 @@ function WalletTab() {
         setFulfilledTopUsers(fulfilledData);
       }
 
-      // 3. 殿堂軌道 B：在途燃料守護者前 10 名
       const { data: allActiveInvs } = await supabase
         .from('investments')
         .select('user_id, amount, wish_id, story_id, users:user_id(anonymous_nickname)');
@@ -737,7 +742,6 @@ function WalletTab() {
         </div>
       </div>
 
-      {/* 個人星光總覽雙卡 */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div className="bg-gradient-to-br from-amber-500/15 via-zinc-900 to-zinc-950 border border-amber-500/20 p-5 rounded-2xl glow-border">
           <p className="text-zinc-400 text-[11px] font-bold tracking-wider mb-1">
@@ -764,7 +768,6 @@ function WalletTab() {
         </div>
       </div>
 
-      {/* 殿堂排行榜雙軌切換 */}
       <div className="glass rounded-2xl p-5 border border-amber-400/20 bg-zinc-900/60 space-y-4">
         <div className="flex items-center justify-between border-b border-white/10 pb-3">
           <div className="flex bg-zinc-950 border border-white/10 p-1 rounded-xl text-xs gap-1">
@@ -794,7 +797,6 @@ function WalletTab() {
           <span className="text-[10px] text-zinc-500 font-mono hidden sm:inline">全站匿名 TOP 10</span>
         </div>
 
-        {/* 殿堂清單展示 */}
         {loadingHall ? (
           <div className="text-center py-10 text-xs text-zinc-500">正在同步全星空榮譽榜單...</div>
         ) : (
@@ -858,14 +860,12 @@ function MyWishesTab({ onEditWish: _onEditWish }: { onEditWish: () => void }) {
   const [filterTag, setFilterTag] = useState<string>('all');
   const [loading, setLoading] = useState(true);
 
-  // 💌 感謝信撰寫狀態
   const [letterWish, setLetterWish] = useState<Wish | null>(null);
   const [thankYouLetter, setThankYouLetter] = useState('');
   const [unboxingPhoto, setUnboxingPhoto] = useState<string | null>(null);
   const [compressingPhoto, setCompressingPhoto] = useState(false);
   const [savingLetter, setSavingLetter] = useState(false);
 
-  // ✏️ 重編願望狀態
   const [editingWish, setEditingWish] = useState<Wish | null>(null);
   const [editTitle, setEditTitle] = useState('');
   const [editPrice, setEditPrice] = useState<number>(500);
