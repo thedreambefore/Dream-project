@@ -4,32 +4,17 @@ import { Sparkles, ChevronLeft, ChevronRight } from 'lucide-react';
 import { supabase } from '@/lib/supabaseClient';
 import type { Announcement } from '@/types/wish';
 
-const DEFAULT_ANNOUNCEMENTS: Announcement[] = [
-  {
-    id: 'default-1',
-    title: '用陌生人的善意，拼湊夢想的沙漏',
-    body: '這裡不看名氣，只聽故事。投入微小的心願燃料，當沙漏填滿時，漂流瓶留言將與夢想終章一同解鎖。',
-    is_active: true,
-    created_at: new Date().toISOString(),
-  },
-  {
-    id: 'default-2',
-    title: '聽見世界的微小願望 · 匿名星塵交易所',
-    body: '所有心願皆經匿名加密處理，保護每位築夢者的隱私，讓善意在無壓力的星空下純粹流動。',
-    is_active: true,
-    created_at: new Date().toISOString(),
-  },
-  {
-    id: 'default-3',
-    title: '真實物流閉環 · 杜絕金錢直匯風險',
-    body: '贊助燃料全數由平台代購指定物資直送超商，滿額後解鎖親筆開箱感謝信，見證善意的開花結果。',
-    is_active: true,
-    created_at: new Date().toISOString(),
-  },
-];
+// 🌟 前端降級專用：資料庫完全無公告時才呈現
+const EMPTY_FALLBACK_ANNOUNCEMENT: Announcement = {
+  id: 'empty-fallback',
+  title: '目前這裡沒有資訊喔',
+  body: '星空廣播站靜候新訊息中，請隨時留意最新公告。',
+  is_active: true,
+  created_at: new Date().toISOString(),
+};
 
 export function HomeHeroCarousel() {
-  const [announcements, setAnnouncements] = useState<Announcement[]>(DEFAULT_ANNOUNCEMENTS);
+  const [announcements, setAnnouncements] = useState<Announcement[]>([EMPTY_FALLBACK_ANNOUNCEMENT]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [direction, setDirection] = useState<'left' | 'right'>('right');
   const [isTransitioning, setIsTransitioning] = useState(false);
@@ -43,8 +28,12 @@ export function HomeHeroCarousel() {
         .eq('is_active', true)
         .order('created_at', { ascending: false });
 
-      if (!error && data && data.length > 0 && isMounted) {
-        setAnnouncements(data as Announcement[]);
+      if (!error && isMounted) {
+        if (data && data.length > 0) {
+          setAnnouncements(data as Announcement[]);
+        } else {
+          setAnnouncements([EMPTY_FALLBACK_ANNOUNCEMENT]);
+        }
       }
     };
 
@@ -87,7 +76,7 @@ export function HomeHeroCarousel() {
     switchSlide(nextIdx, 'right');
   };
 
-  // ⏰ 每 6.5 秒自動向右平滑滑動
+  // ⏰ 每 6.5 秒自動向右平滑滑動（只有在公告大於 1 則時才計時）
   useEffect(() => {
     if (announcements.length <= 1) return;
     const timer = setInterval(() => {
@@ -98,6 +87,7 @@ export function HomeHeroCarousel() {
   }, [currentIndex, announcements.length]);
 
   const current = announcements[currentIndex] || announcements[0];
+  const hasMultiple = announcements.length > 1;
 
   return (
     <div className="max-w-4xl mx-auto px-4 sm:px-6 my-8 relative">
@@ -112,7 +102,7 @@ export function HomeHeroCarousel() {
           <span>星空廣播站 · 公告 {currentIndex + 1} / {announcements.length}</span>
         </div>
 
-        {/* 🌟 核心排版：標題與內文規範高度與尺寸，杜絕文字跳動 */}
+        {/* 規格化排版：標題與內文高寬一致，杜絕跳動 */}
         <div className="relative min-h-[140px] flex flex-col justify-center overflow-hidden">
           <div
             key={current.id}
@@ -124,20 +114,18 @@ export function HomeHeroCarousel() {
                 : 'opacity-100 translate-x-0 blur-0'
             }`}
           >
-            {/* 標題：鎖定尺寸 text-2xl ~ text-3xl */}
             <h1 className="text-xl sm:text-3xl font-black tracking-tight mb-2.5 h-10 flex items-center justify-center bg-gradient-to-b from-white via-slate-100 to-amber-200 bg-clip-text text-transparent truncate">
               {current.title}
             </h1>
 
-            {/* 內文：固定 2 行並提供標準字型尺寸 */}
             <p className="text-slate-300 text-xs sm:text-sm max-w-2xl mx-auto leading-relaxed line-clamp-2 h-10 flex items-center justify-center">
               {current.body}
             </p>
           </div>
         </div>
 
-        {/* 左右切換箭頭 */}
-        {announcements.length > 1 && (
+        {/* 只有在多於 1 則公告時才顯示輪播箭頭與分頁指示點 */}
+        {hasMultiple && (
           <>
             <button
               onClick={handlePrev}
@@ -154,7 +142,6 @@ export function HomeHeroCarousel() {
               <ChevronRight className="w-5 h-5" />
             </button>
 
-            {/* 底部指示分頁點 */}
             <div className="flex justify-center gap-1.5 mt-4">
               {announcements.map((item, idx) => (
                 <button
