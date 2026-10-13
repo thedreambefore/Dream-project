@@ -43,7 +43,7 @@ export function WishCard({
   const [isBookmarked, setIsBookmarked] = useState(Boolean(wish.isBookmarked));
   const [showInvest, setShowInvest] = useState(false);
   const [showDriftModal, setShowDriftModal] = useState(false);
-
+  const isCardShining = isOfficial || wish.status === 'fulfilled' || progress >= 100;
   // 檢舉 / 管理員下架 Modal
   const [showActionModal, setShowActionModal] = useState(false);
   const [actionReason, setActionReason] = useState('');
@@ -203,11 +203,11 @@ export function WishCard({
           {/* ==================== 1. 正面 (故事前綴與進度) ==================== */}
           <div
             className={`absolute inset-0 w-full h-full rounded-2xl glass glow-border overflow-hidden backface-hidden flex flex-col justify-between p-5 bg-zinc-950/90 shadow-2xl ${
-              isFulfilled ? 'holo-border-gold' : 'border-white/10'
+              isCardShining ? 'holo-border-gold' : 'border-white/10'
             }`}
           >
             {/* 🌟 2. 只有在履約 (isFulfilled) 後，才會在卡面鍍上低飽和度的彩虹全息閃卡薄膜 */}
-            {isFulfilled && <div className="trainer-gallery-shine" />}
+            {isCardShining && <div className="trainer-gallery-shine" />}
 
             {/* 背景圖層 */}
             <div className="absolute inset-0 pointer-events-none overflow-hidden -z-10">
