@@ -7,7 +7,6 @@ import { AuthModal } from '@/components/AuthModal';
 import { HomePage } from '@/pages/HomePage';
 import { UserDashboard } from '@/pages/UserDashboard';
 import { AdminConsole } from '@/pages/AdminConsole';
-import { usePublicData } from '@/hooks/usePublicData';
 import { Shield } from 'lucide-react';
 
 interface Props {
@@ -47,16 +46,7 @@ class SafeShield extends Component<Props, State> {
 type View = 'home' | 'dashboard' | 'admin';
 
 function AppContent() {
-  const { loading, session, profile, isAdmin } = useAuth();
-
-  let announcement = { title: '歡迎來到夢沙 DreamSand' };
-  try {
-    const publicData = usePublicData();
-    if (publicData?.announcement) announcement = publicData.announcement;
-  } catch (e) {
-    console.error('攔截 usePublicData 異常');
-  }
-
+  const { loading, session, isAdmin } = useAuth();
   const [view, setView] = useState<View>('home');
   const [showAuth, setShowAuth] = useState(false);
 
@@ -92,16 +82,6 @@ function AppContent() {
             onOpenAuth={() => setShowAuth(true)}
             onOpenDashboard={handleOpenDashboard}
             onOpenAdmin={handleOpenAdmin}
-            announcement={
-              announcement
-                ? typeof announcement === 'object'
-                  ? (announcement as any).content ||
-                    (announcement as any).text ||
-                    (announcement as any).title ||
-                    JSON.stringify(announcement)
-                  : String(announcement)
-                : null
-            }
           />
           <SafeShield>
             <HomePage />
