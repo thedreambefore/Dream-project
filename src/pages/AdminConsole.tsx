@@ -1033,15 +1033,21 @@ function AnnouncementsTab() {
   );
 }
 
-// ===== 5. Tag 管理 =====
+// ===== 5. Tag 管理 (增強版) =====
 function TagsTab() {
   const [tags, setTags] = useState<TagType[]>([]);
   const [name, setName] = useState('');
   const [icon, setIcon] = useState('🏷️');
+  const [submitting, setSubmitting] = useState(false);
 
   const loadTags = useCallback(async () => {
-    const { data } = await supabase.from('tags').select('*').order('sort_order', { ascending: true });
-    setTags((data as TagType[]) || []);
+    const { data, error } = await supabase
+      .from('tags')
+      .select('*')
+      .order('sort_order', { ascending: true });
+    if (!error && data) {
+      setTags(data as TagType[]);
+    }
   }, []);
 
   useEffect(() => {
@@ -1050,41 +1056,90 @@ function TagsTab() {
 
   const handleAdd = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name) return;
-    const maxSort = tags.length > 0 ? Math.max(...tags.map((t) => t.sort_order)) : 0;
-    await supabase.from('tags').insert({ name, icon, sort_order: maxSort + 1 });
-    setName('');
-    loadTags();
+    const cleanName = name.trim().replace(/^#/, '');
+    if (!cleanName) return alert('請輸入標籤名稱');
+
+    setSubmitting(true);
+    try {
+      const maxSort = tags.length > 0 ? Math.max(...tags.map((t) => t.sort_order || 0)) : 0;
+      const { error } = await supabase.from('tags').insert({
+        name: cleanName,
+        icon: icon.trim() || '🏷️',
+        sort_order: maxSort + 1,
+      });
+
+      if (error) throw error;
+
+      alert(`✅ 標籤 #${cleanName} 新增成功！`);
+      setName('');
+      setIcon('🏷️');
+      await loadTags();
+    } catch (err: any) {
+      console.error('新增標籤失敗:', err);
+      alert(`新增失敗: ${err.message || '請確認權限或連線'}`);
+    } finally {
+      setSubmitting(false);
+    }
   };
 
-  const handleDelete = async (id: string) => {
-    await supabase.from('tags').delete().eq('id', id);
-    loadTags();
+  const handleDelete = async (id: string, tagName: string) => {
+    if (!confirm(`確定要刪除標籤 #${tagName} 嗎？`)) return;
+    try {
+      const { error } = await supabase.from('tags').delete().eq('id', id);
+      if (error) throw error;
+      await loadTags();
+    } catch (err: any) {
+      alert(`刪除失敗: ${err.message}`);
+    }
   };
 
   return (
     <div className="space-y-4">
-      <h2 className="text-lg font-bold text-amber-100 flex items-center gap-2">
-        <Tag className="w-5 h-5 text-amber-300" /> 分類標籤管理
-      </h2>
-      <form onSubmit={handleAdd} className="glass rounded-2xl p-5 glow-border flex gap-2">
+      <div>
+        <h2 className="text-lg font-bold text-amber-100 flex items-center gap-2">
+          <Tag className="w-5 h-5 text-amber-300" /> 分類標籤管理
+        </h2>
+        <p className="text-xs text-zinc-400 mt-0.5">
+          在此新增或移除的標籤將即時同步於前台篩選列與許願發布選單。
+        </p>
+      </div>
+
+      <form onSubmit={handleAdd} className="glass rounded-2xl p-5 glow-border flex flex-wrap gap-3 items-center bg-zinc-900/60 border border-amber-400/20">
+        <input
+          type="text"
+          value={icon}
+          onChange={(e) => setIcon(e.target.value)}
+          placeholder="圖示 (例如 🏷️)"
+          className="w-20 bg-zinc-950 border border-white/10 rounded-xl px-3 py-2 text-sm text-center text-white focus:outline-none focus:border-amber-400/50"
+        />
         <input
           type="text"
           value={name}
           onChange={(e) => setName(e.target.value)}
-          placeholder="新標籤名稱"
-          className="flex-1 bg-zinc-900 border border-white/10 rounded-xl px-4 py-2 text-sm text-white focus:outline-none"
+          placeholder="標籤名稱 (例如：日常微光)"
+          className="flex-1 min-w-[200px] bg-zinc-950 border border-white/10 rounded-xl px-4 py-2 text-sm text-white focus:outline-none focus:border-amber-400/50"
           required
         />
-        <button type="submit" className="px-4 py-2 bg-amber-500 hover:bg-amber-400 text-zinc-950 font-bold rounded-xl text-xs">
-          新增標籤
+        <button
+          type="submit"
+          disabled={submitting}
+          className="px-5 py-2.5 bg-amber-500 hover:bg-amber-400 text-zinc-950 font-bold rounded-xl text-xs transition-all cursor-pointer disabled:opacity-50"
+        >
+          {submitting ? '新增中...' : '+ 新增標籤'}
         </button>
       </form>
-      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
         {tags.map((t) => (
-          <div key={t.id} className="glass rounded-xl p-3 flex justify-between items-center text-xs">
-            <span className="text-amber-200">{t.icon} #{t.name}</span>
-            <button onClick={() => handleDelete(t.id)} className="text-red-400 hover:text-red-300">
+          <div key={t.id} className="glass rounded-xl p-3 flex justify-between items-center text-xs border border-white/5 bg-zinc-900/40">
+            <span className="text-amber-200 font-medium">
+              {t.icon} #{t.name}
+            </span>
+            <button
+              onClick={() => handleDelete(t.id, t.name)}
+              className="text-red-400 hover:text-red-300 p-1 hover:bg-red-500/10 rounded-lg transition-colors cursor-pointer"
+              title="刪除標籤"
+            >
               <Trash2 className="w-3.5 h-3.5" />
             </button>
           </div>
