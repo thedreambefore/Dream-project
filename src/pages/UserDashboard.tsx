@@ -27,13 +27,15 @@ export function UserDashboard({
   onClose,
   onGoHome,
   onOpenAdmin,
+  initialTab = 'account',
 }: {
   onClose: () => void;
   onGoHome: () => void;
   onOpenAdmin?: () => void;
+  initialTab?: TabId;
 }) {
   const { profile, refreshProfile, logout } = useAuth();
-  const [activeTab, setActiveTab] = useState<TabId>('account');
+  const [activeTab, setActiveTab] = useState<TabId>('initialTab');
   const [showPhoneVerify, setShowPhoneVerify] = useState(false);
 
   return (
@@ -603,84 +605,226 @@ function PublishTab({ onRequireVerify }: { onRequireVerify: () => void }) {
   );
 }
 
+// ===== 🌟 升級版：星光貢獻榮譽館 (落實雙軌殿堂完整清單) =====
 function WalletTab() {
   const { session, profile } = useAuth();
-  const [inTransitAmount, setInTransitAmount] = useState(0);
-  const [inTransitList, setInTransitList] = useState<any[]>([]);
+  const [hallTab, setHallTab] = useState<'fulfilled' | 'inTransit'>('fulfilled');
+
+  // 個人在途數據
+  const [myInTransitAmount, setMyInTransitAmount] = useState(0);
+  const [myInTransitList, setMyInTransitList] = useState<any[]>([]);
+
+  // 全站榜單數據
+  const [fulfilledTopUsers, setFulfilledTopUsers] = useState<any[]>([]);
+  const [inTransitTopUsers, setInTransitTopUsers] = useState<any[]>([]);
+  const [loadingHall, setLoadingHall] = useState(true);
 
   useEffect(() => {
-    const calcTransit = async () => {
-      if (!session?.user?.id) return;
-      const { data: invData } = await supabase
-        .from('investments')
-        .select('amount, wish_id, story_id')
-        .eq('user_id', session.user.id);
+    let isMounted = true;
 
-      if (invData && invData.length > 0) {
-        const wishIds = Array.from(new Set(invData.map((i) => i.wish_id || i.story_id).filter(Boolean)));
-        const { data: wishData } = await supabase
-          .from('wishes')
-          .select('id, product_name, status')
-          .in('id', wishIds);
+    const loadHallData = async () => {
+      setLoadingHall(true);
 
-        const wishMap = new Map(wishData?.map((w) => [w.id, w]) || []);
+      // 1. 撈取個人在途燃料
+      if (session?.user?.id) {
+        const { data: invData } = await supabase
+          .from('investments')
+          .select('amount, wish_id, story_id')
+          .eq('user_id', session.user.id);
 
-        const activeList = invData
-          .filter((inv) => {
-            const w = wishMap.get(inv.wish_id || inv.story_id);
-            return w && w.status !== 'fulfilled';
-          })
-          .map((inv) => ({
-            amount: inv.amount,
-            product_name: wishMap.get(inv.wish_id || inv.story_id)?.product_name || '進行中心願',
-          }));
+        if (invData && invData.length > 0) {
+          const wishIds = Array.from(new Set(invData.map((i) => i.wish_id || i.story_id).filter(Boolean)));
+          const { data: wishData } = await supabase
+            .from('wishes')
+            .select('id, product_name, status')
+            .in('id', wishIds);
 
-        setInTransitList(activeList);
-        setInTransitAmount(activeList.reduce((acc, curr) => acc + (curr.amount || 0), 0));
+          const wishMap = new Map(wishData?.map((w) => [w.id, w]) || []);
+          const activeList = invData
+            .filter((inv) => {
+              const w = wishMap.get(inv.wish_id || inv.story_id);
+              return w && w.status !== 'fulfilled';
+            })
+            .map((inv) => ({
+              amount: inv.amount,
+              product_name: wishMap.get(inv.wish_id || inv.story_id)?.product_name || '進行中心願',
+            }));
+
+          if (isMounted) {
+            setMyInTransitList(activeList);
+            setMyInTransitAmount(activeList.reduce((acc, curr) => acc + (curr.amount || 0), 0));
+          }
+        }
       }
+
+      // 2. 殿堂軌道 A：已履約榮譽星塵前 10 名
+      const { data: fulfilledData } = await supabase
+        .from('users')
+        .select('id, anonymous_nickname, wallet_balance')
+        .gt('wallet_balance', 0)
+        .order('wallet_balance', { ascending: false })
+        .limit(10);
+
+      if (isMounted && fulfilledData) {
+        setFulfilledTopUsers(fulfilledData);
+      }
+
+      // 3. 殿堂軌道 B：在途燃料守護者前 10 名 (即時匯總未出貨的 investments)
+      const { data: allActiveInvs } = await supabase
+        .from('investments')
+        .select('user_id, amount, wish_id, story_id, users:user_id(anonymous_nickname)');
+
+      if (allActiveInvs && isMounted) {
+        const userTransitMap: Record<string, { nickname: string; total: number }> = {};
+        allActiveInvs.forEach((inv) => {
+          if (inv.user_id) {
+            const nick = (inv as any).users?.anonymous_nickname || '匿名星旅人';
+            if (!userTransitMap[inv.user_id]) {
+              userTransitMap[inv.user_id] = { nickname: nick, total: 0 };
+            }
+            userTransitMap[inv.user_id].total += Number(inv.amount || 0);
+          }
+        });
+
+        const sortedTransit = Object.entries(userTransitMap)
+          .map(([id, val]) => ({ id, anonymous_nickname: val.nickname, amount: val.total }))
+          .sort((a, b) => b.amount - a.amount)
+          .slice(0, 10);
+
+        setInTransitTopUsers(sortedTransit);
+      }
+
+      if (isMounted) setLoadingHall(false);
     };
-    calcTransit();
+
+    loadHallData();
+    return () => {
+      isMounted = false;
+    };
   }, [session?.user?.id]);
 
   const totalHonor = profile?.wallet_balance ?? 0;
 
   return (
-    <div className="max-w-xl space-y-5 animate-fade-in">
-      <h2 className="text-xl font-bold text-amber-100 flex items-center gap-2">
-        <Award className="w-5 h-5 text-amber-300" /> 星光貢獻榮譽館
-      </h2>
-
-      <div className="bg-gradient-to-br from-amber-500/10 via-zinc-900 to-zinc-950 border border-amber-500/20 p-6 rounded-3xl glow-border">
-        <p className="text-zinc-400 text-xs font-medium tracking-wider mb-1">COMPLETED HONOR · 已圓滿履約見證總額</p>
-        <h4 className="text-3xl font-black text-amber-300 font-mono tracking-tight flex items-baseline gap-1">
-          <span>✨</span>
-          <span>{totalHonor.toLocaleString()}</span>
-          <span className="text-xs text-zinc-500 font-normal ml-1">榮譽星塵點</span>
-        </h4>
-        <p className="text-[11px] text-zinc-500 mt-2">只有故事經管理員完成出貨履約後，燃料才會正式化為永久榮譽印記。</p>
+    <div className="space-y-6 max-w-2xl mx-auto animate-fade-in">
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-xl font-bold text-amber-100 flex items-center gap-2">
+            <Award className="w-5 h-5 text-amber-300" /> 星光貢獻榮譽殿堂
+          </h2>
+          <p className="text-xs text-zinc-400 mt-0.5">見證每位星旅人投入的真實善意與在途守護</p>
+        </div>
       </div>
 
-      <div className="glass rounded-2xl p-5 border border-amber-400/20 bg-zinc-900/60 space-y-3">
-        <div className="flex justify-between items-center">
-          <div>
-            <h3 className="text-sm font-bold text-amber-200 flex items-center gap-1.5">
-              <span>⏳</span> 進行中心願暫存區 (在途燃料)
-            </h3>
-            <p className="text-[11px] text-zinc-400">故事推進中，正等待主角滿額與管理員出貨履約</p>
-          </div>
-          <span className="text-base font-black font-mono text-amber-300 bg-amber-500/10 px-3 py-1 rounded-xl border border-amber-400/30">
-            {inTransitAmount.toLocaleString()} 星塵
-          </span>
+      {/* 個人星光總覽雙卡 */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        {/* 卡片 1：已履約榮譽星塵 */}
+        <div className="bg-gradient-to-br from-amber-500/15 via-zinc-900 to-zinc-950 border border-amber-500/20 p-5 rounded-2xl glow-border">
+          <p className="text-zinc-400 text-[11px] font-bold tracking-wider mb-1">
+            已圓滿履約見證星塵 (HONOR)
+          </p>
+          <h4 className="text-2xl font-black text-amber-300 font-mono flex items-baseline gap-1">
+            <span>✨</span>
+            <span>{totalHonor.toLocaleString()}</span>
+            <span className="text-[10px] text-zinc-500 font-normal ml-1">榮譽點</span>
+          </h4>
+          <p className="text-[10px] text-zinc-500 mt-1.5">故事完成開箱履約後轉化之永久印記</p>
         </div>
 
-        {inTransitList.length > 0 && (
-          <div className="space-y-2 pt-2 border-t border-white/5 max-h-48 overflow-y-auto hide-scrollbar">
-            {inTransitList.map((item, idx) => (
-              <div key={idx} className="flex justify-between items-center text-xs bg-zinc-950/60 p-2.5 rounded-xl border border-white/5">
-                <span className="text-zinc-300 truncate max-w-[200px]">{item.product_name}</span>
-                <span className="text-amber-400 font-mono font-bold">+{item.amount} 暫存星塵</span>
-              </div>
-            ))}
+        {/* 卡片 2：進行中在途燃料 */}
+        <div className="bg-zinc-900/70 border border-white/10 p-5 rounded-2xl">
+          <p className="text-zinc-400 text-[11px] font-bold tracking-wider mb-1">
+            進行中在途燃料 (IN TRANSIT)
+          </p>
+          <h4 className="text-2xl font-black text-yellow-200 font-mono flex items-baseline gap-1">
+            <span>⏳</span>
+            <span>{myInTransitAmount.toLocaleString()}</span>
+            <span className="text-[10px] text-zinc-500 font-normal ml-1">在途星塵</span>
+          </h4>
+          <p className="text-[10px] text-zinc-500 mt-1.5">正陪伴主角奔向目標，等待圓滿履約</p>
+        </div>
+      </div>
+
+      {/* 殿堂排行榜雙軌切換 */}
+      <div className="glass rounded-2xl p-5 border border-amber-400/20 bg-zinc-900/60 space-y-4">
+        <div className="flex items-center justify-between border-b border-white/10 pb-3">
+          <div className="flex bg-zinc-950 border border-white/10 p-1 rounded-xl text-xs gap-1">
+            <button
+              type="button"
+              onClick={() => setHallTab('fulfilled')}
+              className={`px-3 py-1.5 rounded-lg font-bold transition-all cursor-pointer ${
+                hallTab === 'fulfilled'
+                  ? 'bg-amber-500/20 text-amber-300 border border-amber-400/30'
+                  : 'text-zinc-400 hover:text-white'
+              }`}
+            >
+              🌌 傳奇引路榜 (已履約總額)
+            </button>
+            <button
+              type="button"
+              onClick={() => setHallTab('inTransit')}
+              className={`px-3 py-1.5 rounded-lg font-bold transition-all cursor-pointer ${
+                hallTab === 'inTransit'
+                  ? 'bg-yellow-500/20 text-yellow-300 border border-yellow-400/30'
+                  : 'text-zinc-400 hover:text-white'
+              }`}
+            >
+              ⏳ 在途守護榜 (當前在途)
+            </button>
+          </div>
+          <span className="text-[10px] text-zinc-500 font-mono hidden sm:inline">全站匿名 TOP 10</span>
+        </div>
+
+        {/* 殿堂清單展示 */}
+        {loadingHall ? (
+          <div className="text-center py-10 text-xs text-zinc-500">正在同步全星空榮譽榜單...</div>
+        ) : (
+          <div className="space-y-2">
+            {(hallTab === 'fulfilled' ? fulfilledTopUsers : inTransitTopUsers).length === 0 ? (
+              <div className="text-center py-10 text-xs text-zinc-500">虛位以待，等待第一顆引路星點亮</div>
+            ) : (
+              (hallTab === 'fulfilled' ? fulfilledTopUsers : inTransitTopUsers).map((u, idx) => (
+                <div
+                  key={u.id}
+                  className={`flex items-center justify-between p-3 rounded-xl border text-xs transition-all ${
+                    idx === 0
+                      ? 'bg-amber-500/15 border-amber-400/40 shadow-sm'
+                      : idx === 1
+                      ? 'bg-white/5 border-white/15'
+                      : idx === 2
+                      ? 'bg-amber-900/10 border-amber-600/20'
+                      : 'bg-zinc-950/60 border-white/5'
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <span
+                      className={`font-mono font-black text-sm w-5 text-center ${
+                        idx === 0
+                          ? 'text-amber-300'
+                          : idx === 1
+                          ? 'text-slate-300'
+                          : idx === 2
+                          ? 'text-amber-600'
+                          : 'text-zinc-500'
+                      }`}
+                    >
+                      {idx + 1}
+                    </span>
+                    <div className="w-7 h-7 rounded-full bg-gradient-to-tr from-amber-400 to-yellow-600 text-zinc-950 font-bold flex items-center justify-center text-xs shadow-inner">
+                      {u.anonymous_nickname.substring(0, 1)}
+                    </div>
+                    <span className="font-bold text-zinc-200">{u.anonymous_nickname}</span>
+                  </div>
+
+                  <div className="text-right font-mono">
+                    <span className="text-amber-300 font-bold text-sm">
+                      ✨ {(hallTab === 'fulfilled' ? u.wallet_balance : u.amount).toLocaleString()}
+                    </span>
+                    <span className="text-[10px] text-zinc-500 ml-1">星塵</span>
+                  </div>
+                </div>
+              ))
+            )}
           </div>
         )}
       </div>
