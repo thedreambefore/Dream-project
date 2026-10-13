@@ -5,7 +5,7 @@ import { Starfield } from '@/components/Starfield';
 import { Navbar } from '@/components/Navbar';
 import { AuthModal } from '@/components/AuthModal';
 import { HomePage } from '@/pages/HomePage';
-import { UserDashboard } from '@/pages/UserDashboard';
+import { UserDashboard, TabId } from '@/pages/UserDashboard';
 import { AdminConsole } from '@/pages/AdminConsole';
 import { Shield } from 'lucide-react';
 
@@ -50,6 +50,9 @@ function AppContent() {
   const [view, setView] = useState<View>('home');
   const [showAuth, setShowAuth] = useState(false);
 
+  // 🌟 控制打開 UserDashboard 時要預設停留在哪個分頁
+  const [dashboardTab, setDashboardTab] = useState<TabId>('account');
+
   if (loading) {
     return (
       <div className="space-bg min-h-screen flex items-center justify-center">
@@ -61,9 +64,24 @@ function AppContent() {
     );
   }
 
+  // 一般點擊 Navbar 打開個人中心
   const handleOpenDashboard = () => {
-    if (session) setView('dashboard');
-    else setShowAuth(true);
+    if (session) {
+      setDashboardTab('account');
+      setView('dashboard');
+    } else {
+      setShowAuth(true);
+    }
+  };
+
+  // 🌟 點擊首頁排行榜「榮譽殿堂」跳轉
+  const handleOpenHonorHall = () => {
+    if (session) {
+      setDashboardTab('wallet'); // 指定跳轉至星光榮譽館
+      setView('dashboard');
+    } else {
+      setShowAuth(true);
+    }
   };
 
   const handleOpenAdmin = () => {
@@ -84,7 +102,7 @@ function AppContent() {
             onOpenAdmin={handleOpenAdmin}
           />
           <SafeShield>
-            <HomePage />
+            <HomePage onOpenHonorHall={handleOpenHonorHall} />
           </SafeShield>
 
           {!session && (
@@ -101,6 +119,7 @@ function AppContent() {
 
       {view === 'dashboard' && session && (
         <UserDashboard
+          initialTab={dashboardTab}
           onClose={() => setView('home')}
           onGoHome={() => setView('home')}
           onOpenAdmin={handleOpenAdmin}
