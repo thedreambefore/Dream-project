@@ -476,7 +476,7 @@ export function WishCard({
                     }`}
                   >
                     <Coins className="w-3.5 h-3.5 fill-current" />
-                    {isNearComplete ? '🌟 搶下尾刀 · 助他圓夢' : '🌌 注入星塵 · 助他圓夢'}
+                    {isOfficial ? '🌌 注入星塵 · 支持夢沙' : (isNearComplete ? '🌟 最後一塵 · 助他圓夢' : '🌌 注入星塵 · 助他圓夢')}
                   </button>
                 ))}
             </div>
