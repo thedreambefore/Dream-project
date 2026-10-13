@@ -1,9 +1,8 @@
 // src/components/DriftBottleModal.tsx
 import { useState, useEffect, useMemo } from 'react';
-import { X, MessageCircle, Loader2, Lock, Trash2, ShieldCheck, HeartHandshake } from 'lucide-react';
+import { X, MessageCircle, Loader2, Lock, Trash2, Coins, Sparkles } from 'lucide-react';
 import { supabase } from '@/lib/supabaseClient';
 import type { Wish, Investment } from '@/types/wish';
-import { WishCard } from './WishCard';
 import { useAuth } from '@/context/AuthContext';
 import { OFFICIAL_SPONSOR_ID } from '@/lib/backend';
 
@@ -23,6 +22,10 @@ export function DriftBottleModal({ wish, isFulfilled, onClose }: DriftBottleModa
   const isOfficial = wish.id === OFFICIAL_SPONSOR_ID;
   const isOwner = session?.user?.id === wish.user_id;
 
+  const currentStardust = Number(wish.current_stardust || 0);
+  const targetStardust = Number(wish.product_price || 1);
+  const progressPercent = Math.min(100, Math.round((currentStardust / targetStardust) * 100));
+
   // 1. 檢查當前使用者是否曾贊助過此願望
   useEffect(() => {
     if (!session?.user?.id) return;
@@ -37,9 +40,7 @@ export function DriftBottleModal({ wish, isFulfilled, onClose }: DriftBottleModa
       });
   }, [session?.user?.id, wish.id]);
 
-  // 2. 核心權限判斷：
-  // 官方卡：全公開
-  // 一般卡：必須已經履約(isFulfilled) 且 (是許願者本人 或 曾贊助過 或 管理員)
+  // 2. 核心權限判斷：官方卡全公開；一般卡履約後僅許願人、贊助者、管理員可見
   const canAccess = isOfficial || (isFulfilled && (isOwner || hasDonated || isAdmin));
 
   const loadMessages = async () => {
@@ -77,7 +78,7 @@ export function DriftBottleModal({ wish, isFulfilled, onClose }: DriftBottleModa
     });
   }, [messages, isOfficial, session?.user?.id]);
 
-  // 管理員：表態貼圖 (⭕, ❌, 👍)
+  // 管理員：貼圖表情反饋 (⭕, ❌, 👍)
   const handleSetReaction = async (msgId: string, emoji: string) => {
     try {
       await supabase.from('investments').update({ reaction: emoji } as any).eq('id', msgId);
@@ -109,10 +110,84 @@ export function DriftBottleModal({ wish, isFulfilled, onClose }: DriftBottleModa
         className="max-w-4xl w-full h-[620px] flex flex-col md:flex-row gap-4 items-center justify-center"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="w-full md:w-80 h-full flex-shrink-0 flex items-center justify-center">
-          <WishCard wish={wish} variant="preview" />
+        {/* 🌟 左側獨立預覽卡片：不依賴 WishCard 元件，杜絕 Circular Dependency */}
+        <div className="w-full md:w-80 h-[430px] flex-shrink-0 flex items-center justify-center">
+          <div className="w-full h-full rounded-2xl glass glow-border overflow-hidden flex flex-col justify-between p-5 bg-zinc-950/90 shadow-2xl relative border border-amber-400/25">
+            {/* 背景圖層 */}
+            <div className="absolute inset-0 pointer-events-none overflow-hidden -z-10">
+              {wish.image_url ? (
+                <div className="relative w-full h-full">
+                  <img
+                    src={wish.image_url}
+                    alt={wish.product_name}
+                    className="w-full h-full object-cover brightness-60 contrast-125"
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-[#0a0a1a] via-[#120e28]/85 to-[#241446]/60 mix-blend-overlay" />
+                  <div className="absolute inset-0 bg-gradient-to-b from-transparent via-black/40 to-[#0a0a1a]" />
+                </div>
+              ) : (
+                <div className="w-full h-full bg-gradient-to-br from-indigo-950/60 via-purple-950/40 to-[#0a0a1a]" />
+              )}
+            </div>
+
+            {/* 頂部標籤 */}
+            <div>
+              <div className="flex items-center justify-between mb-3">
+                <span className="text-xs px-2.5 py-1 rounded-full bg-amber-500/15 border border-amber-400/30 text-amber-200 font-mono flex items-center gap-1 backdrop-blur-md">
+                  <Sparkles className="w-3 text-amber-300" />
+                  #{wish.tag_name}
+                </span>
+
+                {isOfficial ? (
+                  <span className="text-[10px] font-bold text-amber-300 bg-amber-500/20 px-2 py-0.5 rounded-full border border-amber-400/30">
+                    🪐 官方常駐
+                  </span>
+                ) : isFulfilled ? (
+                  <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-amber-400 text-zinc-950">
+                    ✨ 圓滿履約
+                  </span>
+                ) : (
+                  <span className="text-[10px] font-mono text-zinc-400 bg-black/60 px-2 py-0.5 rounded-md border border-white/5">
+                    {progressPercent}%
+                  </span>
+                )}
+              </div>
+
+              <h3 className="font-bold text-amber-100 text-base leading-snug line-clamp-2 mt-2 drop-shadow-md flex items-center gap-2">
+                <span className="text-2xl">{wish.cover_emoji}</span>
+                <span>{wish.product_name}</span>
+              </h3>
+            </div>
+
+            {/* 底部承諾與進度列 */}
+            <div className="space-y-3">
+              <div className="bg-black/50 border border-white/10 rounded-xl p-2.5 backdrop-blur-md">
+                <p className="text-[11px] text-zinc-400 line-clamp-2">
+                  <span className="text-amber-300/80 font-bold">故事承諾：</span>
+                  {wish.promise_text}
+                </p>
+              </div>
+
+              <div className="space-y-1.5">
+                <div className="flex justify-between items-baseline text-xs font-mono">
+                  <span className="text-zinc-400 flex items-center gap-1">
+                    <Coins className="w-3.5 h-3.5 text-amber-400" />
+                    {currentStardust.toLocaleString()} / {targetStardust.toLocaleString()}
+                  </span>
+                  <span className="text-amber-200 font-bold">{progressPercent}%</span>
+                </div>
+                <div className="w-full h-1.5 rounded-full bg-white/10 overflow-hidden">
+                  <div
+                    className="h-full bg-gradient-to-r from-amber-500 to-yellow-400"
+                    style={{ width: `${progressPercent}%` }}
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
 
+        {/* 右側：漂流瓶留言室 */}
         <div className="flex-1 w-full h-full rounded-3xl glass-strong border border-white/10 bg-zinc-900/95 flex flex-col justify-between overflow-hidden shadow-2xl relative">
           {/* 頂部標題列 */}
           <div className="p-4 border-b border-white/10 flex justify-between items-center bg-black/40">
@@ -123,7 +198,7 @@ export function DriftBottleModal({ wish, isFulfilled, onClose }: DriftBottleModa
               </h4>
               <p className="text-[10px] text-zinc-400">
                 {isOfficial
-                  ? '官方願望公開交流區 · 支持星空並留下寶貴建議'
+                  ? '官方公開交流區 · 支持星空並留下寶貴建議'
                   : '專屬閉環空間 · 僅許願者與贊助星旅人於圓滿履約後解鎖'}
               </p>
             </div>
@@ -138,7 +213,6 @@ export function DriftBottleModal({ wish, isFulfilled, onClose }: DriftBottleModa
           {/* 內容區塊 */}
           <div className="flex-1 p-4 overflow-y-auto space-y-3 hide-scrollbar">
             {!canAccess ? (
-              // 🔒 未達標或無權限者看到的保密提示
               <div className="text-center py-20 px-6 flex flex-col items-center justify-center gap-3">
                 <div className="w-14 h-14 rounded-full bg-amber-500/10 border border-amber-400/30 flex items-center justify-center text-amber-300">
                   <Lock className="w-7 h-7" />
@@ -198,7 +272,7 @@ export function DriftBottleModal({ wish, isFulfilled, onClose }: DriftBottleModa
                         {msg.message || '(默默注入了一筆心願燃料)'}
                       </p>
 
-                      {/* 貼圖表情反饋展示 (LINE 貼圖風格) */}
+                      {/* 貼圖表情反饋展示 */}
                       {msgReaction && (
                         <div className="pt-1 flex items-center gap-1.5">
                           <span className="inline-flex items-center gap-1 bg-white/10 px-2 py-0.5 rounded-full text-xs border border-white/15">
@@ -243,7 +317,6 @@ export function DriftBottleModal({ wish, isFulfilled, onClose }: DriftBottleModa
             )}
           </div>
 
-          {/* 底部說明 */}
           <div className="p-3 bg-black/60 border-t border-white/5 text-center text-[11px] text-zinc-500">
             {isOfficial ? (
               <span>💡 您的寶貴建言將於注入星塵時永久留存，管理團隊將定期檢閱回饋</span>
