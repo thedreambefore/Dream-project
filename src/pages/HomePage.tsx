@@ -41,7 +41,6 @@ export function HomePage() {
   const loadWishes = async () => {
     try {
       const realWishes = await fetchPublicWishes();
-      // 排除已滿額、募滿待出貨或已履約完結的卡片
       const activeWishes = realWishes.filter((w) => {
         const isFull = Number(w.current_stardust || 0) >= Number(w.product_price || 0);
         const isCompletedStatus = w.status === 'full_funded' || w.status === 'fulfilled';
@@ -82,10 +81,8 @@ export function HomePage() {
 
   return (
     <div className="max-w-6xl mx-auto px-6 pt-4 pb-32 relative z-10 animate-fade-in">
-      {/* 🌟 核心：原標題與副標題升級為支援管理員即時增刪改的自動輪播公告欄 */}
       <HomeHeroCarousel />
 
-      {/* 標籤列 */}
       <div className="flex gap-2.5 overflow-x-auto pb-4 hide-scrollbar mb-10 border-b border-white/5">
         {tags.map((tag) => (
           <button
