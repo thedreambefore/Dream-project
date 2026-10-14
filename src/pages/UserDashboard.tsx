@@ -13,6 +13,18 @@ import {
   Coins,
   Heart,
   Hourglass,
+  FileText,
+  MessageSquare,
+  CheckCircle2,
+  Laptop,
+  Palette,
+  Music,
+  Coffee,
+  Compass,
+  Camera,
+  Gift,
+  Shield,
+  Search,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabaseClient';
 import { useAuth } from '@/context/AuthContext';
@@ -305,7 +317,7 @@ function AccountTab() {
           className="w-full bg-gradient-to-r from-amber-500 to-yellow-600 text-gray-950 font-black text-sm py-3 rounded-xl hover:from-amber-400 hover:to-yellow-500 transition-all flex items-center justify-center gap-2 cursor-pointer"
         >
           {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-          {saved ? '✨ 星沙印記儲存成功！' : '儲存全站帳號設定'}
+          {saved ? '<Sparkles className="w-3.5 h-3.5 text-amber-400" /> 星沙印記儲存成功！' : '儲存全站帳號設定'}
         </button>
       </form>
     </div>
@@ -325,7 +337,7 @@ function PublishTab({ onRequireVerify }: { onRequireVerify: () => void }) {
   // 🌟 動態從資料庫 tags 資料表獲取
   const [tags, setTags] = useState<Tag[]>([]);
   const [tagName, setTagName] = useState('');
-  const [coverEmoji, setCoverEmoji] = useState('✨');
+  const [coverEmoji, setCoverEmoji] = useState('<Sparkles className="w-3.5 h-3.5 text-amber-400" />');
 
   const [imageBase64, setImageBase64] = useState<string | null>(null);
   const [compressing, setCompressing] = useState(false);
@@ -346,7 +358,19 @@ function PublishTab({ onRequireVerify }: { onRequireVerify: () => void }) {
       });
   }, []);
 
-  const emojis = ['✨', '💻', '📚', '🐾', '🎨', '🎵', '☕', '👟', '🎒', '🌱'];
+  // 🌟 線條向量圖示庫 (徹底取代彩色 Emoji)
+  const ICON_OPTIONS = [
+    { id: 'Sparkles', icon: Sparkles, label: '星塵' },
+    { id: 'Laptop', icon: Laptop, label: '科技' },
+    { id: 'BookOpen', icon: BookOpen, label: '學識' },
+    { id: 'Palette', icon: Palette, label: '藝術' },
+    { id: 'Music', icon: Music, label: '音樂' },
+    { id: 'Coffee', icon: Coffee, label: '生活' },
+    { id: 'Compass', icon: Compass, label: '探索' },
+    { id: 'Camera', icon: Camera, label: '創作' },
+    { id: 'Gift', icon: Gift, label: '心意' },
+    { id: 'Heart', icon: Heart, label: '陪伴' },
+  ];
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -531,20 +555,27 @@ function PublishTab({ onRequireVerify }: { onRequireVerify: () => void }) {
               )}
             </div>
             <div>
-              <label className="block text-xs font-medium text-gray-300 mb-1.5">願望星宿圖示</label>
+              <label className="block text-xs font-medium text-zinc-300 mb-1.5">心願主題線條圖示</label>
               <div className="flex gap-1.5 overflow-x-auto pb-1 hide-scrollbar">
-                {emojis.map((em) => (
-                  <button
-                    key={em}
-                    type="button"
-                    onClick={() => setCoverEmoji(em)}
-                    className={`w-9 h-9 rounded-lg text-base flex-shrink-0 transition-all cursor-pointer ${
-                      coverEmoji === em ? 'bg-amber-500/30 border border-amber-400' : 'bg-white/5 border border-white/10'
-                    }`}
-                  >
-                    {em}
-                  </button>
-                ))}
+                {ICON_OPTIONS.map((item) => {
+                  const IconComp = item.icon;
+                  const isSelected = coverEmoji === item.id;
+                  return (
+                    <button
+                      key={item.id}
+                      type="button"
+                      title={item.label}
+                      onClick={() => setCoverEmoji(item.id)}
+                      className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 transition-all cursor-pointer ${
+                        isSelected
+                          ? 'bg-amber-500/20 border border-amber-400 text-amber-300 shadow-[0_0_10px_rgba(245,158,11,0.25)]'
+                          : 'bg-zinc-900 border border-white/10 text-zinc-400 hover:text-white hover:border-white/20'
+                      }`}
+                    >
+                      <IconComp className="w-4 h-4" />
+                    </button>
+                  );
+                })}
               </div>
             </div>
           </div>
@@ -593,7 +624,7 @@ function PublishTab({ onRequireVerify }: { onRequireVerify: () => void }) {
                 <div className="absolute inset-0 bg-gradient-to-t from-[#0a0a1a] via-[#120e28]/85 to-[#241446]/60 mix-blend-overlay" />
                 <div className="absolute inset-0 bg-gradient-to-b from-transparent via-black/40 to-[#0a0a1a]" />
                 <div className="absolute bottom-2 left-3 right-3 flex justify-between items-center text-[10px] text-amber-200">
-                  <span>✨ 星空殘影同化效果預覽成功</span>
+                  <span><Sparkles className="w-3.5 h-3.5 text-amber-400" /> 星空殘影同化效果預覽成功</span>
                   <button type="button" onClick={() => setImageBase64(null)} className="text-red-400 hover:text-red-300 underline cursor-pointer">
                     移除圖片
                   </button>
@@ -809,7 +840,7 @@ function WalletTab() {
             已圓滿履約見證星塵 (HONOR)
           </p>
           <h4 className="text-2xl font-black text-amber-300 font-mono flex items-baseline gap-1">
-            <span>✨</span>
+            <Sparkles className="w-5 h-5 text-amber-300" />
             <span>{totalHonor.toLocaleString()}</span>
             <span className="text-[10px] text-zinc-500 font-normal ml-1">榮譽點</span>
           </h4>
@@ -835,7 +866,7 @@ function WalletTab() {
           </div>
 
           <h4 className="text-2xl font-black text-yellow-200 font-mono flex items-baseline gap-1">
-            <span>⏳</span>
+            <Hourglass className="w-5 h-5 text-yellow-300" />
             <span>{myInTransitAmount.toLocaleString()}</span>
             <span className="text-[10px] text-zinc-500 font-normal ml-1">在途星塵</span>
           </h4>
@@ -850,7 +881,7 @@ function WalletTab() {
         <div className="glass rounded-2xl p-5 border border-amber-400/30 bg-zinc-950/90 space-y-3 animate-fade-in">
           <div className="flex justify-between items-center border-b border-white/10 pb-2.5">
             <h4 className="text-xs font-bold text-amber-200 flex items-center gap-1.5">
-              <span>📜</span> 我的在途星塵來歷名冊 ({transitList.length} 筆)
+              <FileText className="w-4 h-4 text-amber-300" /> 我的在途星塵來歷名冊 ({transitList.length} 筆)
             </h4>
             <span className="text-[10px] text-zinc-500">故事達成出貨後將轉為永久榮譽</span>
           </div>
@@ -866,7 +897,7 @@ function WalletTab() {
                 >
                   <div className="flex justify-between items-center">
                     <div className="flex items-center gap-2 truncate max-w-[240px]">
-                      <span className="text-base">{item.wish?.cover_emoji || '✨'}</span>
+                      <span className="text-base">{item.wish?.cover_emoji || '<Sparkles className="w-3.5 h-3.5 text-amber-400" />'}</span>
                       <span className="font-bold text-amber-100 truncate">
                         {item.wish?.product_name || '心願活動'}
                       </span>
@@ -877,7 +908,7 @@ function WalletTab() {
                   </div>
 
                   <p className="text-zinc-300 bg-black/40 p-2 rounded-lg text-[11px] leading-relaxed">
-                    💬 我的留言：{item.message || '(默默守護未留字)'}
+                    <MessageSquare className="w-3.5 h-3.5 inline mr-1 text-zinc-400" /> 留言：{item.message || '(默默守護未留字)'}
                   </p>
 
                   <div className="flex justify-between items-center text-[10px] text-zinc-500 pt-0.5">
@@ -994,7 +1025,7 @@ function WalletTab() {
 
                   <div className="text-right font-mono">
                     <span className="text-amber-300 font-bold text-sm">
-                      ✨ {Number(u.amount || 0).toLocaleString()}
+                      <Sparkles className="w-3.5 h-3.5 text-amber-400" /> {Number(u.amount || 0).toLocaleString()}
                     </span>
                     <span className="text-[10px] text-zinc-500 ml-1">星塵</span>
                   </div>
@@ -1074,7 +1105,7 @@ function MyWishesTab({ onEditWish: _onEditWish }: { onEditWish: () => void }) {
         .eq('id', editingWish.id);
 
       if (error) throw error;
-      alert('✨ 已重新提交！請等待管理員審核。');
+      alert('<Sparkles className="w-3.5 h-3.5 text-amber-400" /> 已重新提交！請等待管理員審核。');
       setEditingWish(null);
       loadMyWishes();
     } catch (e: any) {
