@@ -245,11 +245,11 @@ function AccountTab() {
         <div className="mt-3">
           {profile?.is_phone_verified ? (
             <span className="inline-flex items-center gap-1 text-xs px-3 py-1 rounded-full bg-green-500/10 border border-green-500/30 text-green-400">
-              ✓ 台灣手機強驗證已成功解鎖
+              ✓ 電子信箱已驗證
             </span>
           ) : (
             <span className="inline-flex items-center gap-1 text-xs px-3 py-1 rounded-full bg-zinc-800 border border-white/5 text-gray-400">
-              ⚠️ 手機未強驗證（發布夢想功能受限）
+              ⚠️ 電子信箱未驗證（發布夢想功能受限）
             </span>
           )}
         </div>
@@ -420,8 +420,14 @@ function PublishTab({ onRequireVerify }: { onRequireVerify: () => void }) {
       setError('故事內文不能超過 200 字');
       return;
     }
-    if (productPrice <= 0) {
-      setError('目標金額需大於 0');
+    // 🌟 嚴格設置上限：願望最高星塵 20,000，最低 50
+    if (productPrice < 50 || productPrice > 20000) {
+      setError('願望星塵數額限定在 50 ~ 20,000 顆之間');
+      return;
+    }
+    // 🌟 電商商品連結不可為空
+    if (!productUrl.trim()) {
+      setError('商品電商連結不可為空，請填寫外部 B2C 電商之商品網址');
       return;
     }
 
@@ -563,6 +569,7 @@ function PublishTab({ onRequireVerify }: { onRequireVerify: () => void }) {
                 onChange={(e) => setProductUrl(e.target.value)}
                 placeholder="https://shopee.tw/..."
                 className="w-full bg-zinc-900/80 border border-white/10 rounded-xl px-4 py-2.5 text-xs text-white placeholder-zinc-600 focus:outline-none focus:border-amber-400/50"
+                required
               />
             </div>
           </div>
@@ -642,13 +649,17 @@ function PublishTab({ onRequireVerify }: { onRequireVerify: () => void }) {
 }
 
 // ===== 3. 星光貢獻榮譽館 (支援途中星塵點擊展開來歷清單) =====
+// ===== 3. 星光貢獻榮譽館 (保留在途明細展開 + 統一三大排行榜) =====
 function WalletTab() {
   const { session, profile } = useAuth();
-  const [hallTab, setHallTab] = useState<'fulfilled' | 'inTransit'>('fulfilled');
+  
+  // 🌟 支援 3 種榜單切換：圓滿全額榜、在途守護榜、官方支持榜
+  const [hallTab, setHallTab] = useState<'fulfilled' | 'inTransit' | 'official'>('fulfilled');
+  const [officialDonors, setOfficialDonors] = useState<any[]>([]);
 
   const [myInTransitAmount, setMyInTransitAmount] = useState(0);
-  const [transitList, setTransitList] = useState<any[]>([]); // 🌟 儲存途中星塵明細
-  const [showTransitDetails, setShowTransitDetails] = useState(false); // 🌟 點擊展開開關
+  const [transitList, setTransitList] = useState<any[]>([]); // 🌟 保留：儲存途中星塵明細
+  const [showTransitDetails, setShowTransitDetails] = useState(false); // 🌟 保留：點擊展開開關
 
   const [fulfilledTopUsers, setFulfilledTopUsers] = useState<any[]>([]);
   const [inTransitTopUsers, setInTransitTopUsers] = useState<any[]>([]);
@@ -660,87 +671,117 @@ function WalletTab() {
     const loadHallData = async () => {
       setLoadingHall(true);
 
-      // 1. 抓取全站未完結的心願清單 (status !== 'fulfilled')
-      const { data: activeWishes } = await supabase
-        .from('wishes')
-        .select('id, product_name, cover_emoji, current_stardust, product_price, status')
-        .neq('status', 'fulfilled')
-        .neq('id', '00000000-0000-0000-0000-000000000001'); // 排除官方卡
+      try {
+        // 1. 抓取全站未完結的心願清單 (status !== 'fulfilled')
+        const { data: activeWishes } = await supabase
+          .from('wishes')
+          .select('id, product_name, cover_emoji, current_stardust, product_price, status')
+          .neq('status', 'fulfilled')
+          .neq('id', '00000000-0000-0000-0000-000000000001'); // 排除官方卡
 
-      const wishMap = new Map((activeWishes || []).map((w) => [w.id, w]));
+        const wishMap = new Map((activeWishes || []).map((w) => [w.id, w]));
 
-      // 2. 撈取登入者個人的途中星塵與明細
-      if (session?.user?.id && wishMap.size > 0) {
-        const { data: myInvs } = await supabase
-          .from('investments')
-          .select('id, amount, message, created_at, wish_id, story_id')
-          .eq('user_id', session.user.id)
-          .order('created_at', { ascending: false });
+        // 2. 撈取登入者個人的途中星塵與明細
+        if (session?.user?.id && wishMap.size > 0) {
+          const { data: myInvs } = await supabase
+            .from('investments')
+            .select('id, amount, message, created_at, wish_id, story_id')
+            .eq('user_id', session.user.id)
+            .order('created_at', { ascending: false });
 
-        if (myInvs && isMounted) {
-          const detailedTransit: any[] = [];
-          let totalInTransit = 0;
+          if (myInvs && isMounted) {
+            const detailedTransit: any[] = [];
+            let totalInTransit = 0;
 
-          myInvs.forEach((inv) => {
-            const wid = inv.wish_id || inv.story_id;
-            const targetWish = wishMap.get(wid);
-            if (targetWish) {
-              totalInTransit += Number(inv.amount || 0);
-              detailedTransit.push({
-                ...inv,
-                wish: targetWish,
-              });
-            }
-          });
-
-          setMyInTransitAmount(totalInTransit);
-          setTransitList(detailedTransit);
-        }
-      }
-
-      // 3. 傳奇引路榜
-      const { data: fulfilledData } = await supabase
-        .from('users')
-        .select('id, anonymous_nickname, wallet_balance')
-        .gt('wallet_balance', 0)
-        .order('wallet_balance', { ascending: false })
-        .limit(10);
-
-      if (isMounted && fulfilledData) {
-        setFulfilledTopUsers(fulfilledData);
-      }
-
-      // 4. 在途守護榜
-      if (wishMap.size > 0) {
-        const { data: allInvs } = await supabase
-          .from('investments')
-          .select('user_id, amount, wish_id, story_id, users:user_id(anonymous_nickname)');
-
-        if (allInvs && isMounted) {
-          const userTransitMap: Record<string, { nickname: string; total: number }> = {};
-
-          allInvs.forEach((inv) => {
-            const wid = inv.wish_id || inv.story_id;
-            if (wid && wishMap.has(wid) && inv.user_id) {
-              const nick = (inv as any).users?.anonymous_nickname || '匿名星旅人';
-              if (!userTransitMap[inv.user_id]) {
-                userTransitMap[inv.user_id] = { nickname: nick, total: 0 };
+            myInvs.forEach((inv) => {
+              const wid = inv.wish_id || inv.story_id;
+              const targetWish = wishMap.get(wid);
+              if (targetWish) {
+                totalInTransit += Number(inv.amount || 0);
+                detailedTransit.push({
+                  ...inv,
+                  wish: targetWish,
+                });
               }
-              userTransitMap[inv.user_id].total += Number(inv.amount || 0);
+            });
+
+            setMyInTransitAmount(totalInTransit);
+            setTransitList(detailedTransit);
+          }
+        }
+
+        // 3. 【榜單一：圓滿引路榜】(已履約總額)
+        const { data: fulfilledData } = await supabase
+          .from('users')
+          .select('id, anonymous_nickname, wallet_balance')
+          .gt('wallet_balance', 0)
+          .order('wallet_balance', { ascending: false })
+          .limit(10);
+
+        if (isMounted && fulfilledData) {
+          setFulfilledTopUsers(fulfilledData);
+        }
+
+        // 4. 【榜單二：在途守護榜】(進行中心願的在途燃料)
+        if (wishMap.size > 0) {
+          const { data: allInvs } = await supabase
+            .from('investments')
+            .select('user_id, amount, wish_id, story_id, users:user_id(anonymous_nickname)');
+
+          if (allInvs && isMounted) {
+            const userTransitMap: Record<string, { nickname: string; total: number }> = {};
+
+            allInvs.forEach((inv) => {
+              const wid = inv.wish_id || inv.story_id;
+              if (wid && wishMap.has(wid) && inv.user_id) {
+                const nick = (inv as any).users?.anonymous_nickname || '匿名星旅人';
+                if (!userTransitMap[inv.user_id]) {
+                  userTransitMap[inv.user_id] = { nickname: nick, total: 0 };
+                }
+                userTransitMap[inv.user_id].total += Number(inv.amount || 0);
+              }
+            });
+
+            const sortedTransit = Object.entries(userTransitMap)
+              .map(([id, val]) => ({ id, anonymous_nickname: val.nickname, amount: val.total }))
+              .filter((u) => u.amount > 0)
+              .sort((a, b) => b.amount - a.amount)
+              .slice(10);
+
+            setInTransitTopUsers(sortedTransit);
+          }
+        }
+
+        // 5. 【榜單三：官方支持榜】(斗內支持夢沙星空官網)
+        const OFFICIAL_ID = '00000000-0000-0000-0000-000000000001';
+        const { data: offInvs } = await supabase
+          .from('investments')
+          .select('user_id, amount, users:user_id(anonymous_nickname)')
+          .or(`wish_id.eq.${OFFICIAL_ID},story_id.eq.${OFFICIAL_ID}`);
+
+        if (offInvs && isMounted) {
+          const offMap: Record<string, { nickname: string; total: number }> = {};
+          offInvs.forEach((inv) => {
+            if (inv.user_id) {
+              const nick = (inv as any).users?.anonymous_nickname || '匿名星旅人';
+              if (!offMap[inv.user_id]) offMap[inv.user_id] = { nickname: nick, total: 0 };
+              offMap[inv.user_id].total += Number(inv.amount || 0);
             }
           });
 
-          const sortedTransit = Object.entries(userTransitMap)
+          const sortedOff = Object.entries(offMap)
             .map(([id, val]) => ({ id, anonymous_nickname: val.nickname, amount: val.total }))
             .filter((u) => u.amount > 0)
             .sort((a, b) => b.amount - a.amount)
-            .slice(0, 10);
+            .slice(10);
 
-          setInTransitTopUsers(sortedTransit);
+          setOfficialDonors(sortedOff);
         }
+      } catch (err) {
+        console.warn('榮譽館載入異常:', err);
+      } finally {
+        if (isMounted) setLoadingHall(false);
       }
-
-      if (isMounted) setLoadingHall(false);
     };
 
     loadHallData();
@@ -762,6 +803,7 @@ function WalletTab() {
         </div>
       </div>
 
+      {/* 個人數據卡片 */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         {/* 已圓滿履約榮譽點 */}
         <div className="bg-gradient-to-br from-amber-500/15 via-zinc-900 to-zinc-950 border border-amber-500/20 p-5 rounded-2xl glow-border">
@@ -854,10 +896,10 @@ function WalletTab() {
         </div>
       )}
 
-      {/* 排行榜切換 */}
+      {/* 🌟 三大榮譽排行榜切換區 */}
       <div className="glass rounded-2xl p-5 border border-amber-400/20 bg-zinc-900/60 space-y-4">
-        <div className="flex items-center justify-between border-b border-white/10 pb-3">
-          <div className="flex bg-zinc-950 border border-white/10 p-1 rounded-xl text-xs gap-1">
+        <div className="flex items-center justify-between border-b border-white/10 pb-3 flex-wrap gap-2">
+          <div className="flex bg-zinc-950 border border-white/10 p-1 rounded-xl text-xs gap-1 flex-wrap">
             <button
               type="button"
               onClick={() => setHallTab('fulfilled')}
@@ -880,18 +922,43 @@ function WalletTab() {
             >
               ⏳ 在途守護榜 (當前在途)
             </button>
+            <button
+              type="button"
+              onClick={() => setHallTab('official')}
+              className={`px-3 py-1.5 rounded-lg font-bold transition-all cursor-pointer ${
+                hallTab === 'official'
+                  ? 'bg-indigo-500/20 text-indigo-300 border border-indigo-400/30'
+                  : 'text-zinc-400 hover:text-white'
+              }`}
+            >
+              🪐 官方支持榜 (斗內網站)
+            </button>
           </div>
           <span className="text-[10px] text-zinc-500 font-mono hidden sm:inline">全站匿名 TOP 10</span>
         </div>
 
+        {/* 排行榜名冊清單 */}
         {loadingHall ? (
           <div className="text-center py-10 text-xs text-zinc-500">正在同步全星空榮譽榜單...</div>
         ) : (
           <div className="space-y-2">
-            {(hallTab === 'fulfilled' ? fulfilledTopUsers : inTransitTopUsers).length === 0 ? (
-              <div className="text-center py-10 text-xs text-zinc-500">虛位以待，等待第一顆引路星點亮</div>
-            ) : (
-              (hallTab === 'fulfilled' ? fulfilledTopUsers : inTransitTopUsers).map((u, idx) => (
+            {(() => {
+              const currentList =
+                hallTab === 'fulfilled'
+                  ? fulfilledTopUsers.map((u) => ({ ...u, amount: u.wallet_balance }))
+                  : hallTab === 'inTransit'
+                  ? inTransitTopUsers
+                  : officialDonors;
+
+              if (currentList.length === 0) {
+                return (
+                  <div className="text-center py-10 text-xs text-zinc-500">
+                    虛位以待，等待第一顆引路星點亮
+                  </div>
+                );
+              }
+
+              return currentList.map((u, idx) => (
                 <div
                   key={u.id}
                   className={`flex items-center justify-between p-3 rounded-xl border text-xs transition-all ${
@@ -926,13 +993,13 @@ function WalletTab() {
 
                   <div className="text-right font-mono">
                     <span className="text-amber-300 font-bold text-sm">
-                      ✨ {(hallTab === 'fulfilled' ? u.wallet_balance : u.amount).toLocaleString()}
+                      ✨ {Number(u.amount || 0).toLocaleString()}
                     </span>
                     <span className="text-[10px] text-zinc-500 ml-1">星塵</span>
                   </div>
                 </div>
-              ))
-            )}
+              ));
+            })()}
           </div>
         )}
       </div>
