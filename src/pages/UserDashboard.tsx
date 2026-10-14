@@ -12,6 +12,7 @@ import {
   Sparkles,
   Coins,
   Heart,
+  Hourglass,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabaseClient';
 import { useAuth } from '@/context/AuthContext';

@@ -120,7 +120,7 @@ export function HomePage({ onOpenHonorHall }: HomePageProps) {
                   : 'bg-zinc-900/60 text-slate-400 border-white/10 hover:border-amber-400/30 hover:text-slate-200'
               }`}
             >
-              {t.icon} #{t.name}
+              #{t.name}
             </button>
           );
         })}

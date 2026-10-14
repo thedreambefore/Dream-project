@@ -1,5 +1,6 @@
 // src/components/Navbar.tsx
 import { useAuth } from '@/context/AuthContext';
+import { Hourglass, Shield, Sparkles } from 'lucide-react';
 
 interface NavbarProps {
   onOpenAuth: () => void;
@@ -23,7 +24,10 @@ export function Navbar({ onOpenAuth, onOpenDashboard, onOpenAdmin }: NavbarProps
   if (loading) {
     return (
       <header className="w-full h-16 bg-zinc-950 border-b border-white/5 sticky top-0 flex items-center justify-between px-4 z-40">
-        <div className="text-sm font-bold text-zinc-600">⏳ 夢沙 DreamSand...</div>
+        <div className="flex items-center gap-2 text-sm font-bold text-zinc-600">
+          <Hourglass className="w-4 h-4 animate-spin text-zinc-600" />
+          <span>夢沙 DreamSand...</span>
+        </div>
         <div className="w-20 h-8 rounded-xl bg-zinc-900/50 animate-pulse" />
       </header>
     );
@@ -32,9 +36,9 @@ export function Navbar({ onOpenAuth, onOpenDashboard, onOpenAdmin }: NavbarProps
   return (
     <header className="w-full z-40 bg-zinc-950/80 backdrop-blur-md border-b border-white/5 sticky top-0">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-        {/* 左側標題 */}
+        {/* 左側標題：全線條圖示 */}
         <div className="flex items-center gap-2 cursor-pointer select-none">
-          <span className="text-xl">⏳</span>
+          <Hourglass className="w-5 h-5 text-amber-400" />
           <span className="text-lg font-bold bg-gradient-to-r from-amber-200 to-yellow-400 bg-clip-text text-transparent glow-text">
             夢沙 DreamSand
           </span>
@@ -45,9 +49,10 @@ export function Navbar({ onOpenAuth, onOpenDashboard, onOpenAdmin }: NavbarProps
           {profile?.role === 'admin' && (
             <button
               onClick={onOpenAdmin}
-              className="touch-btn bg-red-950/50 border border-red-500/40 text-red-200 text-xs px-3 py-1.5 rounded-xl font-bold transition-all hover:bg-red-900/50 shadow-lg cursor-pointer"
+              className="touch-btn bg-red-950/50 border border-red-500/40 text-red-200 text-xs px-3 py-1.5 rounded-xl font-bold transition-all hover:bg-red-900/50 shadow-lg cursor-pointer flex items-center gap-1.5"
             >
-              🛠️ 管理總後台
+              <Shield className="w-3.5 h-3.5 text-red-400" />
+              <span>管理總後台</span>
             </button>
           )}
 
@@ -61,8 +66,9 @@ export function Navbar({ onOpenAuth, onOpenDashboard, onOpenAdmin }: NavbarProps
                   <p className="text-zinc-200 text-sm font-medium group-hover:text-amber-300 transition-colors">
                     {profile?.anonymous_nickname?.trim() || '匿名星旅人'}
                   </p>
-                  <p className="text-amber-400 text-xs font-mono">
-                    ✨ {typeof profile?.wallet_balance === 'number' ? profile.wallet_balance : 0} 星塵
+                  <p className="text-amber-400 text-xs font-mono flex items-center justify-end gap-1">
+                    <Sparkles className="w-3 h-3 text-amber-400" />
+                    <span>{typeof profile?.wallet_balance === 'number' ? profile.wallet_balance : 0} 星塵</span>
                   </p>
                 </div>
 
@@ -83,9 +89,10 @@ export function Navbar({ onOpenAuth, onOpenDashboard, onOpenAdmin }: NavbarProps
           ) : (
             <button
               onClick={onOpenAuth}
-              className="touch-btn bg-gradient-to-r from-amber-500 to-yellow-600 text-gray-900 text-sm font-bold px-4 py-2 rounded-xl hover:from-amber-400 hover:to-yellow-500 transition-all shadow-lg cursor-pointer"
+              className="touch-btn bg-gradient-to-r from-amber-500 to-yellow-600 text-gray-900 text-sm font-bold px-4 py-2 rounded-xl hover:from-amber-400 hover:to-yellow-500 transition-all shadow-lg cursor-pointer flex items-center gap-1.5"
             >
-              點燃星塵
+              <Sparkles className="w-4 h-4 fill-current" />
+              <span>點燃星塵</span>
             </button>
           )}
         </div>
