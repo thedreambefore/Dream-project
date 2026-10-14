@@ -10,14 +10,15 @@ export function isBlockedStatus(status: string | null | undefined): boolean {
 
 /**
  * 取得首頁公開可見的願望：
- * 1. 狀態為 approved 且未被封鎖
- * 2. 一般卡片未滿額才展示；官方常駐卡永遠保留且永遠置頂
+ * 1. 狀態為 approved 或 full_funded
+ * 2. 官方卡片 (OFFICIAL_SPONSOR_ID) 永遠展示且置頂
+ * 3. 若已滿額 (full_funded / 星塵達標)，只在當天展示，隔天凌晨 00:00 起自動從首頁移除
  */
 export async function fetchPublicWishes(): Promise<Wish[]> {
   const { data, error } = await supabase
     .from('wishes')
     .select('*')
-    .eq('status', 'approved')
+    .in('status', ['approved', 'full_funded'])
     .order('created_at', { ascending: false });
 
   if (error || !data) {
@@ -25,15 +26,38 @@ export async function fetchPublicWishes(): Promise<Wish[]> {
     return [];
   }
 
-  const list = (data as Wish[]).filter((w) => {
+  const now = new Date();
+
+  const list = (data as any[]).filter((w) => {
     if (isBlockedStatus(w.status)) return false;
-    // 官方常駐卡永遠展示
+    // 官方卡永遠展示
     if (w.id === OFFICIAL_SPONSOR_ID) return true;
-    // 一般願望未滿額才展示
-    return Number(w.current_stardust || 0) < Number(w.product_price || 0);
+
+    const isFull = Number(w.current_stardust || 0) >= Number(w.product_price || 0);
+
+    // 未滿額的正常展示
+    if (!isFull && w.status !== 'full_funded') return true;
+
+    // 已滿額：檢查是否超過達成隔天的凌晨 00:00
+    const fundedDateStr = w.funded_at || w.updated_at || w.created_at;
+    if (!fundedDateStr) return true;
+
+    const fundedDate = new Date(fundedDateStr);
+    // 計算「達成日期的隔天凌晨 00:00:00」
+    const nextDayMidnight = new Date(
+      fundedDate.getFullYear(),
+      fundedDate.getMonth(),
+      fundedDate.getDate() + 1,
+      0,
+      0,
+      0
+    );
+
+    // 若當前時間尚未超過隔天凌晨，繼續留在首頁展示見證；超過則自動在首頁隱藏（已封存至追番牆）
+    return now.getTime() < nextDayMidnight.getTime();
   });
 
-  // 排序：官方卡永遠置頂，其餘按建立時間降冪
+  // 排序：官方卡置頂，其餘按建立時間降冪
   return list.sort((a, b) => {
     if (a.id === OFFICIAL_SPONSOR_ID) return -1;
     if (b.id === OFFICIAL_SPONSOR_ID) return 1;

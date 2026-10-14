@@ -485,9 +485,6 @@ function PublishTab({ onRequireVerify }: { onRequireVerify: () => void }) {
       ) : (
         <form onSubmit={handlePublishClick} className="space-y-5 bg-white/5 border border-white/10 p-6 rounded-2xl glow-border">
           <div>
-            <div className="bg-amber-500/10 border border-amber-400/30 rounded-xl p-3 text-xs text-amber-200/90 leading-relaxed">
-              🔔 <b>履約提醒</b>：本活動若順利達標，平台管理團隊將依您填寫之收件電話與地址（或超商門市）安排電商配送；您亦可透過註冊 Email 接收達標與出貨通知。請務必在個人「帳號資訊」中補齊正確聯絡電話。
-            </div>
             <div className="flex justify-between items-center mb-1.5">
               <label className="text-xs font-medium text-gray-300">願望物品 / 核心目標 (限 20 字)</label>
               <span className={`text-[11px] font-mono ${title.length > 20 ? 'text-red-400 font-bold' : 'text-zinc-500'}`}>
@@ -625,7 +622,9 @@ function PublishTab({ onRequireVerify }: { onRequireVerify: () => void }) {
               className="w-full bg-zinc-900/80 border border-white/10 rounded-xl px-4 py-2.5 text-xs text-white focus:outline-none focus:border-amber-400/50"
             />
           </div>
-
+            <div className="bg-amber-500/10 border border-amber-400/30 rounded-xl p-3 text-xs text-amber-200/90 leading-relaxed">
+              🔔 <b>履約提醒</b>：本活動若順利達標，平台管理團隊將依您填寫之收件電話與地址（或超商門市）安排電商配送；您亦可透過註冊 Email 接收達標與出貨通知。請務必在個人「帳號資訊」中補齊正確聯絡電話。
+            </div>
           {error && <p className="text-red-400 text-xs bg-red-500/10 p-3 rounded-lg border border-red-500/20">{error}</p>}
 
           <button

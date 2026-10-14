@@ -1,5 +1,6 @@
 // src/components/InvestModal.tsx
 import { useState, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { X, Lock, Loader2, Sparkles, AlertCircle } from 'lucide-react';
 import { supabase } from '@/lib/supabaseClient';
 import type { Wish } from '@/types/wish';
@@ -11,13 +12,13 @@ export function InvestModal({ story, onClose }: { story: Wish; onClose: () => vo
   const { session, refreshProfile } = useAuth();
   const isOfficial = story.id === OFFICIAL_SPONSOR_ID;
 
-  // 計算該主題活動當前真正剩餘所需星星
+  // 計算該心願當前剩餘所需星星
   const remainingNeed = isOfficial
     ? 999999
     : Math.max(0, story.product_price - Number(story.current_stardust || 0));
 
-  // 單次最低限制 50 元
-  const initialAmount = isOfficial ? 100 : Math.min(100, Math.max(50, remainingNeed));
+  // 預設投入數量（最低限制 50 顆）
+  const initialAmount = 50;
   const [amount, setAmount] = useState<number>(initialAmount);
   const [customInput, setCustomInput] = useState<string>('');
   const [message, setMessage] = useState('');
@@ -28,8 +29,8 @@ export function InvestModal({ story, onClose }: { story: Wish; onClose: () => vo
   const [success, setSuccess] = useState(false);
   const [showAuth, setShowAuth] = useState(false);
 
-  // 依規格計算服務費：
-  // 單筆交易 50 至 100 元之間時，固定收取 5 元；超過 100 元按 5% 計算。
+  // 服務費規格計算：
+  // 單筆交易 50 至 100 元之間，固定收取 5 元；超過 100 元按 5% 計收
   const feeDetails = useMemo(() => {
     const validAmount = Math.max(0, amount || 0);
     if (validAmount < 50 && !isOfficial) {
@@ -48,7 +49,6 @@ export function InvestModal({ story, onClose }: { story: Wish; onClose: () => vo
   }, [amount, isOfficial]);
 
   const handleSelectPreset = (val: number) => {
-    if (!isOfficial && val > remainingNeed) return;
     setAmount(val);
     setCustomInput('');
     setError('');
@@ -58,13 +58,8 @@ export function InvestModal({ story, onClose }: { story: Wish; onClose: () => vo
     setCustomInput(val);
     const parsed = parseInt(val, 10);
     if (!isNaN(parsed)) {
-      if (!isOfficial && parsed > remainingNeed) {
-        setAmount(remainingNeed);
-        setError(`本主題僅差 ${remainingNeed} 顆星星即可達成，已自動設定為上限。`);
-      } else {
-        setAmount(parsed);
-        setError('');
-      }
+      setAmount(parsed);
+      setError('');
     } else {
       setAmount(0);
     }
@@ -76,16 +71,8 @@ export function InvestModal({ story, onClose }: { story: Wish; onClose: () => vo
       setShowAuth(true);
       return;
     }
-    if (!isOfficial && remainingNeed <= 0) {
-      setError('🎉 本主題活動已 100% 達成，感謝您的熱情支持！');
-      return;
-    }
     if (amount < 50 && !isOfficial) {
       setError('單次投下虛擬星星最低金額為 NT$ 50 元');
-      return;
-    }
-    if (!isOfficial && amount > remainingNeed) {
-      setError(`投入星星不可超過本活動剩餘所需數量 (${remainingNeed} 顆)`);
       return;
     }
     if (!agreeTerms) {
@@ -121,15 +108,23 @@ export function InvestModal({ story, onClose }: { story: Wish; onClose: () => vo
         );
       }
 
-      // 2. 正式累加 DB wishes 表的 current_stardust
+      // 2. 累加星塵並檢查是否達成目標
       const newTotal = Number(story.current_stardust || 0) + Number(amount);
-      const newStatus =
-        !isOfficial && newTotal >= Number(story.product_price) ? 'full_funded' : story.status;
+      const isNewlyFunded = !isOfficial && newTotal >= Number(story.product_price);
+      const newStatus = isNewlyFunded ? 'full_funded' : story.status;
 
-      await updateWish(story.id, {
+      // 建立更新 payload
+      const updatePayload: Record<string, any> = {
         current_stardust: newTotal,
         status: newStatus,
-      });
+      };
+
+      // 若達到圓滿且尚未記錄過時間，記錄達成日期時間（供隔天凌晨 00:00 自動下架判斷）
+      if (isNewlyFunded && !(story as any).funded_at) {
+        updatePayload.funded_at = new Date().toISOString();
+      }
+
+      await updateWish(story.id, updatePayload);
 
       story.current_stardust = newTotal;
       story.status = newStatus;
@@ -146,10 +141,11 @@ export function InvestModal({ story, onClose }: { story: Wish; onClose: () => vo
 
   const remainingChars = 50 - message.length;
 
-  return (
+  // 🌟 使用 createPortal 將整個彈窗掛在 document.body 上，徹底不受卡片 3D 與導覽列層級干擾！
+  return createPortal(
     <>
       <div
-        className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md overflow-y-auto"
+        className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/85 backdrop-blur-md overflow-y-auto"
         onClick={onClose}
       >
         <div
@@ -178,7 +174,7 @@ export function InvestModal({ story, onClose }: { story: Wish; onClose: () => vo
                     對象活動：{story.product_name}
                     {!isOfficial && (
                       <span className="text-amber-300 font-mono ml-1">
-                        (尚缺 {remainingNeed.toLocaleString()} 顆星星)
+                        (目前已投入 {(story.current_stardust || 0).toLocaleString()} / 目標 {(story.product_price || 0).toLocaleString()} 顆星星)
                       </span>
                     )}
                   </p>
@@ -215,18 +211,17 @@ export function InvestModal({ story, onClose }: { story: Wish; onClose: () => vo
               <div>
                 <div className="flex justify-between items-center mb-2">
                   <label className="text-xs font-bold text-amber-100">⭐ 選擇星星投入數量</label>
-                  {!isOfficial && (
+                  {!isOfficial && remainingNeed > 0 && (
                     <span className="text-[11px] text-amber-400 font-mono">
-                      上限：{remainingNeed.toLocaleString()} 顆
+                      距離目標尚差：{remainingNeed.toLocaleString()} 顆
                     </span>
                   )}
                 </div>
 
                 <div className="grid grid-cols-3 gap-2 mb-2.5">
                   {[50, 100, 300].map((preset) => {
-                    const isDisabled = !isOfficial && preset > remainingNeed;
                     const labels: Record<number, string> = {
-                      50: '50 顆 (微光星塵)',
+                      50: '50 顆 (微光星座)',
                       100: '100 顆 (耀眼流星)',
                       300: '300 顆 (璀璨星群)',
                     };
@@ -235,12 +230,9 @@ export function InvestModal({ story, onClose }: { story: Wish; onClose: () => vo
                       <button
                         key={preset}
                         type="button"
-                        disabled={isDisabled}
                         onClick={() => handleSelectPreset(preset)}
                         className={`p-2.5 rounded-xl border text-center transition-all flex flex-col items-center justify-center gap-0.5 ${
-                          isDisabled
-                            ? 'opacity-30 border-white/5 bg-zinc-900/50 cursor-not-allowed'
-                            : amount === preset && customInput === ''
+                          amount === preset && customInput === ''
                             ? 'bg-amber-500/25 border-amber-400 text-amber-100 shadow-[0_0_12px_rgba(245,158,11,0.25)] cursor-pointer'
                             : 'bg-white/5 border-white/10 text-gray-300 hover:border-amber-400/30 cursor-pointer'
                         }`}
@@ -259,10 +251,9 @@ export function InvestModal({ story, onClose }: { story: Wish; onClose: () => vo
                   <input
                     type="number"
                     min={50}
-                    max={isOfficial ? undefined : remainingNeed}
                     value={customInput}
                     onChange={(e) => handleCustomChange(e.target.value)}
-                    placeholder={`50 ~ ${isOfficial ? '無上限' : remainingNeed}`}
+                    placeholder="最低 50 ~ 無上限"
                     className="w-full bg-transparent text-amber-300 font-mono font-bold text-xs focus:outline-none text-right pr-1"
                   />
                   <span className="text-xs text-gray-400 whitespace-nowrap">顆</span>
@@ -338,12 +329,7 @@ export function InvestModal({ story, onClose }: { story: Wish; onClose: () => vo
 
               <button
                 onClick={handleCheckout}
-                disabled={
-                  loading ||
-                  !agreeTerms ||
-                  amount < 50 ||
-                  (!isOfficial && amount > remainingNeed)
-                }
+                disabled={loading || !agreeTerms || amount < 50}
                 className="w-full touch-btn bg-gradient-to-r from-amber-500 to-yellow-600 hover:from-amber-400 hover:to-yellow-500 text-gray-950 font-black rounded-xl py-3 transition-all disabled:opacity-40 flex items-center justify-center gap-2 shadow-lg shadow-amber-500/15 cursor-pointer text-xs"
               >
                 {loading ? (
@@ -360,6 +346,7 @@ export function InvestModal({ story, onClose }: { story: Wish; onClose: () => vo
         </div>
       </div>
       {showAuth && <AuthModal onClose={() => setShowAuth(false)} />}
-    </>
+    </>,
+    document.body
   );
 }
