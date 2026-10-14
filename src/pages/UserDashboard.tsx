@@ -24,6 +24,7 @@ import {
   Camera,
   Gift,
   Shield,
+  Ban,
   Search,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabaseClient';
@@ -67,9 +68,10 @@ export function UserDashboard({
           {profile?.role === 'admin' && onOpenAdmin && (
             <button
               onClick={onOpenAdmin}
-              className="bg-red-500/20 border border-red-400/40 text-red-200 text-xs px-3 py-1.5 rounded-xl font-bold animate-pulse"
+              className="bg-red-500/20 hover:bg-red-500/30 border border-red-400/40 text-red-200 text-xs px-3 py-1.5 rounded-xl font-bold transition-all flex items-center gap-1.5 cursor-pointer"
             >
-              🛠️ 管理後台
+              <Shield className="w-3.5 h-3.5 text-red-400" />
+              <span>管理後台</span>
             </button>
           )}
           <button
@@ -1193,26 +1195,30 @@ function MyWishesTab({ onEditWish: _onEditWish }: { onEditWish: () => void }) {
           <Sparkles className="w-5 h-5 text-amber-300" /> 我的心願追蹤館
         </h2>
 
-        <div className="flex bg-zinc-900 border border-white/10 p-1 rounded-xl text-xs gap-1">
+        <div className="flex bg-zinc-900 border border-white/10 p-1 rounded-xl text-xs gap-1 overflow-x-auto hide-scrollbar">
           {[
-            { id: 'all', label: '全部' },
-            { id: 'approved', label: '🌟 募資中' },
-            { id: 'pending', label: '⏳ 審核中' },
-            { id: 'fulfilled', label: '🎉 已滿額' },
-            { id: 'blocked', label: '❌ 已駁回' },
-          ].map((tab) => (
-            <button
-              key={tab.id}
-              onClick={() => setFilterTag(tab.id)}
-              className={`px-2.5 py-1 rounded-lg transition-all cursor-pointer ${
-                filterTag === tab.id
-                  ? 'bg-amber-500/20 text-amber-300 font-bold border border-amber-400/30'
-                  : 'text-zinc-400 hover:text-white'
-              }`}
-            >
-              {tab.label}
-            </button>
-          ))}
+            { id: 'all', label: '全部', icon: null },
+            { id: 'approved', label: '進行中', icon: Hourglass },
+            { id: 'pending', label: '審核中', icon: FileText },
+            { id: 'fulfilled', label: '已達成', icon: CheckCircle2 },
+            { id: 'blocked', label: '已駁回', icon: Ban },
+          ].map((tab) => {
+            const TabIcon = tab.icon;
+            return (
+              <button
+                key={tab.id}
+                onClick={() => setFilterTag(tab.id)}
+                className={`flex items-center gap-1 px-3 py-1 rounded-lg transition-all cursor-pointer whitespace-nowrap ${
+                  filterTag === tab.id
+                    ? 'bg-amber-500/20 text-amber-300 font-bold border border-amber-400/30'
+                    : 'text-zinc-400 hover:text-white'
+                }`}
+              >
+                {TabIcon && <TabIcon className="w-3 h-3" />}
+                <span>{tab.label}</span>
+              </button>
+            );
+          })}
         </div>
       </div>
 

@@ -12,6 +12,13 @@ import {
   CheckCircle2,
   FileEdit,
   ExternalLink,
+  Laptop,
+  BookOpen,
+  Palette,
+  Music,
+  Coffee,
+  Camera,
+  Gift,
 } from 'lucide-react';
 import type { Wish } from '@/types/wish';
 import { supabase } from '@/lib/supabaseClient';
@@ -28,6 +35,23 @@ export interface WishCardProps {
   variant?: 'market' | 'tracked' | 'myWishes' | 'preview';
   onOpenLetterModal?: (wish: Wish) => void;
   onOpenEditModal?: (wish: Wish) => void;
+}
+// 🌟 智慧圖示解析器：自動將 Emoji 或誤存的標籤字串轉換為乾淨的 Lucide 向量 Icon
+function WishCoverIcon({ iconStr }: { iconStr?: string | null }) {
+  const val = (iconStr || '').trim();
+  
+  if (val.includes('Laptop') || val.includes('💻')) return <Laptop className="w-5 h-5 text-amber-300" />;
+  if (val.includes('Book') || val.includes('📚')) return <BookOpen className="w-5 h-5 text-amber-300" />;
+  if (val.includes('Palette') || val.includes('🎨')) return <Palette className="w-5 h-5 text-amber-300" />;
+  if (val.includes('Music') || val.includes('🎵')) return <Music className="w-5 h-5 text-amber-300" />;
+  if (val.includes('Coffee') || val.includes('☕')) return <Coffee className="w-5 h-5 text-amber-300" />;
+  if (val.includes('Compass')) return <Compass className="w-5 h-5 text-amber-300" />;
+  if (val.includes('Camera')) return <Camera className="w-5 h-5 text-amber-300" />;
+  if (val.includes('Gift')) return <Gift className="w-5 h-5 text-amber-300" />;
+  if (val.includes('Heart') || val.includes('🐾')) return <Heart className="w-5 h-5 text-amber-300" />;
+  
+  // 預設（包含 '✨' 或誤存的 '<Sparkles'）一律轉換為乾淨的 Sparkles 線條向量！
+  return <Sparkles className="w-5 h-5 text-amber-300" />;
 }
 
 export function WishCard({
@@ -195,7 +219,9 @@ export function WishCard({
               </div>
 
               <h3 className="font-bold text-amber-100 text-lg leading-snug line-clamp-2 mt-2 drop-shadow-md flex items-center gap-2">
-                <span className="text-2xl">{wish.cover_emoji}</span>
+                <div className="w-8 h-8 rounded-xl bg-amber-500/15 border border-amber-400/30 flex items-center justify-center flex-shrink-0">
+                  <WishCoverIcon iconStr={wish.cover_emoji} />
+                </div>
                 <span>{wish.product_name}</span>
               </h3>
             </div>
