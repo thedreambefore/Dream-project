@@ -1,6 +1,7 @@
 // src/components/Navbar.tsx
 import { useAuth } from '@/context/AuthContext';
 import { Hourglass, Shield, Sparkles } from 'lucide-react';
+import { BrandLogo } from '@/components/BrandLogo';
 
 interface NavbarProps {
   onOpenAuth: () => void;
@@ -37,11 +38,8 @@ export function Navbar({ onOpenAuth, onOpenDashboard, onOpenAdmin }: NavbarProps
     <header className="w-full z-40 bg-zinc-950/80 backdrop-blur-md border-b border-white/5 sticky top-0">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
         {/* 左側標題：全線條圖示 */}
-        <div className="flex items-center gap-2 cursor-pointer select-none">
-          <Hourglass className="w-5 h-5 text-amber-400" />
-          <span className="text-lg font-bold bg-gradient-to-r from-amber-200 to-yellow-400 bg-clip-text text-transparent glow-text">
-            夢沙 DreamSand
-          </span>
+        <div onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })} className="cursor-pointer">
+          <BrandLogo />
         </div>
 
         {/* 右側互動區 */}

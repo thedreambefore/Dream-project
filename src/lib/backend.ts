@@ -104,3 +104,16 @@ export async function blockWish(id: string, blockReason: string): Promise<void> 
 export async function unblockWish(id: string): Promise<void> {
   await updateWish(id, { status: 'approved', block_reason: null });
 }
+
+/**
+ * 永久刪除願望卡片（連帶清理關聯收藏與投資紀錄）
+ */
+export async function deleteWish(id: string): Promise<void> {
+  // 1. 清理關聯資料防報錯
+  await supabase.from('bookmarks').delete().eq('wish_id', id);
+  await supabase.from('investments').delete().eq('wish_id', id);
+
+  // 2. 徹底自 wishes 表刪除
+  const { error } = await supabase.from('wishes').delete().eq('id', id);
+  if (error) throw error;
+}

@@ -26,7 +26,9 @@ import {
   Shield,
   Ban,
   Search,
+  Clock,
 } from 'lucide-react';
+import { BrandLogo } from '@/components/BrandLogo';
 import { supabase } from '@/lib/supabaseClient';
 import { useAuth } from '@/context/AuthContext';
 import { EmailVerificationModal } from '@/components/EmailVerificationModal';
@@ -60,9 +62,8 @@ export function UserDashboard({
     <div className="fixed inset-0 z-50 space-bg overflow-y-auto bg-zinc-950 text-white select-none">
       {/* 頂部導覽列 */}
       <div className="sticky top-0 z-10 glass-strong border-b border-amber-400/10 px-4 sm:px-6 h-16 flex items-center justify-between bg-zinc-950/90 backdrop-blur-md">
-        <button onClick={onGoHome} className="flex items-center gap-2 hover:opacity-80 transition-opacity">
-          <span className="text-2xl">⏳</span>
-          <span className="text-lg font-bold text-amber-100 glow-text">夢沙 DreamSand</span>
+        <button onClick={onGoHome} className="hover:opacity-80 transition-opacity cursor-pointer">
+          <BrandLogo />
         </button>
         <div className="flex items-center gap-3">
           {profile?.role === 'admin' && onOpenAdmin && (
@@ -1471,13 +1472,16 @@ function InvestedTab() {
           </p>
         </div>
 
-        <input
-          type="text"
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          placeholder="🔍 搜尋追番故事或標籤..."
-          className="bg-zinc-900 border border-white/10 rounded-xl px-3.5 py-1.5 text-xs text-white focus:outline-none focus:border-amber-400/50"
-        />
+        <div className="relative">
+          <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500" />
+          <input
+            type="text"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            placeholder="搜尋追番故事或標籤..."
+            className="bg-zinc-900 border border-white/10 rounded-xl pl-9 pr-3.5 py-1.5 text-xs text-white focus:outline-none focus:border-amber-400/50"
+          />
+        </div>
       </div>
 
       <div className="flex flex-wrap items-center gap-3 p-2 bg-zinc-900/60 rounded-2xl border border-white/5">
@@ -1525,25 +1529,25 @@ function InvestedTab() {
           >
             所有狀態
           </button>
-          <button
+           <button
             onClick={() => setStatusFilter('funding')}
-            className={`px-3 py-1 rounded-xl text-xs transition-all cursor-pointer ${
+            className={`px-3 py-1 rounded-xl text-xs transition-all flex items-center gap-1 cursor-pointer ${
               statusFilter === 'funding'
                 ? 'bg-sky-500/20 border border-sky-400/30 text-sky-200 font-bold'
                 : 'text-zinc-400 hover:text-sky-200'
             }`}
           >
-            ⏳ 集資進行中
+            <Clock className="w-3 h-3 text-sky-400" /> 推進中
           </button>
           <button
             onClick={() => setStatusFilter('fulfilled')}
-            className={`px-3 py-1 rounded-xl text-xs transition-all cursor-pointer ${
+            className={`px-3 py-1 rounded-xl text-xs transition-all flex items-center gap-1 cursor-pointer ${
               statusFilter === 'fulfilled'
                 ? 'bg-emerald-500/20 border border-emerald-400/30 text-emerald-200 font-bold'
                 : 'text-zinc-400 hover:text-emerald-200'
             }`}
           >
-            🎉 已履約開箱
+            <CheckCircle2 className="w-3 h-3 text-emerald-400" /> 已開箱
           </button>
         </div>
       </div>
