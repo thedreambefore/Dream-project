@@ -50,11 +50,16 @@ export function WishCard({
   const [isActionLoading, setIsActionLoading] = useState(false);
 
   const isOfficial = wish.id === OFFICIAL_SPONSOR_ID;
-  const progress = Math.min(
-    100,
-    Math.round(((wish.current_stardust || 0) / (wish.product_price || 1)) * 100)
-  );
-  const isFulfilled = wish.status === 'fulfilled' || progress >= 100;
+  const currentDust = Number(wish.current_stardust || 0);
+  const targetPrice = Number(wish.product_price || 1);
+  const isTargetMet = currentDust >= targetPrice; // 🌟 嚴格數值判斷
+
+  // 🌟 取消 499/500 會四捨五入成 100% 的問題：只要未實質達成，最多只顯示 99%
+  const progress = isTargetMet
+    ? 100
+    : Math.min(99, Math.floor((currentDust / targetPrice) * 100));
+
+  const isFulfilled = wish.status === 'fulfilled' || isTargetMet;
   const isNearComplete = progress >= 90 && progress < 100;
   const isCardShining = isOfficial || isFulfilled;
 

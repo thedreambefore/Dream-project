@@ -641,12 +641,15 @@ function PublishTab({ onRequireVerify }: { onRequireVerify: () => void }) {
   );
 }
 
-// ===== 3. 星光貢獻榮譽館 (修正精確在途星塵統計) =====
+// ===== 3. 星光貢獻榮譽館 (支援途中星塵點擊展開來歷清單) =====
 function WalletTab() {
   const { session, profile } = useAuth();
   const [hallTab, setHallTab] = useState<'fulfilled' | 'inTransit'>('fulfilled');
 
   const [myInTransitAmount, setMyInTransitAmount] = useState(0);
+  const [transitList, setTransitList] = useState<any[]>([]); // 🌟 儲存途中星塵明細
+  const [showTransitDetails, setShowTransitDetails] = useState(false); // 🌟 點擊展開開關
+
   const [fulfilledTopUsers, setFulfilledTopUsers] = useState<any[]>([]);
   const [inTransitTopUsers, setInTransitTopUsers] = useState<any[]>([]);
   const [loadingHall, setLoadingHall] = useState(true);
@@ -657,30 +660,45 @@ function WalletTab() {
     const loadHallData = async () => {
       setLoadingHall(true);
 
-      // 1. 先抓取全站「尚未履約出貨」的心願清單（status !== 'fulfilled'）
+      // 1. 抓取全站未完結的心願清單 (status !== 'fulfilled')
       const { data: activeWishes } = await supabase
         .from('wishes')
-        .select('id')
-        .neq('status', 'fulfilled');
+        .select('id, product_name, cover_emoji, current_stardust, product_price, status')
+        .neq('status', 'fulfilled')
+        .neq('id', '00000000-0000-0000-0000-000000000001'); // 排除官方卡
 
-      const activeWishIdSet = new Set(activeWishes?.map((w) => w.id) || []);
+      const wishMap = new Map((activeWishes || []).map((w) => [w.id, w]));
 
-      // 2. 計算登入者個人「真正在途燃料」
-      if (session?.user?.id && activeWishIdSet.size > 0) {
+      // 2. 撈取登入者個人的途中星塵與明細
+      if (session?.user?.id && wishMap.size > 0) {
         const { data: myInvs } = await supabase
           .from('investments')
-          .select('amount, wish_id, story_id')
-          .eq('user_id', session.user.id);
+          .select('id, amount, message, created_at, wish_id, story_id')
+          .eq('user_id', session.user.id)
+          .order('created_at', { ascending: false });
 
         if (myInvs && isMounted) {
-          const totalInTransit = myInvs
-            .filter((inv) => activeWishIdSet.has(inv.wish_id || inv.story_id))
-            .reduce((sum, inv) => sum + Number(inv.amount || 0), 0);
+          const detailedTransit: any[] = [];
+          let totalInTransit = 0;
+
+          myInvs.forEach((inv) => {
+            const wid = inv.wish_id || inv.story_id;
+            const targetWish = wishMap.get(wid);
+            if (targetWish) {
+              totalInTransit += Number(inv.amount || 0);
+              detailedTransit.push({
+                ...inv,
+                wish: targetWish,
+              });
+            }
+          });
+
           setMyInTransitAmount(totalInTransit);
+          setTransitList(detailedTransit);
         }
       }
 
-      // 3. 傳奇引路榜（已履約結算累積榮譽 wallet_balance 前 10 名）
+      // 3. 傳奇引路榜
       const { data: fulfilledData } = await supabase
         .from('users')
         .select('id, anonymous_nickname, wallet_balance')
@@ -692,19 +710,18 @@ function WalletTab() {
         setFulfilledTopUsers(fulfilledData);
       }
 
-      // 4. 在途守護榜（只撈取未履約願望的投資，統計在途燃料 TOP 10）
-      if (activeWishIdSet.size > 0) {
+      // 4. 在途守護榜
+      if (wishMap.size > 0) {
         const { data: allInvs } = await supabase
           .from('investments')
           .select('user_id, amount, wish_id, story_id, users:user_id(anonymous_nickname)');
 
         if (allInvs && isMounted) {
           const userTransitMap: Record<string, { nickname: string; total: number }> = {};
-          
+
           allInvs.forEach((inv) => {
             const wid = inv.wish_id || inv.story_id;
-            // 關鍵：只計入仍在途的願望
-            if (wid && activeWishIdSet.has(wid) && inv.user_id) {
+            if (wid && wishMap.has(wid) && inv.user_id) {
               const nick = (inv as any).users?.anonymous_nickname || '匿名星旅人';
               if (!userTransitMap[inv.user_id]) {
                 userTransitMap[inv.user_id] = { nickname: nick, total: 0 };
@@ -721,8 +738,6 @@ function WalletTab() {
 
           setInTransitTopUsers(sortedTransit);
         }
-      } else if (isMounted) {
-        setInTransitTopUsers([]);
       }
 
       if (isMounted) setLoadingHall(false);
@@ -748,6 +763,7 @@ function WalletTab() {
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        {/* 已圓滿履約榮譽點 */}
         <div className="bg-gradient-to-br from-amber-500/15 via-zinc-900 to-zinc-950 border border-amber-500/20 p-5 rounded-2xl glow-border">
           <p className="text-zinc-400 text-[11px] font-bold tracking-wider mb-1">
             已圓滿履約見證星塵 (HONOR)
@@ -757,22 +773,88 @@ function WalletTab() {
             <span>{totalHonor.toLocaleString()}</span>
             <span className="text-[10px] text-zinc-500 font-normal ml-1">榮譽點</span>
           </h4>
-          <p className="text-[10px] text-zinc-500 mt-1.5">故事完成開箱履約後轉化之永久印記</p>
+          <p className="text-[10px] text-zinc-500 mt-1.5">含履約結算與超額自動轉化之永久印記</p>
         </div>
 
-        <div className="bg-zinc-900/70 border border-white/10 p-5 rounded-2xl">
-          <p className="text-zinc-400 text-[11px] font-bold tracking-wider mb-1">
-            進行中在途燃料 (IN TRANSIT)
-          </p>
+        {/* 🌟 進行中在途燃料（可點擊展開查看來歷） */}
+        <div
+          onClick={() => setShowTransitDetails((prev) => !prev)}
+          className={`border p-5 rounded-2xl transition-all cursor-pointer relative group ${
+            showTransitDetails
+              ? 'bg-amber-500/10 border-amber-400/50 shadow-[0_0_15px_rgba(245,158,11,0.2)]'
+              : 'bg-zinc-900/70 border-white/10 hover:border-amber-400/30'
+          }`}
+        >
+          <div className="flex justify-between items-start">
+            <p className="text-zinc-400 text-[11px] font-bold tracking-wider mb-1">
+              進行中在途燃料 (點擊查閱明細 ➔)
+            </p>
+            <span className="text-xs text-amber-300 font-bold group-hover:scale-110 transition-transform">
+              {showTransitDetails ? '▲ 收合' : '▼ 展開'}
+            </span>
+          </div>
+
           <h4 className="text-2xl font-black text-yellow-200 font-mono flex items-baseline gap-1">
             <span>⏳</span>
             <span>{myInTransitAmount.toLocaleString()}</span>
             <span className="text-[10px] text-zinc-500 font-normal ml-1">在途星塵</span>
           </h4>
-          <p className="text-[10px] text-zinc-500 mt-1.5">正陪伴主角奔向目標，等待圓滿履約</p>
+          <p className="text-[10px] text-amber-300/80 mt-1.5">
+            正在陪伴 {transitList.length} 則心願前進（點擊查閱留言與來歷）
+          </p>
         </div>
       </div>
 
+      {/* 🌟 點開後呈現的在途星塵詳細清單 */}
+      {showTransitDetails && (
+        <div className="glass rounded-2xl p-5 border border-amber-400/30 bg-zinc-950/90 space-y-3 animate-fade-in">
+          <div className="flex justify-between items-center border-b border-white/10 pb-2.5">
+            <h4 className="text-xs font-bold text-amber-200 flex items-center gap-1.5">
+              <span>📜</span> 我的在途星塵來歷名冊 ({transitList.length} 筆)
+            </h4>
+            <span className="text-[10px] text-zinc-500">故事達成出貨後將轉為永久榮譽</span>
+          </div>
+
+          {transitList.length === 0 ? (
+            <div className="text-center py-6 text-xs text-zinc-500">目前尚無在途的星塵投入。</div>
+          ) : (
+            <div className="space-y-2.5 max-h-72 overflow-y-auto pr-1 hide-scrollbar">
+              {transitList.map((item) => (
+                <div
+                  key={item.id}
+                  className="p-3 rounded-xl bg-white/5 border border-white/5 hover:border-amber-400/20 transition-all text-xs space-y-1.5"
+                >
+                  <div className="flex justify-between items-center">
+                    <div className="flex items-center gap-2 truncate max-w-[240px]">
+                      <span className="text-base">{item.wish?.cover_emoji || '✨'}</span>
+                      <span className="font-bold text-amber-100 truncate">
+                        {item.wish?.product_name || '心願活動'}
+                      </span>
+                    </div>
+                    <span className="font-mono font-bold text-amber-300 bg-amber-500/10 px-2 py-0.5 rounded-md border border-amber-400/20">
+                      +{item.amount} 顆在途中
+                    </span>
+                  </div>
+
+                  <p className="text-zinc-300 bg-black/40 p-2 rounded-lg text-[11px] leading-relaxed">
+                    💬 我的留言：{item.message || '(默默守護未留字)'}
+                  </p>
+
+                  <div className="flex justify-between items-center text-[10px] text-zinc-500 pt-0.5">
+                    <span>
+                      當前進度：{item.wish?.current_stardust}/{item.wish?.product_price} (
+                      {item.wish?.status === 'full_funded' ? '🎉 已達標待出貨' : '集星推進中'})
+                    </span>
+                    <span>{new Date(item.created_at).toLocaleDateString('zh-TW')}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* 排行榜切換 */}
       <div className="glass rounded-2xl p-5 border border-amber-400/20 bg-zinc-900/60 space-y-4">
         <div className="flex items-center justify-between border-b border-white/10 pb-3">
           <div className="flex bg-zinc-950 border border-white/10 p-1 rounded-xl text-xs gap-1">
