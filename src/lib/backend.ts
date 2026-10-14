@@ -9,7 +9,9 @@ export function isBlockedStatus(status: string | null | undefined): boolean {
 }
 
 /**
- * 取得首頁公開可見的願望（只包含募資中的 approved，且排除已滿額）
+ * 取得首頁公開可見的願望：
+ * 1. 狀態為 approved 且未被封鎖
+ * 2. 一般卡片未滿額才展示；官方常駐卡永遠保留且永遠置頂
  */
 export async function fetchPublicWishes(): Promise<Wish[]> {
   const { data, error } = await supabase
@@ -23,11 +25,20 @@ export async function fetchPublicWishes(): Promise<Wish[]> {
     return [];
   }
 
-  return (data as Wish[]).filter(
-    (w) =>
-      !isBlockedStatus(w.status) &&
-      Number(w.current_stardust || 0) < Number(w.product_price || 0)
-  );
+  const list = (data as Wish[]).filter((w) => {
+    if (isBlockedStatus(w.status)) return false;
+    // 官方常駐卡永遠展示
+    if (w.id === OFFICIAL_SPONSOR_ID) return true;
+    // 一般願望未滿額才展示
+    return Number(w.current_stardust || 0) < Number(w.product_price || 0);
+  });
+
+  // 排序：官方卡永遠置頂，其餘按建立時間降冪
+  return list.sort((a, b) => {
+    if (a.id === OFFICIAL_SPONSOR_ID) return -1;
+    if (b.id === OFFICIAL_SPONSOR_ID) return 1;
+    return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+  });
 }
 
 /**

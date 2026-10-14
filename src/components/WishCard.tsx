@@ -180,11 +180,11 @@ export function WishCard({
                   </span>
                 ) : isFulfilled ? (
                   <span className="text-[10px] font-black px-2.5 py-0.5 rounded-full bg-amber-400 text-zinc-950">
-                    ✨ 圓滿閃卡
+                    ✨ 活動達成
                   </span>
                 ) : (
                   <span className="text-[10px] font-mono text-zinc-400 bg-black/60 px-2 py-0.5 rounded-md border border-white/5">
-                    集資中 {progress}%
+                    已投入 {progress}%
                   </span>
                 )}
               </div>
