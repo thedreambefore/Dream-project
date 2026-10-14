@@ -1,13 +1,14 @@
 // src/components/LeaderboardWidget.tsx
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import {
   Flame,
   ChevronDown,
   ChevronUp,
   ExternalLink,
-  Coins,
   Sparkles,
-  ShieldCheck,
+  Award,
+  Hourglass,
+  Compass,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabaseClient';
 import type { Wish } from '@/types/wish';
@@ -27,7 +28,6 @@ export function LeaderboardWidget({
   const [isOpen, setIsOpen] = useState(false);
   const [activeBoard, setActiveBoard] = useState<'fulfilled' | 'inTransit' | 'official'>('fulfilled');
 
-  // 三大榜單狀態
   const [fulfilledTopUsers, setFulfilledTopUsers] = useState<any[]>([]);
   const [inTransitTopUsers, setInTransitTopUsers] = useState<any[]>([]);
   const [officialDonors, setOfficialDonors] = useState<any[]>([]);
@@ -38,7 +38,7 @@ export function LeaderboardWidget({
     const fetchAllBoards = async () => {
       setLoading(true);
       try {
-        // 1. 全額圓滿履約榜 (users.wallet_balance > 0)
+        // 1. 【圓滿引路榜】
         const { data: usersData } = await supabase
           .from('users')
           .select('id, anonymous_nickname, wallet_balance')
@@ -50,11 +50,12 @@ export function LeaderboardWidget({
           setFulfilledTopUsers(usersData);
         }
 
-        // 2. 在途守護榜 (只撈取未出貨願望的在途投資額)
+        // 2. 【在途守護榜】
         const { data: activeWishes } = await supabase
           .from('wishes')
           .select('id')
-          .neq('status', 'fulfilled');
+          .neq('status', 'fulfilled')
+          .neq('id', OFFICIAL_SPONSOR_ID);
 
         const activeWishIds = new Set(activeWishes?.map((w) => w.id) || []);
 
@@ -86,7 +87,7 @@ export function LeaderboardWidget({
           }
         }
 
-        // 3. 官方支持榜 (斗內常駐卡)
+        // 3. 【星空守護榜】
         const { data: officialInvs } = await supabase
           .from('investments')
           .select('user_id, amount, users:user_id(anonymous_nickname)')
@@ -128,31 +129,41 @@ export function LeaderboardWidget({
     };
   }, []);
 
-  // 臨門一腳最高進度願望
-  const topPercentWishes = wishes
-    .filter((w) => {
-      const isOfficial = w.id === OFFICIAL_SPONSOR_ID;
-      const pct = ((w.current_stardust || 0) / (w.product_price || 1)) * 100;
-      return !isOfficial && pct > 0 && pct < 100 && w.status !== 'fulfilled';
-    })
-    .sort((a, b) => {
-      const pctA = (a.current_stardust || 0) / (a.product_price || 1);
-      const pctB = (b.current_stardust || 0) / (b.product_price || 1);
-      return pctB - pctA;
-    })
-    .slice(0, 3);
+  // 🌟 嚴格過濾：臨門一腳只取進度 > 0% 且 < 100% 的進行中心願
+  const topPercentWishes = useMemo(() => {
+    return wishes
+      .filter((w) => {
+        const isOfficial = w.id === OFFICIAL_SPONSOR_ID;
+        const current = Number(w.current_stardust || 0);
+        const target = Number(w.product_price || 1);
+        const pct = (current / target) * 100;
+        return (
+          !isOfficial &&
+          pct > 0 &&
+          pct < 100 &&
+          w.status !== 'fulfilled' &&
+          w.status !== 'full_funded'
+        );
+      })
+      .sort((a, b) => {
+        const pctA = (a.current_stardust || 0) / (a.product_price || 1);
+        const pctB = (b.current_stardust || 0) / (b.product_price || 1);
+        return pctB - pctA;
+      })
+      .slice(0, 3);
+  }, [wishes]);
 
   return (
     <div className="mb-8 animate-fade-in">
-      {/* 膠囊收合列：乾淨精簡，移除直通按鈕，僅保留展開觸發 */}
+      {/* 頂部徽章膠囊列 */}
       <div
         onClick={() => setIsOpen((prev) => !prev)}
-        className="glass rounded-2xl p-2.5 sm:p-3 border border-amber-400/20 bg-zinc-950/80 backdrop-blur-md flex items-center justify-between gap-3 shadow-lg cursor-pointer hover:border-amber-400/40 transition-all"
+        className="glass rounded-2xl p-2.5 sm:p-3 border border-amber-400/20 bg-zinc-950/80 backdrop-blur-md flex items-center justify-between gap-3 shadow-lg cursor-pointer hover:border-amber-400/40 transition-all select-none"
       >
         <div className="flex items-center gap-2 flex-wrap">
-          {/* 徽章 1：臨門一腳 */}
+          {/* 臨門一腳 */}
           <div className="flex items-center gap-1.5 bg-amber-500/10 border border-amber-400/30 px-3 py-1.5 rounded-xl text-xs text-amber-200">
-            <Flame className="w-3.5 h-3.5 text-amber-400 fill-amber-400" />
+            <Flame className="w-3.5 h-3.5 text-amber-400" />
             <span className="font-bold">臨門一腳：</span>
             {topPercentWishes.length > 0 ? (
               <span className="font-mono text-amber-300 font-bold truncate max-w-[130px]">
@@ -165,16 +176,16 @@ export function LeaderboardWidget({
                 %)
               </span>
             ) : (
-              <span className="text-zinc-500">靜候星塵</span>
+              <span className="text-zinc-500">靜候星光</span>
             )}
           </div>
 
-          {/* 徽章 2：官方守護榜首 */}
+          {/* 星空守護榜首 */}
           <div className="flex items-center gap-1.5 bg-indigo-500/10 border border-indigo-400/30 px-3 py-1.5 rounded-xl text-xs text-indigo-200">
             <Sparkles className="w-3.5 h-3.5 text-indigo-400" />
             <span className="font-bold">星空守護榜首：</span>
             {officialDonors.length > 0 ? (
-              <span className="text-indigo-300 truncate max-w-[130px]">
+              <span className="text-indigo-300 font-mono font-bold truncate max-w-[130px]">
                 {officialDonors[0].anonymous_nickname} (⭐{officialDonors[0].amount})
               </span>
             ) : (
@@ -183,76 +194,79 @@ export function LeaderboardWidget({
           </div>
         </div>
 
-        {/* 展開箭頭提示 */}
         <div className="flex items-center gap-1.5 text-xs text-zinc-400 pr-1">
-          <span className="hidden sm:inline text-[11px]">查看三大榮譽榜</span>
+          <span className="hidden sm:inline text-[11px]">展開榮譽榜</span>
           {isOpen ? <ChevronUp className="w-4 h-4 text-amber-300" /> : <ChevronDown className="w-4 h-4" />}
         </div>
       </div>
 
-      {/* 展開之完整榜單大廳 */}
+      {/* 展開後的榮譽大廳 */}
       {isOpen && (
-        <div className="mt-3 glass rounded-2xl p-5 border border-amber-400/20 bg-zinc-950/90 space-y-4 animate-fade-in shadow-2xl">
-          {/* 頂部切換 Tab 與 直通按鈕 */}
-          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/10 pb-3">
+        <div className="mt-3 glass rounded-2xl p-5 border border-amber-400/20 bg-zinc-950/95 space-y-4 animate-fade-in shadow-2xl">
+          {/* 工具列：線條風格分頁 Tab + 直通按鈕 */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-white/10 pb-3">
             <div className="flex bg-zinc-900 border border-white/10 p-1 rounded-xl text-xs gap-1">
               <button
                 type="button"
                 onClick={() => setActiveBoard('fulfilled')}
-                className={`px-3 py-1.5 rounded-lg font-bold transition-all cursor-pointer ${
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-bold transition-all cursor-pointer ${
                   activeBoard === 'fulfilled'
-                    ? 'bg-amber-500/20 text-amber-300 border border-amber-400/30'
+                    ? 'bg-amber-500/20 text-amber-300 border border-amber-400/40 shadow-sm'
                     : 'text-zinc-400 hover:text-white'
                 }`}
               >
-                🌌 圓滿引路榜 (全額達成)
+                <Award className="w-3.5 h-3.5" />
+                <span>圓滿引路榜</span>
               </button>
+
               <button
                 type="button"
                 onClick={() => setActiveBoard('inTransit')}
-                className={`px-3 py-1.5 rounded-lg font-bold transition-all cursor-pointer ${
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-bold transition-all cursor-pointer ${
                   activeBoard === 'inTransit'
-                    ? 'bg-yellow-500/20 text-yellow-300 border border-yellow-400/30'
+                    ? 'bg-yellow-500/20 text-yellow-300 border border-yellow-400/40 shadow-sm'
                     : 'text-zinc-400 hover:text-white'
                 }`}
               >
-                ⏳ 在途守護榜 (守護中)
+                <Hourglass className="w-3.5 h-3.5" />
+                <span>在途守護榜</span>
               </button>
+
               <button
                 type="button"
                 onClick={() => setActiveBoard('official')}
-                className={`px-3 py-1.5 rounded-lg font-bold transition-all cursor-pointer ${
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-bold transition-all cursor-pointer ${
                   activeBoard === 'official'
-                    ? 'bg-indigo-500/20 text-indigo-300 border border-indigo-400/30'
+                    ? 'bg-indigo-500/20 text-indigo-300 border border-indigo-400/40 shadow-sm'
                     : 'text-zinc-400 hover:text-white'
                 }`}
               >
-                🪐 官方支持榜 (斗內網站)
+                <Sparkles className="w-3.5 h-3.5" />
+                <span>星空守護榜</span>
               </button>
             </div>
 
-            {/* 🌟 依指示：榮譽殿堂直通按鈕移至展開後呈現 */}
             <button
               type="button"
               onClick={onOpenHonorHall}
-              className="text-xs px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-amber-500/20 to-yellow-500/20 hover:from-amber-500/30 hover:to-yellow-500/30 border border-amber-400/40 text-amber-200 font-bold flex items-center gap-1.5 transition-all cursor-pointer shadow-sm"
+              className="self-end sm:self-center text-xs px-3.5 py-1.5 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 border border-amber-400/30 text-amber-200 font-bold flex items-center gap-1.5 transition-all cursor-pointer whitespace-nowrap"
             >
               <span>前往個人中心完整殿堂</span>
-              <ExternalLink className="w-3.5 h-3.5 text-amber-300" />
+              <ExternalLink className="w-3 h-3 text-amber-300" />
             </button>
           </div>
 
-          {/* 榜單資料渲染 */}
+          {/* 榜單雙欄內容 */}
           {loading ? (
             <div className="text-center py-8 text-xs text-zinc-500">同步星空榜單數據中...</div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {/* 左側：當前所選排行榜清單 */}
+              {/* 左側：所選排行清單 */}
               <div className="space-y-2">
-                <p className="text-[11px] text-zinc-400 font-bold">
-                  {activeBoard === 'fulfilled' && '🏆 已見證故事履約之永久榮譽星塵總量 (TOP 5)'}
-                  {activeBoard === 'inTransit' && '🛡️ 陪伴主角奔向終點的在途守護燃料 (TOP 5)'}
-                  {activeBoard === 'official' && '💫 支持夢沙星空伺服器與維運之守護者 (TOP 5)'}
+                <p className="text-[11px] text-zinc-400 font-bold flex items-center gap-1">
+                  {activeBoard === 'fulfilled' && <><Award className="w-3.5 h-3.5 text-amber-400" /> 圓滿引路榜 · 故事履約見證榮譽點數 (TOP 5)</>}
+                  {activeBoard === 'inTransit' && <><Hourglass className="w-3.5 h-3.5 text-yellow-400" /> 在途守護榜 · 進行中陪伴在途燃料 (TOP 5)</>}
+                  {activeBoard === 'official' && <><Sparkles className="w-3.5 h-3.5 text-indigo-400" /> 星空守護榜 · 守護夢沙星空營運之引路人 (TOP 5)</>}
                 </p>
 
                 {(() => {
@@ -266,7 +280,7 @@ export function LeaderboardWidget({
                   if (currentList.length === 0) {
                     return (
                       <div className="text-center py-8 text-xs text-zinc-500 border border-white/5 rounded-xl bg-zinc-900/40">
-                        虛位以待，等待第一位星旅人點亮光芒
+                        虛位以待，等待第一顆引路星點亮
                       </div>
                     );
                   }
@@ -309,18 +323,20 @@ export function LeaderboardWidget({
                 })()}
               </div>
 
-              {/* 右側：臨門一腳快速定位 */}
+              {/* 右側：臨門一腳精準列表 */}
               <div className="space-y-2 border-t md:border-t-0 md:border-l border-white/10 md:pl-4 pt-3 md:pt-0">
                 <div className="flex items-center justify-between">
                   <p className="text-[11px] text-amber-300 font-bold flex items-center gap-1">
-                    <Flame className="w-3.5 h-3.5 text-amber-400" /> 臨門一腳 · 搶先見證
+                    <Flame className="w-3.5 h-3.5 text-amber-400" /> 臨門一腳 · 接近達成 (未滿 100%)
                   </p>
-                  <span className="text-[10px] text-zinc-500">點擊即刻定位卡片</span>
+                  <span className="text-[10px] text-zinc-500 flex items-center gap-0.5">
+                    <Compass className="w-3 h-3" /> 點擊定位卡片
+                  </span>
                 </div>
 
                 {topPercentWishes.length === 0 ? (
                   <div className="text-center py-8 text-xs text-zinc-500 border border-white/5 rounded-xl bg-zinc-900/40">
-                    目前暫無推進中的活動
+                    目前暫無 1% ~ 99% 推進中的心願
                   </div>
                 ) : (
                   topPercentWishes.map((w, idx) => {

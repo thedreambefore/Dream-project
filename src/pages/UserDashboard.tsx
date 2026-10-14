@@ -648,18 +648,16 @@ function PublishTab({ onRequireVerify }: { onRequireVerify: () => void }) {
   );
 }
 
-// ===== 3. 星光貢獻榮譽館 (支援途中星塵點擊展開來歷清單) =====
-// ===== 3. 星光貢獻榮譽館 (保留在途明細展開 + 統一三大排行榜) =====
+// ===== 3. 星光貢獻榮譽館 (修正 .slice(0, 10) 讀取 Bug + 統一線條 Icon) =====
 function WalletTab() {
   const { session, profile } = useAuth();
   
-  // 🌟 支援 3 種榜單切換：圓滿全額榜、在途守護榜、官方支持榜
   const [hallTab, setHallTab] = useState<'fulfilled' | 'inTransit' | 'official'>('fulfilled');
   const [officialDonors, setOfficialDonors] = useState<any[]>([]);
 
   const [myInTransitAmount, setMyInTransitAmount] = useState(0);
-  const [transitList, setTransitList] = useState<any[]>([]); // 🌟 保留：儲存途中星塵明細
-  const [showTransitDetails, setShowTransitDetails] = useState(false); // 🌟 保留：點擊展開開關
+  const [transitList, setTransitList] = useState<any[]>([]);
+  const [showTransitDetails, setShowTransitDetails] = useState(false);
 
   const [fulfilledTopUsers, setFulfilledTopUsers] = useState<any[]>([]);
   const [inTransitTopUsers, setInTransitTopUsers] = useState<any[]>([]);
@@ -677,7 +675,7 @@ function WalletTab() {
           .from('wishes')
           .select('id, product_name, cover_emoji, current_stardust, product_price, status')
           .neq('status', 'fulfilled')
-          .neq('id', '00000000-0000-0000-0000-000000000001'); // 排除官方卡
+          .neq('id', '00000000-0000-0000-0000-000000000001');
 
         const wishMap = new Map((activeWishes || []).map((w) => [w.id, w]));
 
@@ -710,7 +708,7 @@ function WalletTab() {
           }
         }
 
-        // 3. 【榜單一：圓滿引路榜】(已履約總額)
+        // 3. 【榜單一：圓滿引路榜】
         const { data: fulfilledData } = await supabase
           .from('users')
           .select('id, anonymous_nickname, wallet_balance')
@@ -722,7 +720,7 @@ function WalletTab() {
           setFulfilledTopUsers(fulfilledData);
         }
 
-        // 4. 【榜單二：在途守護榜】(進行中心願的在途燃料)
+        // 4. 【榜單二：在途守護榜】(修正為 .slice(0, 10))
         if (wishMap.size > 0) {
           const { data: allInvs } = await supabase
             .from('investments')
@@ -746,13 +744,13 @@ function WalletTab() {
               .map(([id, val]) => ({ id, anonymous_nickname: val.nickname, amount: val.total }))
               .filter((u) => u.amount > 0)
               .sort((a, b) => b.amount - a.amount)
-              .slice(10);
+              .slice(0, 10); // 👈 修正此處！
 
             setInTransitTopUsers(sortedTransit);
           }
         }
 
-        // 5. 【榜單三：官方支持榜】(斗內支持夢沙星空官網)
+        // 5. 【榜單三：星空守護榜】(修正為 .slice(0, 10))
         const OFFICIAL_ID = '00000000-0000-0000-0000-000000000001';
         const { data: offInvs } = await supabase
           .from('investments')
@@ -773,7 +771,7 @@ function WalletTab() {
             .map(([id, val]) => ({ id, anonymous_nickname: val.nickname, amount: val.total }))
             .filter((u) => u.amount > 0)
             .sort((a, b) => b.amount - a.amount)
-            .slice(10);
+            .slice(0, 10); // 👈 修正此處！
 
           setOfficialDonors(sortedOff);
         }
@@ -803,9 +801,8 @@ function WalletTab() {
         </div>
       </div>
 
-      {/* 個人數據卡片 */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        {/* 已圓滿履約榮譽點 */}
+        {/* 已圓滿履約見證星塵 */}
         <div className="bg-gradient-to-br from-amber-500/15 via-zinc-900 to-zinc-950 border border-amber-500/20 p-5 rounded-2xl glow-border">
           <p className="text-zinc-400 text-[11px] font-bold tracking-wider mb-1">
             已圓滿履約見證星塵 (HONOR)
@@ -818,7 +815,7 @@ function WalletTab() {
           <p className="text-[10px] text-zinc-500 mt-1.5">含履約結算與超額自動轉化之永久印記</p>
         </div>
 
-        {/* 🌟 進行中在途燃料（可點擊展開查看來歷） */}
+        {/* 進行中在途燃料 */}
         <div
           onClick={() => setShowTransitDetails((prev) => !prev)}
           className={`border p-5 rounded-2xl transition-all cursor-pointer relative group ${
@@ -847,7 +844,7 @@ function WalletTab() {
         </div>
       </div>
 
-      {/* 🌟 點開後呈現的在途星塵詳細清單 */}
+      {/* 展開後的在途星塵詳細清單 */}
       {showTransitDetails && (
         <div className="glass rounded-2xl p-5 border border-amber-400/30 bg-zinc-950/90 space-y-3 animate-fade-in">
           <div className="flex justify-between items-center border-b border-white/10 pb-2.5">
@@ -896,48 +893,51 @@ function WalletTab() {
         </div>
       )}
 
-      {/* 🌟 三大榮譽排行榜切換區 */}
+      {/* 統一線條風格排行榜 */}
       <div className="glass rounded-2xl p-5 border border-amber-400/20 bg-zinc-900/60 space-y-4">
         <div className="flex items-center justify-between border-b border-white/10 pb-3 flex-wrap gap-2">
           <div className="flex bg-zinc-950 border border-white/10 p-1 rounded-xl text-xs gap-1 flex-wrap">
             <button
               type="button"
               onClick={() => setHallTab('fulfilled')}
-              className={`px-3 py-1.5 rounded-lg font-bold transition-all cursor-pointer ${
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-bold transition-all cursor-pointer ${
                 hallTab === 'fulfilled'
-                  ? 'bg-amber-500/20 text-amber-300 border border-amber-400/30'
+                  ? 'bg-amber-500/20 text-amber-300 border border-amber-400/40 shadow-sm'
                   : 'text-zinc-400 hover:text-white'
               }`}
             >
-              🌌 傳奇引路榜 (已履約總額)
+              <Award className="w-3.5 h-3.5" />
+              <span>圓滿引路榜</span>
             </button>
             <button
               type="button"
               onClick={() => setHallTab('inTransit')}
-              className={`px-3 py-1.5 rounded-lg font-bold transition-all cursor-pointer ${
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-bold transition-all cursor-pointer ${
                 hallTab === 'inTransit'
-                  ? 'bg-yellow-500/20 text-yellow-300 border border-yellow-400/30'
+                  ? 'bg-yellow-500/20 text-yellow-300 border border-yellow-400/40 shadow-sm'
                   : 'text-zinc-400 hover:text-white'
               }`}
             >
-              ⏳ 在途守護榜 (當前在途)
+              <Hourglass className="w-3.5 h-3.5" />
+              <span>在途守護榜</span>
             </button>
             <button
               type="button"
               onClick={() => setHallTab('official')}
-              className={`px-3 py-1.5 rounded-lg font-bold transition-all cursor-pointer ${
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-bold transition-all cursor-pointer ${
                 hallTab === 'official'
-                  ? 'bg-indigo-500/20 text-indigo-300 border border-indigo-400/30'
+                  ? 'bg-indigo-500/20 text-indigo-300 border border-indigo-400/40 shadow-sm'
                   : 'text-zinc-400 hover:text-white'
               }`}
             >
-              🪐 官方支持榜 (斗內網站)
+              <Sparkles className="w-3.5 h-3.5" />
+              <span>星空守護榜</span>
             </button>
           </div>
           <span className="text-[10px] text-zinc-500 font-mono hidden sm:inline">全站匿名 TOP 10</span>
         </div>
 
-        {/* 排行榜名冊清單 */}
+        {/* 名冊清單 */}
         {loadingHall ? (
           <div className="text-center py-10 text-xs text-zinc-500">正在同步全星空榮譽榜單...</div>
         ) : (
