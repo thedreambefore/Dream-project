@@ -331,7 +331,7 @@ body {
   inset: 0;
   border-radius: inherit;
   pointer-events: none;
-  z-index: 20;
+  z-index: 40;
   opacity: calc(var(--card-opacity) * 0.45); /* 🌟 降至 45% 透明度，不再死白發亮 */
   mix-blend-mode: color-dodge;
   background-image: 
