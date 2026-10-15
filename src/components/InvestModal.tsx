@@ -7,7 +7,7 @@ import type { Wish } from '@/types/wish';
 import { useAuth } from '@/context/AuthContext';
 import { updateWish, OFFICIAL_SPONSOR_ID } from '@/lib/backend';
 
-export function InvestModal({ story, onClose }: { story: Wish; onClose: () => void }) {
+export function InvestModal({ story, onClose }: { story: Wish; onClose: (addedAmount?: number) => void }) {
   const { session, profile, refreshProfile } = useAuth();
   const isOfficial = story.id === OFFICIAL_SPONSOR_ID;
 
@@ -174,7 +174,7 @@ export function InvestModal({ story, onClose }: { story: Wish; onClose: () => vo
       refreshProfile(); // 背景刷新不阻塞畫面
 
       setTimeout(() => {
-        onClose();
+        onClose(payAmount); // 👈 將投下的金額直接回傳，卡片即時重算佔比！
       }, 1400);
     } catch (err: any) {
       setError(err.message || '金流連線異常，請稍後重試');
@@ -188,7 +188,7 @@ export function InvestModal({ story, onClose }: { story: Wish; onClose: () => vo
   return createPortal(
     <div
       className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/85 backdrop-blur-md overflow-y-auto"
-      onClick={onClose}
+      onClick={() => onClose()}
     >
       <div
         className="glass-strong rounded-3xl w-full max-w-lg p-6 sm:p-7 glow-border bg-zinc-950 border border-amber-400/30 shadow-2xl my-auto"
@@ -226,7 +226,7 @@ export function InvestModal({ story, onClose }: { story: Wish; onClose: () => vo
                 </p>
               </div>
               <button
-                onClick={onClose}
+                onClick={() => onClose()}
                 className="rounded-full hover:bg-white/10 p-1 text-gray-400 hover:text-white cursor-pointer"
               >
                 <X className="w-5 h-5" />

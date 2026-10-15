@@ -15,8 +15,8 @@ import {
   ExternalLink,
   Trash2,
   RotateCw,
-  X,
   Loader2,
+  X,
   Crown,
 } from 'lucide-react';
 import type { Wish } from '@/types/wish';
@@ -58,23 +58,34 @@ export function WishCard({
   const [actionReason, setActionReason] = useState('');
   const [isActionLoading, setIsActionLoading] = useState(false);
 
-  // 🌟🌟🌟 核心變數宣告（卡片閃光開關） 🌟🌟🌟
   const isOfficial = wish.id === OFFICIAL_SPONSOR_ID;
-  const currentStardust = Number(wish.current_stardust || 0);
   const targetPrice = Number(wish.product_price || 1);
-  const progress = Math.round((currentStardust / targetPrice) * 100);
 
-  // 只要進度達 100% 或是 full_funded / fulfilled，就是達成
+  // 🌟 本地響應狀態：投星後即時動態增加，徽章與進度隨投隨變！
+  const [localStardust, setLocalStardust] = useState(Number(wish.current_stardust || 0));
+  const [myLocalInvest, setMyLocalInvest] = useState(Number(wish.myInvestAmount || 0));
+
+  useEffect(() => {
+    setLocalStardust(Number(wish.current_stardust || 0));
+    setMyLocalInvest(Number(wish.myInvestAmount || 0));
+  }, [wish.current_stardust, wish.myInvestAmount]);
+
+  // 動態進度與個人佔比
+  const progress = Math.round((localStardust / targetPrice) * 100);
   const isFulfilled =
     wish.status === 'fulfilled' || wish.status === 'full_funded' || progress >= 100;
+  const isOverFunded = progress > 100;
+  const isExactlyFunded = progress === 100;
   const isNearComplete = progress >= 90 && progress < 100;
-
-  // 控制卡片鍍金與全息 Trainer 閃卡特效的關鍵開關！
   const isCardShining = isOfficial || isFulfilled;
 
-  // 個人贊助佔比
-  const ratio = Number(wish.myContributionRatio || 0);
+  // 動態計算個人佔比 (小數點 1 位)
+  const ratio = useMemo(() => {
+    if (myLocalInvest <= 0) return 0;
+    return Math.round((myLocalInvest / targetPrice) * 1000) / 10;
+  }, [myLocalInvest, targetPrice]);
 
+  // 個人守護階梯樣式
   const tier = useMemo(() => {
     if (ratio <= 0) return null;
     if (ratio >= 50) {
@@ -234,7 +245,7 @@ export function WishCard({
               tier ? tier.cardClass : isCardShining ? 'holo-border-gold' : 'border-white/10'
             }`}
           >
-            {/* 🌟 頂層 Trainer 閃卡光學膜：isCardShining 為 true 時覆蓋在全卡片最上層 */}
+            {/* 🌟 頂層 Trainer 閃卡光學膜 */}
             {isCardShining && <div className="trainer-gallery-shine" />}
 
             {/* 個人贊助階梯微光層 */}
@@ -259,9 +270,10 @@ export function WishCard({
               )}
             </div>
 
-            {/* 正面上半部 */}
+            {/* 正面上半部：徽章取代標籤 + 右上角達成與炫彩超額狀態 */}
             <div className="relative z-30">
               <div className="flex items-center justify-between mb-3">
+                {/* 🌟 核心升級 1：若有個人守護佔比，直接「覆蓋取代」標籤位置 */}
                 {tier ? (
                   <span className={`text-[11px] px-2.5 py-0.5 rounded-full border font-mono flex items-center gap-1 backdrop-blur-md ${tier.badgeClass}`}>
                     {tier.level === 4 && <Crown className="w-3 h-3 text-amber-300" />}
@@ -274,13 +286,19 @@ export function WishCard({
                   </span>
                 )}
 
+                {/* 🌟 核心升級 2：右上角狀態膠囊：達成顯示「圓滿達成」；超額顯示「炫彩超額達成 XX%」 */}
                 {isOfficial ? (
                   <span className="text-[10px] font-bold text-amber-300 bg-amber-500/20 px-2.5 py-0.5 rounded-full border border-amber-400/30 flex items-center gap-1">
                     <Sparkles className="w-3 h-3 text-amber-400" />
                     官方常駐
                   </span>
-                ) : isFulfilled ? (
-                  <span className="text-[10px] font-black px-2.5 py-0.5 rounded-full bg-amber-400 text-zinc-950 flex items-center gap-1">
+                ) : isOverFunded ? (
+                  <span className="text-[10px] px-2.5 py-0.5 rounded-full badge-prismatic-white flex items-center gap-1">
+                    <Sparkles className="w-3 h-3 animate-spin" />
+                    超額達成 {progress}%
+                  </span>
+                ) : isExactlyFunded ? (
+                  <span className="text-[10px] font-black px-2.5 py-0.5 rounded-full bg-amber-400 text-zinc-950 flex items-center gap-1 shadow-[0_0_12px_rgba(251,191,36,0.5)]">
                     <CheckCircle2 className="w-3 h-3" />
                     圓滿達成
                   </span>
@@ -297,7 +315,7 @@ export function WishCard({
               </h3>
             </div>
 
-            {/* 正面下半部：終章承諾 + 星塵進度條 + 點擊翻面提示 */}
+            {/* 正面下半部：終章承諾 + 星塵進度條 (超額帶炫彩文字) + 點擊翻面提示 */}
             <div className="relative z-30 space-y-3.5">
               <div className="bg-black/60 border border-white/10 rounded-xl p-2.5 backdrop-blur-md">
                 <p className="text-[11px] text-zinc-300 line-clamp-1 leading-relaxed">
@@ -310,15 +328,32 @@ export function WishCard({
                 <div className="flex justify-between items-baseline text-xs font-mono">
                   <span className="text-zinc-400 flex items-center gap-1">
                     <Coins className="w-3.5 h-3.5 text-amber-400" />
-                    {currentStardust.toLocaleString()} / {targetPrice.toLocaleString()} 星塵
+                    {localStardust.toLocaleString()} / {targetPrice.toLocaleString()} 星塵
                   </span>
-                  <span className={`font-black ${progress >= 100 ? 'text-amber-300 glow-text' : 'text-amber-200'}`}>
-                    {progress}%
-                  </span>
+
+                  {/* 🌟 核心升級 3：進度條上方文字：超額帶白色炫彩！ */}
+                  {isOverFunded ? (
+                    <span className="text-prismatic-white">
+                      超額 {progress}%
+                    </span>
+                  ) : isExactlyFunded ? (
+                    <span className="text-amber-300 font-black glow-text">
+                      圓滿達成
+                    </span>
+                  ) : (
+                    <span className={`font-black ${isNearComplete ? 'text-amber-300 glow-text' : 'text-amber-200'}`}>
+                      {progress}%
+                    </span>
+                  )}
                 </div>
+
                 <div className="w-full h-2 rounded-full bg-white/10 overflow-hidden">
                   <div
-                    className="h-full rounded-full bg-gradient-to-r from-amber-500 via-yellow-400 to-amber-200"
+                    className={`h-full rounded-full transition-all duration-500 ${
+                      isOverFunded
+                        ? 'bg-gradient-to-r from-amber-400 via-white to-pink-300 shadow-[0_0_10px_rgba(255,255,255,0.8)]'
+                        : 'bg-gradient-to-r from-amber-500 via-yellow-400 to-amber-200'
+                    }`}
                     style={{ width: `${Math.min(100, progress)}%` }}
                   />
                 </div>
@@ -566,17 +601,13 @@ export function WishCard({
 
               <div>
                 <label className="text-xs text-zinc-400 block mb-1">
-                  請填寫{isAdmin ? '下架封鎖原因' : '檢舉理由'}：
+                  請填寫理由：
                 </label>
                 <textarea
                   rows={3}
                   value={actionReason}
                   onChange={(e) => setActionReason(e.target.value)}
-                  placeholder={
-                    isAdmin
-                      ? '例如：經查核商品來源異常、含有敏感詐騙資訊...'
-                      : '請輸入此願望有疑慮的具體內容...'
-                  }
+                  placeholder="請填寫具體原由..."
                   className="w-full bg-zinc-900 border border-white/10 rounded-xl p-3 text-xs text-white focus:outline-none focus:border-amber-400 resize-none"
                   autoFocus
                 />
@@ -600,13 +631,7 @@ export function WishCard({
                       : 'bg-amber-500 hover:bg-amber-400 text-zinc-950'
                   }`}
                 >
-                  {isActionLoading ? (
-                    <Loader2 className="w-4 h-4 animate-spin mx-auto" />
-                  ) : isAdmin ? (
-                    '確認即刻下架'
-                  ) : (
-                    '提交回報'
-                  )}
+                  {isActionLoading ? <Loader2 className="w-4 h-4 animate-spin mx-auto" /> : '確認送出'}
                 </button>
               </div>
             </div>
@@ -614,12 +639,17 @@ export function WishCard({
           document.body
         )}
 
+      {/* 🌟 投星彈窗：投完星直接回傳投入額，零延遲即時更新卡片與徽章 % 數！ */}
       {showInvest && (
         <Suspense fallback={null}>
           <InvestModal
             story={wish}
-            onClose={() => {
+            onClose={(addedAmount?: number) => {
               setShowInvest(false);
+              if (addedAmount && addedAmount > 0) {
+                setLocalStardust((prev) => prev + addedAmount);
+                setMyLocalInvest((prev) => prev + addedAmount);
+              }
               refreshProfile();
             }}
           />
