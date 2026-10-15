@@ -6,7 +6,8 @@ import {
   MessageSquare,
   Loader2,
   Lock,
-  Trash2,
+  EyeOff,
+  Eye,
   Coins,
   Sparkles,
   Compass,
@@ -14,8 +15,8 @@ import {
   MailCheck,
   ShieldAlert,
   ThumbsUp,
-  Ban,
   UserCheck,
+  Clock,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabaseClient';
 import type { Wish, Investment } from '@/types/wish';
@@ -42,7 +43,24 @@ export function DriftBottleModal({ wish, isFulfilled, onClose }: DriftBottleModa
   const targetStardust = Number(wish.product_price || 1);
   const progressPercent = Math.min(100, Math.round((currentStardust / targetStardust) * 100));
 
-  // 1. 查詢當前登入者是否曾為本心願投下星星
+  // 判定是否已超過達成隔天凌晨 00:00:00 (換日過期)
+  const isExpiredFromHome = useMemo(() => {
+    if (!isFulfilled || isOfficial) return false;
+    const fundedDateStr = (wish as any).funded_at || wish.created_at;
+    if (!fundedDateStr) return false;
+    const fundedDate = new Date(fundedDateStr);
+    const nextDayMidnight = new Date(
+      fundedDate.getFullYear(),
+      fundedDate.getMonth(),
+      fundedDate.getDate() + 1,
+      0,
+      0,
+      0
+    );
+    return new Date().getTime() >= nextDayMidnight.getTime();
+  }, [isFulfilled, isOfficial, wish]);
+
+  // 1. 查詢當前登入者是否曾為本心願投星加油
   useEffect(() => {
     if (!session?.user?.id || isOfficial) return;
     supabase
@@ -56,9 +74,20 @@ export function DriftBottleModal({ wish, isFulfilled, onClose }: DriftBottleModa
       });
   }, [session?.user?.id, wish.id, isOfficial]);
 
-  // 2. 嚴格權限判定
-  // 官方意見箱：全員可見；管理員：擁有全域巡檢權限；一般願望：必須「活動已達成」且為「主角、支持者或管理員」
-  const canAccess = isOfficial || isAdmin || (isFulfilled && (isOwner || hasDonated));
+  // 2. 權限邊界精準判定：
+  // A. 官方意見箱 或 管理員：永遠完全可見
+  // B. 活動達成當天（未換日）：開放全站所有訪客自由同慶查閱！
+  // C. 活動換日後（已永久封存）：僅限提案人本人、曾投星支持者查閱
+  // D. 活動進行中（未達成）：許願者可看「全部實時加油」；支持者可看「自己的加油紀錄」；其他路人封存
+  const canAccessFullRoom =
+    isOfficial ||
+    isAdmin ||
+    (isFulfilled && !isExpiredFromHome) ||
+    (isFulfilled && isExpiredFromHome && (isOwner || hasDonated)) ||
+    (!isFulfilled && isOwner);
+
+  const canAccessSelfOnly = !isFulfilled && !isOwner && hasDonated;
+  const canAccess = canAccessFullRoom || canAccessSelfOnly;
 
   const loadMessages = async () => {
     setLoading(true);
@@ -69,11 +98,7 @@ export function DriftBottleModal({ wish, isFulfilled, onClose }: DriftBottleModa
       .order('created_at', { ascending: false });
 
     if (!error && data) {
-      // 非管理員只顯示未被隱藏的留言
-      const filtered = isAdmin
-        ? (data as Investment[])
-        : (data as Investment[]).filter((m) => !m.is_hidden);
-      setMessages(filtered);
+      setMessages(data as Investment[]);
     }
     setLoading(false);
   };
@@ -86,7 +111,26 @@ export function DriftBottleModal({ wish, isFulfilled, onClose }: DriftBottleModa
     }
   }, [wish.id, canAccess]);
 
-  const sortedMessages = useMemo(() => {
+  // 計算每個用戶對該願望的累計投入星塵數與佔比
+  const userContributionMap = useMemo(() => {
+    const map = new Map<string, { total: number; percent: number }>();
+    messages.forEach((m) => {
+      if (m.user_id) {
+        const prev = map.get(m.user_id)?.total || 0;
+        const newTotal = prev + Number(m.amount || 0);
+        const percent = Math.min(100, Math.round((newTotal / targetStardust) * 1000) / 10);
+        map.set(m.user_id, { total: newTotal, percent });
+      }
+    });
+    return map;
+  }, [messages, targetStardust]);
+
+  // 過濾與排序
+  const displayedMessages = useMemo(() => {
+    if (canAccessSelfOnly) {
+      // 進行中之支持者：僅檢視自己的加油紀錄
+      return messages.filter((m) => m.user_id === session?.user?.id);
+    }
     if (!isOfficial || !session?.user?.id) return messages;
     return [...messages].sort((a, b) => {
       const aIsMe = a.user_id === session.user.id;
@@ -95,8 +139,9 @@ export function DriftBottleModal({ wish, isFulfilled, onClose }: DriftBottleModa
       if (!aIsMe && bIsMe) return 1;
       return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
     });
-  }, [messages, isOfficial, session?.user?.id]);
+  }, [messages, canAccessSelfOnly, isOfficial, session?.user?.id]);
 
+  // 管理員專屬：優質註記
   const handleSetReaction = async (msgId: string, tag: string) => {
     try {
       await supabase.from('investments').update({ reaction: tag } as any).eq('id', msgId);
@@ -104,17 +149,19 @@ export function DriftBottleModal({ wish, isFulfilled, onClose }: DriftBottleModa
         prev.map((m) => (m.id === msgId ? ({ ...m, reaction: tag } as any) : m))
       );
     } catch (err: any) {
-      alert(`表態註記失敗: ${err.message}`);
+      alert(`註記失敗: ${err.message}`);
     }
   };
 
-  const handleDeleteMessage = async (msgId: string) => {
-    if (!confirm('確定要永久刪除此則留言嗎？')) return;
+  // 管理員非破壞性處置：切換隱藏遮蔽（保留星塵數額，內文轉為紅色違規提示）
+  const handleToggleHideMessage = async (msgId: string, currentHidden: boolean) => {
     try {
-      await supabase.from('investments').delete().eq('id', msgId);
-      setMessages((prev) => prev.filter((m) => m.id !== msgId));
+      await supabase.from('investments').update({ is_hidden: !currentHidden }).eq('id', msgId);
+      setMessages((prev) =>
+        prev.map((m) => (m.id === msgId ? { ...m, is_hidden: !currentHidden } : m))
+      );
     } catch (err: any) {
-      alert(`刪除失敗: ${err.message}`);
+      alert(`處置失敗: ${err.message}`);
     }
   };
 
@@ -127,7 +174,7 @@ export function DriftBottleModal({ wish, isFulfilled, onClose }: DriftBottleModa
         className="max-w-4xl w-full h-[620px] flex flex-col md:flex-row gap-4 items-center justify-center"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* 左側：心願卡摘要與進度膠囊 */}
+        {/* 左側：活動進度與身分識別卡 */}
         <div className="w-full md:w-80 h-[430px] flex-shrink-0 flex items-center justify-center">
           <div className="w-full h-full rounded-2xl glass glow-border overflow-hidden flex flex-col justify-between p-5 bg-zinc-950/90 shadow-2xl relative border border-amber-400/25">
             <div className="absolute inset-0 pointer-events-none overflow-hidden -z-10">
@@ -201,18 +248,32 @@ export function DriftBottleModal({ wish, isFulfilled, onClose }: DriftBottleModa
           </div>
         </div>
 
-        {/* 右側：漂流瓶留言室與結局見證窗 */}
+        {/* 右側：數位加油漂流瓶留言室 */}
         <div className="flex-1 w-full h-full rounded-3xl glass-strong border border-white/10 bg-zinc-900/95 flex flex-col justify-between overflow-hidden shadow-2xl relative">
           <div className="p-4 border-b border-white/10 flex justify-between items-center bg-black/40">
             <div>
               <h4 className="text-sm font-bold text-amber-200 flex items-center gap-2">
                 <MessageSquare className="w-4 h-4 text-amber-400" />
-                {isOfficial ? '夢沙星空意見箱 · 公開留言板' : '願望星砂漂流瓶結局室'}
+                {isOfficial
+                  ? '夢沙星空意見箱 · 公開留言板'
+                  : isFulfilled && !isExpiredFromHome
+                  ? '心願達成公開慶典 · 星砂加油牆'
+                  : isFulfilled && isExpiredFromHome
+                  ? '心願追番結局室 · 私密星語存檔'
+                  : isOwner
+                  ? '星旅人實時加油室 (許願者專屬)'
+                  : '我的心願加油紀錄'}
               </h4>
               <p className="text-[10px] text-zinc-400">
                 {isOfficial
                   ? '官方公開交流區 · 支持星空並留下寶貴建言'
-                  : '專屬閉環空間 · 僅提案人與投入星星之星旅人於達成後完整解鎖'}
+                  : isFulfilled && !isExpiredFromHome
+                  ? '🎉 今日全站公開同慶 · 共同沐浴達成微光'
+                  : isFulfilled && isExpiredFromHome
+                  ? '🔒 已換日封藏至追番牆 · 僅限許願者與支持者重溫結局'
+                  : isOwner
+                  ? '✨ 實時見證陌生星旅人為您投下的每一次鼓勵與加油'
+                  : '⭐ 記錄您為這段夢想點亮的星光與話語'}
               </p>
             </div>
             <button
@@ -224,27 +285,30 @@ export function DriftBottleModal({ wish, isFulfilled, onClose }: DriftBottleModa
           </div>
 
           <div className="flex-1 p-4 overflow-y-auto space-y-3 hide-scrollbar">
-            {/* 未達存取門檻時之安全鎖定遮罩 */}
             {!canAccess ? (
               <div className="text-center py-20 px-6 flex flex-col items-center justify-center gap-3">
                 <div className="w-14 h-14 rounded-full bg-amber-500/10 border border-amber-400/30 flex items-center justify-center text-amber-300">
                   <Lock className="w-7 h-7" />
                 </div>
-                <h4 className="text-sm font-bold text-amber-200">漂流瓶受星光結界封存中</h4>
+                <h4 className="text-sm font-bold text-amber-200">
+                  {isFulfilled && isExpiredFromHome
+                    ? '此活動已圓滿封藏至追番牆'
+                    : '星光加油中 · 完整加油室封存中'}
+                </h4>
                 <p className="text-xs text-zinc-400 max-w-sm leading-relaxed">
-                  {!isFulfilled
-                    ? '本活動仍在推進中。為杜絕社交攀比與未達成干擾，所有互動留言將在「活動 100% 圓滿達成」後正式解鎖見證。'
-                    : '本漂流瓶為私密結局閉環，僅開放給「提案人本人」與「曾投下星星的支持者」查閱彼此的星語與履約開箱信。'}
+                  {isFulfilled && isExpiredFromHome
+                    ? '活動達成當天已結束公開展示，現已永久封存至追番專屬空間，僅開放給許願者本人與曾投星支持者查閱。'
+                    : '本心願目前正處於加油集星階段。為保護隱私，完整加油話語牆將在「活動 100% 圓滿達成」時正式開放全站見證！'}
                 </p>
               </div>
             ) : loading ? (
               <div className="text-center py-24 text-xs text-zinc-500 flex flex-col items-center gap-2">
                 <Loader2 className="w-5 h-5 animate-spin text-amber-300" />
-                正在打撈瓶中留言...
+                正在打撈瓶中加油訊息...
               </div>
             ) : (
               <>
-                {/* 🌟 若已審核通過開箱感謝信，置頂公開呈現 */}
+                {/* 創作者開箱感謝信 (審核通過後展示) */}
                 {wish.letter_status === 'approved' && wish.thank_you_letter && (
                   <div className="p-4 rounded-2xl bg-purple-950/30 border border-purple-500/40 space-y-2.5">
                     <div className="flex items-center justify-between">
@@ -261,7 +325,7 @@ export function DriftBottleModal({ wish, isFulfilled, onClose }: DriftBottleModa
                       <div className="h-44 w-full rounded-xl overflow-hidden border border-purple-400/20">
                         <img
                           src={wish.unboxing_photo_url}
-                          alt="開箱照片"
+                          alt="開箱成果"
                           className="w-full h-full object-cover"
                         />
                       </div>
@@ -273,7 +337,7 @@ export function DriftBottleModal({ wish, isFulfilled, onClose }: DriftBottleModa
                   </div>
                 )}
 
-                {/* 官方寄語 */}
+                {/* 官方見證祝福 */}
                 {wish.admin_blessing && (
                   <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-400/25 text-xs text-amber-200 flex items-start gap-2">
                     <Sparkles className="w-4 h-4 text-amber-400 flex-shrink-0 mt-0.5" />
@@ -284,22 +348,31 @@ export function DriftBottleModal({ wish, isFulfilled, onClose }: DriftBottleModa
                   </div>
                 )}
 
+                {/* 提示正在查看自我紀錄 */}
+                {canAccessSelfOnly && (
+                  <div className="p-2.5 rounded-xl bg-amber-500/10 border border-amber-400/20 text-[11px] text-amber-300 flex items-center gap-2">
+                    <Clock className="w-3.5 h-3.5 flex-shrink-0" />
+                    <span>活動集星推進中，此處呈現您為許願者投下的個人星語；心願達標時將開放全站共同見證！</span>
+                  </div>
+                )}
+
                 {/* 留言清單 */}
-                {sortedMessages.length === 0 ? (
+                {displayedMessages.length === 0 ? (
                   <div className="text-center py-20 text-xs text-zinc-500">
-                    目前尚無漂流瓶留言，快去投下星星並寫下互動星語吧！
+                    目前尚無漂流瓶留言，快去投下星星並寫下第一句加油話語吧！
                   </div>
                 ) : (
-                  sortedMessages.map((msg) => {
+                  displayedMessages.map((msg) => {
                     const isMyMessage = session?.user?.id === msg.user_id;
                     const msgReaction = (msg as any).reaction;
+                    const userStat = msg.user_id ? userContributionMap.get(msg.user_id) : null;
 
                     return (
                       <div
                         key={msg.id}
-                        className={`flex gap-3 items-start p-3 rounded-2xl border transition-all ${
+                        className={`flex gap-3 items-start p-3.5 rounded-2xl border transition-all ${
                           msg.is_hidden
-                            ? 'bg-red-950/20 border-red-500/30 opacity-60'
+                            ? 'bg-red-950/20 border-red-500/30'
                             : isMyMessage
                             ? 'bg-amber-500/10 border-amber-400/40'
                             : 'bg-black/50 border-white/5'
@@ -315,26 +388,43 @@ export function DriftBottleModal({ wish, isFulfilled, onClose }: DriftBottleModa
 
                         <div className="flex-1 text-xs space-y-1">
                           <div className="flex justify-between items-center">
-                            <div className="flex items-center gap-1.5">
+                            <div className="flex items-center gap-1.5 flex-wrap">
                               <span className="font-bold text-amber-200">
                                 {msg.users?.anonymous_nickname || '匿名星旅人'}
                               </span>
+
                               {isMyMessage && (
                                 <span className="text-[10px] bg-amber-500/20 text-amber-300 px-1.5 py-0.2 rounded font-mono">
-                                  我的留言
+                                  我的話語
+                                </span>
+                              )}
+
+                              {/* 🌟 贊助累計額與佔比標籤 */}
+                              {!isOfficial && userStat && (
+                                <span className="text-[10px] text-zinc-400 font-mono bg-white/5 px-1.5 py-0.2 rounded border border-white/10">
+                                  累計投入 {userStat.total} 顆 ({userStat.percent}%)
                                 </span>
                               )}
                             </div>
+
                             <span className="font-mono text-amber-400 font-bold text-[10px]">
                               +{msg.amount} 星塵
                             </span>
                           </div>
 
-                          <p className="text-zinc-200 leading-relaxed">
-                            {msg.message || '(默默投下了星願)'}
-                          </p>
+                          {/* 🌟 非破壞性遮蔽：違規時以紅色醒目預設提示替換內文 */}
+                          {msg.is_hidden ? (
+                            <p className="text-red-400 text-xs italic bg-red-500/10 border border-red-500/20 px-2.5 py-1.5 rounded-lg flex items-center gap-1.5">
+                              <ShieldAlert className="w-3.5 h-3.5 flex-shrink-0 text-red-400" />
+                              <span>[此加油留言因未符社群交流規範，已由管理團隊隱藏遮蔽]</span>
+                            </p>
+                          ) : (
+                            <p className="text-zinc-200 leading-relaxed">
+                              {msg.message || '(默默投下了加油星願)'}
+                            </p>
+                          )}
 
-                          {msgReaction && (
+                          {msgReaction && !msg.is_hidden && (
                             <div className="pt-1 flex items-center gap-1.5">
                               <span className="inline-flex items-center gap-1 bg-white/10 px-2 py-0.5 rounded-full text-[11px] border border-white/15 text-zinc-300">
                                 <CheckCircle2 className="w-3 h-3 text-emerald-400" />
@@ -346,36 +436,39 @@ export function DriftBottleModal({ wish, isFulfilled, onClose }: DriftBottleModa
                           {isAdmin && (
                             <div className="pt-2 flex items-center justify-between border-t border-white/5 mt-2">
                               <div className="flex items-center gap-1.5">
-                                <span className="text-[10px] text-zinc-500">官方註記：</span>
-                                {[
-                                  { label: '優質', icon: ThumbsUp },
-                                  { label: '違規疑慮', icon: ShieldAlert },
-                                ].map((badge) => {
-                                  const Icon = badge.icon;
-                                  return (
-                                    <button
-                                      key={badge.label}
-                                      type="button"
-                                      onClick={() => handleSetReaction(msg.id, badge.label)}
-                                      className={`px-2 py-0.5 rounded text-[10px] flex items-center gap-1 border transition-colors cursor-pointer ${
-                                        msgReaction === badge.label
-                                          ? 'bg-amber-500/30 border-amber-400 text-amber-200'
-                                          : 'bg-zinc-800 border-white/5 text-zinc-400 hover:text-white'
-                                      }`}
-                                    >
-                                      <Icon className="w-2.5 h-2.5" />
-                                      {badge.label}
-                                    </button>
-                                  );
-                                })}
+                                <span className="text-[10px] text-zinc-500">審核標記：</span>
+                                <button
+                                  type="button"
+                                  onClick={() => handleSetReaction(msg.id, '優質加油')}
+                                  className={`px-2 py-0.5 rounded text-[10px] flex items-center gap-1 border transition-colors cursor-pointer ${
+                                    msgReaction === '優質加油'
+                                      ? 'bg-amber-500/30 border-amber-400 text-amber-200'
+                                      : 'bg-zinc-800 border-white/5 text-zinc-400 hover:text-white'
+                                  }`}
+                                >
+                                  <ThumbsUp className="w-2.5 h-2.5" /> 優質加油
+                                </button>
                               </div>
 
+                              {/* 遮蔽 / 還原切換 */}
                               <button
                                 type="button"
-                                onClick={() => handleDeleteMessage(msg.id)}
-                                className="text-red-400 hover:text-red-300 text-[10px] flex items-center gap-0.5 cursor-pointer"
+                                onClick={() => handleToggleHideMessage(msg.id, msg.is_hidden)}
+                                className={`text-[10px] px-2 py-0.5 rounded flex items-center gap-1 cursor-pointer transition-all ${
+                                  msg.is_hidden
+                                    ? 'bg-emerald-500/20 text-emerald-300 hover:bg-emerald-500/30'
+                                    : 'bg-red-500/15 text-red-300 hover:bg-red-500/25'
+                                }`}
                               >
-                                <Trash2 className="w-3 h-3" /> 刪除
+                                {msg.is_hidden ? (
+                                  <>
+                                    <Eye className="w-3 h-3" /> 解除遮蔽
+                                  </>
+                                ) : (
+                                  <>
+                                    <EyeOff className="w-3 h-3" /> 遮蔽留言
+                                  </>
+                                )}
                               </button>
                             </div>
                           )}
@@ -391,8 +484,10 @@ export function DriftBottleModal({ wish, isFulfilled, onClose }: DriftBottleModa
           <div className="p-3 bg-black/60 border-t border-white/5 text-center text-[11px] text-zinc-500">
             {isOfficial ? (
               <span>您的寶貴建言將於投入星星時永久留存，管理團隊將定期檢閱回饋</span>
+            ) : isFulfilled && !isExpiredFromHome ? (
+              <span>🎉 今日為達成公開慶典，明日凌晨起將永久封藏至追番空間</span>
             ) : (
-              <span>本室僅於活動 100% 達成後開放見證，守護純粹真實的互動空間</span>
+              <span>純粹善意 · 每一句加油話語都點亮了前行築夢的光芒</span>
             )}
           </div>
         </div>

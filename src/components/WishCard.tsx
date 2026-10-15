@@ -22,6 +22,7 @@ import type { Wish } from '@/types/wish';
 import { supabase } from '@/lib/supabaseClient';
 import { useAuth } from '@/context/AuthContext';
 import { blockWish, deleteWish, updateWish, OFFICIAL_SPONSOR_ID } from '@/lib/backend';
+import { AuthModal } from '@/components/AuthModal';
 
 const InvestModal = lazy(() => import('./InvestModal').then((m) => ({ default: m.InvestModal })));
 const DriftBottleModal = lazy(() =>
@@ -52,8 +53,9 @@ export function WishCard({
   const [isBookmarked, setIsBookmarked] = useState(Boolean(wish.isBookmarked));
   const [showInvest, setShowInvest] = useState(false);
   const [showDriftModal, setShowDriftModal] = useState(false);
+  const [showAuthModal, setShowAuthModal] = useState(false);
 
-  // 🌟 管理員下架 / 用戶檢舉彈窗狀態
+  // 管理員下架 / 用戶檢舉彈窗狀態
   const [showActionModal, setShowActionModal] = useState(false);
   const [actionReason, setActionReason] = useState('');
   const [isActionLoading, setIsActionLoading] = useState(false);
@@ -105,7 +107,10 @@ export function WishCard({
 
   const handleToggleBookmark = async (e: React.MouseEvent) => {
     e.stopPropagation();
-    if (!session?.user?.id) return alert('請先登入後再加入追番收藏！');
+    if (!session?.user?.id) {
+      setShowAuthModal(true);
+      return;
+    }
     if (isBanned) return alert('您的帳號已被停權，無法使用收藏功能。');
 
     try {
@@ -127,7 +132,17 @@ export function WishCard({
     }
   };
 
-  // 🌟 下架操作
+  // 🌟 點擊支持按鈕：未登入直接彈出 AuthModal，登入者則開啟 InvestModal
+  const handleOpenInvest = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!session?.user) {
+      setShowAuthModal(true);
+      return;
+    }
+    setShowInvest(true);
+  };
+
+  // 下架操作
   const handleConfirmAction = async () => {
     if (!actionReason.trim()) return alert('請填寫下架或回報理由');
     setIsActionLoading(true);
@@ -149,7 +164,7 @@ export function WishCard({
     }
   };
 
-  // 🌟 管理員永久刪除卡片
+  // 管理員永久刪除卡片
   const handleDeleteCard = async (e: React.MouseEvent) => {
     e.stopPropagation();
     if (!isAdmin) return;
@@ -286,7 +301,6 @@ export function WishCard({
                 </span>
 
                 <div className="flex items-center gap-1.5">
-                  {/* 管理員專用刪除按鈕 */}
                   {isAdmin && (
                     <button
                       type="button"
@@ -357,9 +371,25 @@ export function WishCard({
                       e.stopPropagation();
                       setShowDriftModal(true);
                     }}
-                    className="text-[10px] px-2 py-0.5 rounded-md bg-white/5 border border-white/10 text-amber-300 hover:bg-white/10 flex items-center gap-1 transition-all"
+                    className={`text-[10px] px-2.5 py-1 rounded-md border flex items-center gap-1 transition-all ${
+                      isOfficial || isFulfilled
+                        ? 'bg-amber-500/15 border-amber-400/30 text-amber-200 hover:bg-amber-500/25'
+                        : 'bg-white/5 border-white/10 text-zinc-400 hover:text-zinc-200'
+                    }`}
                   >
-                    <MessageCircle className="w-3 h-3" /> {isOfficial ? '留言板' : '漂流瓶'}
+                    {isOfficial ? (
+                      <>
+                        <MessageCircle className="w-3 h-3 text-amber-400" /> 意見留言板
+                      </>
+                    ) : isFulfilled ? (
+                      <>
+                        <MessageCircle className="w-3 h-3 text-amber-300" /> 結局漂流瓶 (已解鎖)
+                      </>
+                    ) : (
+                      <>
+                        <MessageCircle className="w-3 h-3 text-zinc-500" /> 漂流瓶 (個人留言)
+                      </>
+                    )}
                   </button>
                 )}
 
@@ -440,10 +470,7 @@ export function WishCard({
                 ) : (
                   <button
                     type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setShowInvest(true);
-                    }}
+                    onClick={handleOpenInvest}
                     className="w-full py-3 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 transition-all shadow-lg cursor-pointer bg-gradient-to-r from-amber-500 to-yellow-600 hover:from-amber-400 hover:to-yellow-500 text-zinc-950 shadow-amber-500/20"
                   >
                     <Coins className="w-3.5 h-3.5 fill-current" />
@@ -459,7 +486,7 @@ export function WishCard({
         </div>
       </div>
 
-      {/* 🌟 補齊：下架 / 檢舉 Modal (透過 createPortal 避免被遮擋) */}
+      {/* 下架 / 檢舉 Modal */}
       {showActionModal &&
         createPortal(
           <div
@@ -542,6 +569,9 @@ export function WishCard({
           </div>,
           document.body
         )}
+
+      {/* 🌟 未登入時直接喚出 AuthModal */}
+      {showAuthModal && <AuthModal onClose={() => setShowAuthModal(false)} />}
 
       {showInvest && (
         <Suspense fallback={null}>
