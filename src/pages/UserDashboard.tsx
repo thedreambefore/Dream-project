@@ -95,7 +95,7 @@ export function UserDashboard({
 
       {/* 標籤切換列 */}
       <div className="sticky top-16 z-10 glass border-b border-white/5 px-4 sm:px-6 bg-zinc-950/60 backdrop-blur-sm">
-        <div className="flex gap-1 overflow-x-auto hide-scrollbar max-w-4xl mx-auto">
+        <div className="flex gap-1 overflow-x-auto hide-scrollbar max-w-4xl mx-auto flex-nowrap">
           <TabButton id="account" activeTab={activeTab} onClick={setActiveTab} icon={<UserCircle className="w-4 h-4" />} label="帳號資訊" />
           <TabButton id="myWishes" activeTab={activeTab} onClick={setActiveTab} icon={<Sparkles className="w-4 h-4" />} label="我的心願" />
           <TabButton id="publish" activeTab={activeTab} onClick={setActiveTab} icon={<Plus className="w-4 h-4" />} label="發布夢想" />
@@ -141,16 +141,17 @@ function TabButton({
   return (
     <button
       onClick={() => onClick(id)}
-      className={`flex items-center gap-1.5 px-5 py-3.5 border-b-2 transition-all text-sm whitespace-nowrap cursor-pointer ${
+      className={`flex items-center gap-1.5 px-4 sm:px-5 py-3.5 border-b-2 transition-all text-xs sm:text-sm whitespace-nowrap cursor-pointer flex-shrink-0 ${
         activeTab === id
           ? 'border-amber-400 text-amber-200 font-bold bg-white/5'
           : 'border-transparent text-gray-400 hover:text-gray-200'
       }`}
     >
-      {icon} {label}
+      {icon} <span>{label}</span>
     </button>
   );
 }
+
 
 // ===== 1. 帳號資訊 Tab =====
 function AccountTab() {

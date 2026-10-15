@@ -58,15 +58,21 @@ export function WishCard({
   const [actionReason, setActionReason] = useState('');
   const [isActionLoading, setIsActionLoading] = useState(false);
 
+  // 🌟🌟🌟 核心變數宣告（卡片閃光開關） 🌟🌟🌟
   const isOfficial = wish.id === OFFICIAL_SPONSOR_ID;
   const currentStardust = Number(wish.current_stardust || 0);
   const targetPrice = Number(wish.product_price || 1);
-  const progress = Math.min(100, Math.round((currentStardust / targetPrice) * 100));
+  const progress = Math.round((currentStardust / targetPrice) * 100);
 
-  const isFulfilled = wish.status === 'fulfilled' || progress >= 100;
+  // 只要進度達 100% 或是 full_funded / fulfilled，就是達成
+  const isFulfilled =
+    wish.status === 'fulfilled' || wish.status === 'full_funded' || progress >= 100;
   const isNearComplete = progress >= 90 && progress < 100;
 
-  // 🌟 個人贊助比率與高級黑金階梯判定 (首頁與追番牆皆適用)
+  // 控制卡片鍍金與全息 Trainer 閃卡特效的關鍵開關！
+  const isCardShining = isOfficial || isFulfilled;
+
+  // 個人贊助佔比
   const ratio = Number(wish.myContributionRatio || 0);
 
   const tier = useMemo(() => {
@@ -168,7 +174,7 @@ export function WishCard({
   };
 
   const handleConfirmAction = async () => {
-    if (!actionReason.trim()) return alert('請填寫下架或回報理由');
+    if (!actionReason.trim()) return alert('請填寫理由');
     setIsActionLoading(true);
     try {
       if (isAdmin) {
@@ -225,17 +231,18 @@ export function WishCard({
           {/* ================= 正面 ================= */}
           <div
             className={`absolute inset-0 w-full h-full rounded-2xl glass overflow-hidden backface-hidden flex flex-col justify-between p-5 bg-zinc-950/90 shadow-2xl border transition-all ${
-              tier ? tier.cardClass : isFulfilled || isOfficial ? 'holo-border-gold' : 'border-white/10'
+              tier ? tier.cardClass : isCardShining ? 'holo-border-gold' : 'border-white/10'
             }`}
           >
-            {/* 高級微光層 */}
-            {tier ? (
-              <div className={`absolute inset-0 rounded-inherit pointer-events-none z-20 ${tier.glimmerClass}`} />
-            ) : isFulfilled || isOfficial ? (
-              <div className="trainer-gallery-shine" />
-            ) : null}
+            {/* 🌟 頂層 Trainer 閃卡光學膜：isCardShining 為 true 時覆蓋在全卡片最上層 */}
+            {isCardShining && <div className="trainer-gallery-shine" />}
 
-            {/* 背景圖底層 */}
+            {/* 個人贊助階梯微光層 */}
+            {tier && (
+              <div className={`absolute inset-0 rounded-inherit pointer-events-none z-30 ${tier.glimmerClass}`} />
+            )}
+
+            {/* 背景圖底層 (-z-10) */}
             <div className="absolute inset-0 pointer-events-none overflow-hidden -z-10">
               {wish.image_url ? (
                 <div className="relative w-full h-full">
@@ -252,10 +259,9 @@ export function WishCard({
               )}
             </div>
 
-            {/* 正面上半部：標籤與徽章 */}
+            {/* 正面上半部 */}
             <div className="relative z-30">
               <div className="flex items-center justify-between mb-3">
-                {/* 若有守護貢獻比率，優雅呈現個人黑金標籤；若無則顯示普通分類標籤 */}
                 {tier ? (
                   <span className={`text-[11px] px-2.5 py-0.5 rounded-full border font-mono flex items-center gap-1 backdrop-blur-md ${tier.badgeClass}`}>
                     {tier.level === 4 && <Crown className="w-3 h-3 text-amber-300" />}
@@ -276,7 +282,7 @@ export function WishCard({
                 ) : isFulfilled ? (
                   <span className="text-[10px] font-black px-2.5 py-0.5 rounded-full bg-amber-400 text-zinc-950 flex items-center gap-1">
                     <CheckCircle2 className="w-3 h-3" />
-                    活動達成
+                    圓滿達成
                   </span>
                 ) : (
                   <span className="text-[10px] font-mono text-zinc-400 bg-black/60 px-2 py-0.5 rounded-md border border-white/5">
@@ -291,9 +297,8 @@ export function WishCard({
               </h3>
             </div>
 
-            {/* 正面下半部：終章承諾 + 星塵進度條 + 點擊翻面提示（完整還原，絕對不消失） */}
+            {/* 正面下半部：終章承諾 + 星塵進度條 + 點擊翻面提示 */}
             <div className="relative z-30 space-y-3.5">
-              {/* 1. 終章承諾區塊 */}
               <div className="bg-black/60 border border-white/10 rounded-xl p-2.5 backdrop-blur-md">
                 <p className="text-[11px] text-zinc-300 line-clamp-1 leading-relaxed">
                   <span className="text-amber-300 font-bold">終章承諾：</span>
@@ -301,30 +306,24 @@ export function WishCard({
                 </p>
               </div>
 
-              {/* 2. 星塵累積進度條 */}
               <div className="space-y-1.5">
                 <div className="flex justify-between items-baseline text-xs font-mono">
                   <span className="text-zinc-400 flex items-center gap-1">
                     <Coins className="w-3.5 h-3.5 text-amber-400" />
                     {currentStardust.toLocaleString()} / {targetPrice.toLocaleString()} 星塵
                   </span>
-                  <span
-                    className={`font-black ${
-                      isNearComplete ? 'text-amber-300 glow-text' : 'text-amber-200'
-                    }`}
-                  >
+                  <span className={`font-black ${progress >= 100 ? 'text-amber-300 glow-text' : 'text-amber-200'}`}>
                     {progress}%
                   </span>
                 </div>
                 <div className="w-full h-2 rounded-full bg-white/10 overflow-hidden">
                   <div
                     className="h-full rounded-full bg-gradient-to-r from-amber-500 via-yellow-400 to-amber-200"
-                    style={{ width: `${progress}%` }}
+                    style={{ width: `${Math.min(100, progress)}%` }}
                   />
                 </div>
               </div>
 
-              {/* 3. 翻面查閱提示 */}
               <div className="text-center pt-0.5">
                 <p className="text-[11px] text-zinc-400 group-hover:text-amber-300 transition-colors flex items-center justify-center gap-1 font-medium">
                   <RotateCw className="w-3 h-3 text-amber-400/80" /> 點擊卡片翻面查閱
@@ -508,28 +507,25 @@ export function WishCard({
                 </button>
               )}
 
-              {variant === 'market' &&
-                (!isOfficial && isFulfilled ? (
-                  <div className="w-full text-center py-2.5 rounded-xl bg-emerald-500/20 border border-emerald-400/40 text-emerald-300 text-xs font-bold flex items-center justify-center gap-1">
-                    <CheckCircle2 className="w-3.5 h-3.5" /> 此心願已圓滿達成
-                  </div>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setShowInvest(true);
-                    }}
-                    className="w-full py-3 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 transition-all shadow-lg cursor-pointer bg-gradient-to-r from-amber-500 to-yellow-600 hover:from-amber-400 hover:to-yellow-500 text-zinc-950 shadow-amber-500/20"
-                  >
-                    <Coins className="w-3.5 h-3.5 fill-current" />
-                    {isOfficial
-                      ? '投下星星 · 支持夢沙'
-                      : isNearComplete
-                      ? '投下尾星 · 助他達成'
-                      : '購買星星支持他'}
-                  </button>
-                ))}
+              {variant === 'market' && (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setShowInvest(true);
+                  }}
+                  className="w-full py-3 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 transition-all shadow-lg cursor-pointer bg-gradient-to-r from-amber-500 to-yellow-600 hover:from-amber-400 hover:to-yellow-500 text-zinc-950 shadow-amber-500/20"
+                >
+                  <Coins className="w-3.5 h-3.5 fill-current" />
+                  {isOfficial
+                    ? '投下星星 · 支持夢沙'
+                    : isFulfilled
+                    ? '已達成 · 加碼投星支持'
+                    : isNearComplete
+                    ? '投下尾星 · 助他達成'
+                    : '購買星星支持他'}
+                </button>
+              )}
             </div>
           </div>
         </div>

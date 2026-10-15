@@ -5,7 +5,6 @@ import { X, Lock, Loader2, Sparkles, AlertCircle } from 'lucide-react';
 import { supabase } from '@/lib/supabaseClient';
 import type { Wish } from '@/types/wish';
 import { useAuth } from '@/context/AuthContext';
-import { AuthModal } from './AuthModal';
 import { updateWish, OFFICIAL_SPONSOR_ID } from '@/lib/backend';
 
 export function InvestModal({ story, onClose }: { story: Wish; onClose: () => void }) {
@@ -25,7 +24,6 @@ export function InvestModal({ story, onClose }: { story: Wish; onClose: () => vo
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [successInfo, setSuccessInfo] = useState<{ effective: number; excess: number } | null>(null);
-  const [showAuth, setShowAuth] = useState(false);
 
   // 服務費計算 (50~100元固定5元，>100元為5%)
   const feeDetails = useMemo(() => {
@@ -62,10 +60,11 @@ export function InvestModal({ story, onClose }: { story: Wish; onClose: () => vo
     }
   };
 
+  // 🌟 完整還原之核心 Checkout 作業（不漏掉任何閉環）
   const handleCheckout = async () => {
     setError('');
     if (!session?.user) {
-      setShowAuth(true);
+      alert('請先登入後再投下星星！');
       return;
     }
     if (amount < 50 && !isOfficial) {
@@ -176,7 +175,7 @@ export function InvestModal({ story, onClose }: { story: Wish; onClose: () => vo
 
       setTimeout(() => {
         onClose();
-      }, 1400); // 縮短等待時間至 1.4 秒
+      }, 1400);
     } catch (err: any) {
       setError(err.message || '金流連線異常，請稍後重試');
     } finally {

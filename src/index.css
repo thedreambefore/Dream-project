@@ -332,7 +332,7 @@ body {
   border-radius: inherit;
   pointer-events: none;
   z-index: 40;
-  opacity: calc(var(--card-opacity) * 0.45); /* 🌟 降至 45% 透明度，不再死白發亮 */
+  opacity: calc(0.35 + var(--card-opacity, 0) * 0.5); /* 🌟 降至 45% 透明度，不再死白發亮 */
   mix-blend-mode: color-dodge;
   background-image: 
     /* 1. 柔和局部點狀高光 (大幅降低白光半徑與強度) */

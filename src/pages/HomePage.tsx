@@ -36,16 +36,11 @@ export function HomePage({ onOpenHonorHall }: HomePageProps) {
 
   const loadWishes = async () => {
     try {
-      const realWishes = await fetchPublicWishes();
-      const activeWishes = realWishes.filter((w) => {
-        const isFull = Number(w.current_stardust || 0) >= Number(w.product_price || 0);
-        const isCompletedStatus = w.status === 'full_funded' || w.status === 'fulfilled';
-        return !isFull && !isCompletedStatus;
-      });
+      // 🌟 fetchPublicWishes() 本身已具備「達標項目展示至達成隔天凌晨 00:00:00」的下架邏輯
+      const publicWishes = await fetchPublicWishes();
 
-      // 🌟 若已登入，查詢個人在各卡片的贊助星塵，直接在首頁計算比例階梯
-      if (session?.user?.id && activeWishes.length > 0) {
-        const wishIds = activeWishes.map((w) => w.id);
+      // 關聯登入者的個人贊助紀錄，計算個人佔比（可超過 100%）
+      if (session?.user?.id && publicWishes.length > 0) {
         const { data: invData } = await supabase
           .from('investments')
           .select('wish_id, story_id, amount')
@@ -59,10 +54,11 @@ export function HomePage({ onOpenHonorHall }: HomePageProps) {
           }
         });
 
-        const wishesWithContribution: Wish[] = activeWishes.map((w) => {
+        const merged: Wish[] = publicWishes.map((w) => {
           const myAmount = myMap.get(w.id) || 0;
           const target = Number(w.product_price || 1);
-          const ratio = Math.min(100, Math.round((myAmount / target) * 1000) / 10);
+          // 佔比計算不再受限於 100%
+          const ratio = Math.round((myAmount / target) * 1000) / 10;
           return {
             ...w,
             myInvestAmount: myAmount,
@@ -70,9 +66,9 @@ export function HomePage({ onOpenHonorHall }: HomePageProps) {
           };
         });
 
-        setWishes(wishesWithContribution);
+        setWishes(merged);
       } else {
-        setWishes(activeWishes);
+        setWishes(publicWishes);
       }
     } catch (err) {
       console.warn('載入願望異常:', err);
@@ -95,7 +91,7 @@ export function HomePage({ onOpenHonorHall }: HomePageProps) {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [session?.user?.id]); // 登入/切換帳號即刻重新精準計算
+  }, [session?.user?.id]);
 
   const handleScrollToWish = (wishId: string) => {
     if (activeTag !== '全部故事') setActiveTag('全部故事');
@@ -117,7 +113,7 @@ export function HomePage({ onOpenHonorHall }: HomePageProps) {
   });
 
   return (
-    <div className="max-w-6xl mx-auto px-6 pt-4 pb-32 relative z-10 animate-fade-in">
+    <div className="max-w-6xl mx-auto px-4 sm:px-6 pt-4 pb-32 relative z-10 animate-fade-in">
       <HomeHeroCarousel />
 
       <LeaderboardWidget
@@ -126,10 +122,11 @@ export function HomePage({ onOpenHonorHall }: HomePageProps) {
         onOpenHonorHall={onOpenHonorHall}
       />
 
-      <div className="flex gap-2.5 overflow-x-auto pb-4 hide-scrollbar mb-10 border-b border-white/5">
+      {/* 🌟 修正：flex-nowrap + flex-shrink-0，確保窄螢幕能滑動且不截斷 */}
+      <div className="flex gap-2.5 overflow-x-auto pb-4 hide-scrollbar mb-10 border-b border-white/5 flex-nowrap">
         <button
           onClick={() => setActiveTag('全部故事')}
-          className={`px-4 py-2 rounded-full text-xs sm:text-sm font-medium border whitespace-nowrap transition-all duration-300 cursor-pointer ${
+          className={`flex-shrink-0 px-4 py-2 rounded-full text-xs sm:text-sm font-medium border transition-all duration-300 cursor-pointer ${
             activeTag === '全部故事'
               ? 'bg-amber-500 text-slate-950 border-amber-400 shadow-[0_0_15px_rgba(245,158,11,0.35)] font-bold'
               : 'bg-zinc-900/60 text-slate-400 border-white/10 hover:border-amber-400/30 hover:text-slate-200'
@@ -143,7 +140,7 @@ export function HomePage({ onOpenHonorHall }: HomePageProps) {
             <button
               key={t.id}
               onClick={() => setActiveTag(tagNameWithHash)}
-              className={`px-4 py-2 rounded-full text-xs sm:text-sm font-medium border whitespace-nowrap transition-all duration-300 cursor-pointer ${
+              className={`flex-shrink-0 px-4 py-2 rounded-full text-xs sm:text-sm font-medium border transition-all duration-300 cursor-pointer ${
                 activeTag === tagNameWithHash
                   ? 'bg-amber-500 text-slate-950 border-amber-400 shadow-[0_0_15px_rgba(245,158,11,0.35)] font-bold'
                   : 'bg-zinc-900/60 text-slate-400 border-white/10 hover:border-amber-400/30 hover:text-slate-200'
@@ -166,13 +163,7 @@ export function HomePage({ onOpenHonorHall }: HomePageProps) {
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          <Suspense
-            fallback={
-              <div className="col-span-full py-16 text-center text-xs text-amber-200/50">
-                星砂卡片凝聚中...
-              </div>
-            }
-          >
+          <Suspense fallback={<div className="col-span-full py-16 text-center text-xs text-amber-200/50">星砂卡片凝聚中...</div>}>
             {filteredWishes.map((story, index) => (
               <div
                 key={story.id}
