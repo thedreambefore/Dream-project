@@ -384,11 +384,11 @@ body {
    ========================================================= */
 
 /* Tier 1 (1% ~ 19%): 微芒守護 — 1px 銀灰微光細線 */
-.tier-1-border {
+.tier-1-card {
   border-color: rgba(255, 255, 255, 0.2) !important;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
 }
-.tier-1-shine {
+.tier-1-glimmer {
   opacity: calc(var(--card-opacity) * 0.25);
   mix-blend-mode: overlay;
   background-image: radial-gradient(
@@ -399,11 +399,11 @@ body {
 }
 
 /* Tier 2 (20% ~ 39%): 璀璨領航 — 香檳冷金金屬細邊 + 絲滑高光 */
-.tier-2-border {
+.tier-2-card {
   border-color: rgba(245, 215, 140, 0.45) !important;
   box-shadow: 0 0 18px rgba(217, 180, 100, 0.15), inset 0 0 12px rgba(217, 180, 100, 0.08);
 }
-.tier-2-shine {
+.tier-2-glimmer {
   opacity: calc(var(--card-opacity) * 0.35);
   mix-blend-mode: soft-light;
   background-image: 
@@ -413,11 +413,11 @@ body {
 }
 
 /* Tier 3 (40% ~ 49%): 群星耀夜 — 鍛造琥珀金邊 + 凝聚光斑 */
-.tier-3-border {
+.tier-3-card {
   border-color: rgba(245, 158, 11, 0.7) !important;
   box-shadow: 0 0 24px rgba(245, 158, 11, 0.25), inset 0 0 15px rgba(245, 158, 11, 0.12);
 }
-.tier-3-shine {
+.tier-3-glimmer {
   opacity: calc(var(--card-opacity) * 0.45);
   mix-blend-mode: screen;
   background-image: 
@@ -427,13 +427,13 @@ body {
 }
 
 /* Tier 4 (≥ 50% 最高檔): 帝國黑金 (Obsidian Crown Gold) — 雙重鍛金流光，通透且極度尊爵 */
-.tier-4-border {
+.tier-4-card {
   border: 1.5px solid rgba(251, 191, 36, 0.9) !important;
   box-shadow: 
     0 0 30px rgba(245, 158, 11, 0.35),
     inset 0 0 20px rgba(251, 191, 36, 0.18);
 }
-.tier-4-shine {
+.tier-4-glimmer {
   opacity: calc(var(--card-opacity) * 0.6);
   mix-blend-mode: soft-light;
   background-image:

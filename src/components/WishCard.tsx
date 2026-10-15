@@ -17,12 +17,12 @@ import {
   RotateCw,
   X,
   Loader2,
+  Crown,
 } from 'lucide-react';
 import type { Wish } from '@/types/wish';
 import { supabase } from '@/lib/supabaseClient';
 import { useAuth } from '@/context/AuthContext';
 import { blockWish, deleteWish, updateWish, OFFICIAL_SPONSOR_ID } from '@/lib/backend';
-import { AuthModal } from '@/components/AuthModal';
 
 const InvestModal = lazy(() => import('./InvestModal').then((m) => ({ default: m.InvestModal })));
 const DriftBottleModal = lazy(() =>
@@ -53,60 +53,59 @@ export function WishCard({
   const [isBookmarked, setIsBookmarked] = useState(Boolean(wish.isBookmarked));
   const [showInvest, setShowInvest] = useState(false);
   const [showDriftModal, setShowDriftModal] = useState(false);
-  const [showAuthModal, setShowAuthModal] = useState(false);
 
-  // 管理員下架 / 用戶檢舉彈窗狀態
   const [showActionModal, setShowActionModal] = useState(false);
   const [actionReason, setActionReason] = useState('');
   const [isActionLoading, setIsActionLoading] = useState(false);
 
   const isOfficial = wish.id === OFFICIAL_SPONSOR_ID;
-  const progress = Math.min(
-    100,
-    Math.round(((wish.current_stardust || 0) / (wish.product_price || 1)) * 100)
-  );
+  const currentStardust = Number(wish.current_stardust || 0);
+  const targetPrice = Number(wish.product_price || 1);
+  const progress = Math.min(100, Math.round((currentStardust / targetPrice) * 100));
+
   const isFulfilled = wish.status === 'fulfilled' || progress >= 100;
   const isNearComplete = progress >= 90 && progress < 100;
-  const isCardShining = isOfficial || isFulfilled;
-const ratio = Number(wish.myContributionRatio || 0);
 
-  const tierInfo = useMemo(() => {
-    if (variant !== 'tracked' || ratio <= 0) return null;
+  // 🌟 個人贊助比率與高級黑金階梯判定 (首頁與追番牆皆適用)
+  const ratio = Number(wish.myContributionRatio || 0);
+
+  const tier = useMemo(() => {
+    if (ratio <= 0) return null;
     if (ratio >= 50) {
       return {
-        tier: 4,
-        badgeText: `👑 星宿守護神 · ${ratio}%`,
-        borderClass: 'tier-4-border',
-        shineClass: 'tier-4-shine',
-        badgeBg: 'bg-gradient-to-r from-amber-400 via-yellow-300 to-amber-500 text-zinc-950 font-black border-amber-300 shadow-[0_0_15px_rgba(251,191,36,0.5)]',
+        level: 4,
+        label: `✦ 守護神 · ${ratio}%`,
+        cardClass: 'tier-4-card',
+        glimmerClass: 'tier-4-glimmer',
+        badgeClass: 'bg-amber-950/80 border-amber-400/60 text-amber-200 shadow-sm',
       };
     }
     if (ratio >= 40) {
       return {
-        tier: 3,
-        badgeText: `✨ 群星耀夜 · ${ratio}%`,
-        borderClass: 'tier-3-border',
-        shineClass: 'tier-3-shine',
-        badgeBg: 'bg-amber-500/25 border-amber-400 text-amber-200 font-bold shadow-[0_0_10px_rgba(245,158,11,0.3)]',
+        level: 3,
+        label: `✦ 耀夜者 · ${ratio}%`,
+        cardClass: 'tier-3-card',
+        glimmerClass: 'tier-3-glimmer',
+        badgeClass: 'bg-zinc-900/90 border-amber-500/40 text-amber-300',
       };
     }
     if (ratio >= 20) {
       return {
-        tier: 2,
-        badgeText: `🌌 璀璨領航 · ${ratio}%`,
-        borderClass: 'tier-2-border',
-        shineClass: 'tier-2-shine',
-        badgeBg: 'bg-indigo-500/25 border-indigo-400 text-indigo-200 font-bold shadow-[0_0_10px_rgba(167,139,250,0.25)]',
+        level: 2,
+        label: `✦ 領航者 · ${ratio}%`,
+        cardClass: 'tier-2-card',
+        glimmerClass: 'tier-2-glimmer',
+        badgeClass: 'bg-zinc-900/90 border-amber-300/30 text-amber-100',
       };
     }
     return {
-      tier: 1,
-      badgeText: `⭐ 微芒守護 · ${ratio}%`,
-      borderClass: 'tier-1-border',
-      shineClass: 'tier-1-shine',
-      badgeBg: 'bg-white/10 border-white/20 text-zinc-300',
+      level: 1,
+      label: `✦ 已守護 · ${ratio}%`,
+      cardClass: 'tier-1-card',
+      glimmerClass: 'tier-1-glimmer',
+      badgeClass: 'bg-zinc-900/80 border-white/20 text-zinc-300',
     };
-  }, [variant, ratio]);
+  }, [ratio]);
 
   const handleMouseMove = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
     const card = cardContainerRef.current;
@@ -118,8 +117,8 @@ const ratio = Number(wish.myContributionRatio || 0);
     const centerY = rect.height / 2;
     card.style.setProperty('--pointer-x', `${Math.round((x / rect.width) * 100)}%`);
     card.style.setProperty('--pointer-y', `${Math.round((y / rect.height) * 100)}%`);
-    card.style.setProperty('--rotate-x', `${((y - centerY) / centerY) * -8}deg`);
-    card.style.setProperty('--rotate-y', `${((x - centerX) / centerX) * 8}deg`);
+    card.style.setProperty('--rotate-x', `${((y - centerY) / centerY) * -7}deg`);
+    card.style.setProperty('--rotate-y', `${((x - centerX) / centerX) * 7}deg`);
     card.style.setProperty('--card-opacity', '1');
   }, []);
 
@@ -146,10 +145,7 @@ const ratio = Number(wish.myContributionRatio || 0);
 
   const handleToggleBookmark = async (e: React.MouseEvent) => {
     e.stopPropagation();
-    if (!session?.user?.id) {
-      setShowAuthModal(true);
-      return;
-    }
+    if (!session?.user?.id) return alert('請先登入後再加入追番收藏！');
     if (isBanned) return alert('您的帳號已被停權，無法使用收藏功能。');
 
     try {
@@ -171,17 +167,6 @@ const ratio = Number(wish.myContributionRatio || 0);
     }
   };
 
-  // 🌟 點擊支持按鈕：未登入直接彈出 AuthModal，登入者則開啟 InvestModal
-  const handleOpenInvest = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (!session?.user) {
-      setShowAuthModal(true);
-      return;
-    }
-    setShowInvest(true);
-  };
-
-  // 下架操作
   const handleConfirmAction = async () => {
     if (!actionReason.trim()) return alert('請填寫下架或回報理由');
     setIsActionLoading(true);
@@ -203,11 +188,10 @@ const ratio = Number(wish.myContributionRatio || 0);
     }
   };
 
-  // 管理員永久刪除卡片
   const handleDeleteCard = async (e: React.MouseEvent) => {
     e.stopPropagation();
     if (!isAdmin) return;
-    if (!confirm(`確定要永久刪除願望「${wish.product_name}」嗎？此操作將同時清除所有留言與關聯紀錄！`)) {
+    if (!confirm(`確定要永久刪除願望「${wish.product_name}」嗎？此操作將清除所有關聯紀錄！`)) {
       return;
     }
     try {
@@ -238,21 +222,20 @@ const ratio = Number(wish.myContributionRatio || 0);
             isFlipped ? 'rotate-y-180' : ''
           }`}
         >
-          {/* 正面 */}
-          {/* 正面 */}
+          {/* ================= 正面 ================= */}
           <div
-            className={`absolute inset-0 w-full h-full rounded-2xl glass glow-border overflow-hidden backface-hidden flex flex-col justify-between p-5 bg-zinc-950/90 shadow-2xl transition-all ${
-              /* 🌟 1. 優先套用個人贊助專屬全息光框，無贊助則保留預設 */
-              tierInfo ? tierInfo.borderClass : isCardShining ? 'holo-border-gold' : 'border-white/10'
+            className={`absolute inset-0 w-full h-full rounded-2xl glass overflow-hidden backface-hidden flex flex-col justify-between p-5 bg-zinc-950/90 shadow-2xl border transition-all ${
+              tier ? tier.cardClass : isFulfilled || isOfficial ? 'holo-border-gold' : 'border-white/10'
             }`}
           >
-            {/* 🌟 2. 專屬全息光學薄膜層 */}
-            {tierInfo ? (
-              <div className={`absolute inset-0 rounded-inherit pointer-events-none z-20 transition-opacity ${tierInfo.shineClass}`} />
-            ) : isCardShining ? (
+            {/* 高級微光層 */}
+            {tier ? (
+              <div className={`absolute inset-0 rounded-inherit pointer-events-none z-20 ${tier.glimmerClass}`} />
+            ) : isFulfilled || isOfficial ? (
               <div className="trainer-gallery-shine" />
             ) : null}
 
+            {/* 背景圖底層 */}
             <div className="absolute inset-0 pointer-events-none overflow-hidden -z-10">
               {wish.image_url ? (
                 <div className="relative w-full h-full">
@@ -269,12 +252,14 @@ const ratio = Number(wish.myContributionRatio || 0);
               )}
             </div>
 
+            {/* 正面上半部：標籤與徽章 */}
             <div className="relative z-30">
               <div className="flex items-center justify-between mb-3">
-                {/* 🌟 3. 左上角標籤：如果在追番牆且有贊助比例，直接掛上榮譽階梯徽章 */}
-                {tierInfo ? (
-                  <span className={`text-[10px] px-2.5 py-1 rounded-full border flex items-center gap-1 backdrop-blur-md ${tierInfo.badgeBg}`}>
-                    {tierInfo.badgeText}
+                {/* 若有守護貢獻比率，優雅呈現個人黑金標籤；若無則顯示普通分類標籤 */}
+                {tier ? (
+                  <span className={`text-[11px] px-2.5 py-0.5 rounded-full border font-mono flex items-center gap-1 backdrop-blur-md ${tier.badgeClass}`}>
+                    {tier.level === 4 && <Crown className="w-3 h-3 text-amber-300" />}
+                    {tier.label}
                   </span>
                 ) : (
                   <span className="text-xs px-2.5 py-1 rounded-full bg-amber-500/15 border border-amber-400/30 text-amber-200 font-mono flex items-center gap-1 backdrop-blur-md">
@@ -283,7 +268,6 @@ const ratio = Number(wish.myContributionRatio || 0);
                   </span>
                 )}
 
-                {/* 右側達成/進度狀態保持原有邏輯 */}
                 {isOfficial ? (
                   <span className="text-[10px] font-bold text-amber-300 bg-amber-500/20 px-2.5 py-0.5 rounded-full border border-amber-400/30 flex items-center gap-1">
                     <Sparkles className="w-3 h-3 text-amber-400" />
@@ -292,7 +276,7 @@ const ratio = Number(wish.myContributionRatio || 0);
                 ) : isFulfilled ? (
                   <span className="text-[10px] font-black px-2.5 py-0.5 rounded-full bg-amber-400 text-zinc-950 flex items-center gap-1">
                     <CheckCircle2 className="w-3 h-3" />
-                    圓滿達成
+                    活動達成
                   </span>
                 ) : (
                   <span className="text-[10px] font-mono text-zinc-400 bg-black/60 px-2 py-0.5 rounded-md border border-white/5">
@@ -306,9 +290,50 @@ const ratio = Number(wish.myContributionRatio || 0);
                 <span>{wish.product_name}</span>
               </h3>
             </div>
+
+            {/* 正面下半部：終章承諾 + 星塵進度條 + 點擊翻面提示（完整還原，絕對不消失） */}
+            <div className="relative z-30 space-y-3.5">
+              {/* 1. 終章承諾區塊 */}
+              <div className="bg-black/60 border border-white/10 rounded-xl p-2.5 backdrop-blur-md">
+                <p className="text-[11px] text-zinc-300 line-clamp-1 leading-relaxed">
+                  <span className="text-amber-300 font-bold">終章承諾：</span>
+                  {wish.promise_text || '願望達成後公開開箱感謝信與成果！'}
+                </p>
+              </div>
+
+              {/* 2. 星塵累積進度條 */}
+              <div className="space-y-1.5">
+                <div className="flex justify-between items-baseline text-xs font-mono">
+                  <span className="text-zinc-400 flex items-center gap-1">
+                    <Coins className="w-3.5 h-3.5 text-amber-400" />
+                    {currentStardust.toLocaleString()} / {targetPrice.toLocaleString()} 星塵
+                  </span>
+                  <span
+                    className={`font-black ${
+                      isNearComplete ? 'text-amber-300 glow-text' : 'text-amber-200'
+                    }`}
+                  >
+                    {progress}%
+                  </span>
+                </div>
+                <div className="w-full h-2 rounded-full bg-white/10 overflow-hidden">
+                  <div
+                    className="h-full rounded-full bg-gradient-to-r from-amber-500 via-yellow-400 to-amber-200"
+                    style={{ width: `${progress}%` }}
+                  />
+                </div>
+              </div>
+
+              {/* 3. 翻面查閱提示 */}
+              <div className="text-center pt-0.5">
+                <p className="text-[11px] text-zinc-400 group-hover:text-amber-300 transition-colors flex items-center justify-center gap-1 font-medium">
+                  <RotateCw className="w-3 h-3 text-amber-400/80" /> 點擊卡片翻面查閱
+                </p>
+              </div>
+            </div>
           </div>
 
-          {/* 背面 */}
+          {/* ================= 背面 ================= */}
           <div className="absolute inset-0 w-full h-full rounded-2xl glass-strong glow-border p-5 flex flex-col justify-between backface-hidden rotate-y-180 bg-zinc-950 border border-amber-400/30 shadow-2xl">
             <div className="border-b border-white/10 pb-2.5">
               <div className="flex items-center justify-between text-xs text-zinc-400 mb-1">
@@ -359,8 +384,8 @@ const ratio = Number(wish.myContributionRatio || 0);
 
             <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl px-3 py-2 mb-2">
               <p className="text-[11px] text-amber-200/90 leading-tight">
-                <span className="font-bold text-amber-300">承諾：</span>
-                {wish.promise_text}
+                <span className="font-bold text-amber-300">終章承諾：</span>
+                {wish.promise_text || '願望達成後公開開箱感謝信與成果！'}
               </p>
             </div>
 
@@ -400,7 +425,7 @@ const ratio = Number(wish.myContributionRatio || 0);
                       </>
                     ) : isFulfilled ? (
                       <>
-                        <MessageCircle className="w-3 h-3 text-amber-300" /> 加油牆 (已達成解鎖)
+                        <MessageCircle className="w-3 h-3 text-amber-300" /> 加油牆 (已解鎖)
                       </>
                     ) : session?.user?.id === wish.user_id ? (
                       <>
@@ -408,7 +433,7 @@ const ratio = Number(wish.myContributionRatio || 0);
                       </>
                     ) : (
                       <>
-                        <MessageCircle className="w-3 h-3 text-amber-400" /> 數位加油室
+                        <MessageCircle className="w-3 h-3 text-zinc-400" /> 數位加油室
                       </>
                     )}
                   </button>
@@ -448,7 +473,7 @@ const ratio = Number(wish.myContributionRatio || 0);
                         e.stopPropagation();
                         onOpenEditModal(wish);
                       }}
-                      className="flex-1 py-2.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-xs font-bold rounded-xl flex items-center justify-center gap-1"
+                      className="flex-1 py-2.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-xs font-bold rounded-xl flex items-center justify-center gap-1 cursor-pointer"
                     >
                       <FileEdit className="w-3.5 h-3.5" /> 編輯送審
                     </button>
@@ -460,7 +485,7 @@ const ratio = Number(wish.myContributionRatio || 0);
                         e.stopPropagation();
                         onOpenLetterModal(wish);
                       }}
-                      className="flex-1 py-2.5 bg-purple-500 hover:bg-purple-400 text-zinc-950 text-xs font-black rounded-xl flex items-center justify-center gap-1"
+                      className="flex-1 py-2.5 bg-purple-500 hover:bg-purple-400 text-zinc-950 text-xs font-black rounded-xl flex items-center justify-center gap-1 cursor-pointer"
                     >
                       <MailCheck className="w-3.5 h-3.5" />{' '}
                       {wish.thank_you_letter ? '修改開箱信' : '撰寫開箱信'}
@@ -476,10 +501,10 @@ const ratio = Number(wish.myContributionRatio || 0);
                     e.stopPropagation();
                     setShowDriftModal(true);
                   }}
-                  className="w-full py-2.5 bg-amber-500/20 hover:bg-amber-500/30 border border-amber-400/40 text-amber-200 text-xs font-bold rounded-xl flex items-center justify-center gap-1.5 transition-all"
+                  className="w-full py-2.5 bg-amber-500/20 hover:bg-amber-500/30 border border-amber-400/40 text-amber-200 text-xs font-bold rounded-xl flex items-center justify-center gap-1.5 transition-all cursor-pointer"
                 >
                   <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-                  {isFulfilled ? '查看主角開箱感謝信' : '進入瓶中留言室查看結局進度'}
+                  {isFulfilled ? '查看主角開箱感謝信' : '進入加油室查看實時話語'}
                 </button>
               )}
 
@@ -491,7 +516,10 @@ const ratio = Number(wish.myContributionRatio || 0);
                 ) : (
                   <button
                     type="button"
-                    onClick={handleOpenInvest}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setShowInvest(true);
+                    }}
                     className="w-full py-3 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 transition-all shadow-lg cursor-pointer bg-gradient-to-r from-amber-500 to-yellow-600 hover:from-amber-400 hover:to-yellow-500 text-zinc-950 shadow-amber-500/20"
                   >
                     <Coins className="w-3.5 h-3.5 fill-current" />
@@ -507,7 +535,6 @@ const ratio = Number(wish.myContributionRatio || 0);
         </div>
       </div>
 
-      {/* 下架 / 檢舉 Modal */}
       {showActionModal &&
         createPortal(
           <div
@@ -535,7 +562,7 @@ const ratio = Number(wish.myContributionRatio || 0);
                 </h3>
                 <button
                   onClick={() => setShowActionModal(false)}
-                  className="text-zinc-400 hover:text-white"
+                  className="text-zinc-400 hover:text-white cursor-pointer"
                 >
                   <X className="w-5 h-5" />
                 </button>
@@ -563,7 +590,7 @@ const ratio = Number(wish.myContributionRatio || 0);
                 <button
                   type="button"
                   onClick={() => setShowActionModal(false)}
-                  className="flex-1 py-2.5 text-xs border border-white/10 rounded-xl text-zinc-400 hover:text-white"
+                  className="flex-1 py-2.5 text-xs border border-white/10 rounded-xl text-zinc-400 hover:text-white cursor-pointer"
                 >
                   取消
                 </button>
@@ -590,9 +617,6 @@ const ratio = Number(wish.myContributionRatio || 0);
           </div>,
           document.body
         )}
-
-      {/* 🌟 未登入時直接喚出 AuthModal */}
-      {showAuthModal && <AuthModal onClose={() => setShowAuthModal(false)} />}
 
       {showInvest && (
         <Suspense fallback={null}>

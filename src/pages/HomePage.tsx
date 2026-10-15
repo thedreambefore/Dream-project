@@ -5,9 +5,9 @@ import { HomeHeroCarousel } from '@/components/HomeHeroCarousel';
 import { LeaderboardWidget } from '@/components/LeaderboardWidget';
 import { fetchPublicWishes } from '@/lib/backend';
 import { supabase } from '@/lib/supabaseClient';
+import { useAuth } from '@/context/AuthContext';
 import type { Wish, Tag } from '@/types/wish';
 
-// 🌟 核心關鍵：改為 Lazy Import，徹底排除 Rollup 在打包時產生的循環初始化 TDZ 錯誤
 const WishCard = lazy(() =>
   import('@/components/WishCard').then((module) => ({ default: module.WishCard }))
 );
@@ -17,6 +17,7 @@ interface HomePageProps {
 }
 
 export function HomePage({ onOpenHonorHall }: HomePageProps) {
+  const { session } = useAuth();
   const [activeTag, setActiveTag] = useState('全部故事');
   const [tags, setTags] = useState<Tag[]>([]);
   const [wishes, setWishes] = useState<Wish[]>([]);
@@ -25,7 +26,6 @@ export function HomePage({ onOpenHonorHall }: HomePageProps) {
 
   const cardRefs = useRef<Record<string, HTMLDivElement | null>>({});
 
-  // 1. 動態讀取 tags 資料表
   const loadTags = async () => {
     const { data } = await supabase
       .from('tags')
@@ -34,7 +34,6 @@ export function HomePage({ onOpenHonorHall }: HomePageProps) {
     setTags((data as Tag[]) || []);
   };
 
-  // 2. 讀取願望
   const loadWishes = async () => {
     try {
       const realWishes = await fetchPublicWishes();
@@ -43,7 +42,38 @@ export function HomePage({ onOpenHonorHall }: HomePageProps) {
         const isCompletedStatus = w.status === 'full_funded' || w.status === 'fulfilled';
         return !isFull && !isCompletedStatus;
       });
-      setWishes(activeWishes);
+
+      // 🌟 若已登入，查詢個人在各卡片的贊助星塵，直接在首頁計算比例階梯
+      if (session?.user?.id && activeWishes.length > 0) {
+        const wishIds = activeWishes.map((w) => w.id);
+        const { data: invData } = await supabase
+          .from('investments')
+          .select('wish_id, story_id, amount')
+          .eq('user_id', session.user.id);
+
+        const myMap = new Map<string, number>();
+        invData?.forEach((inv) => {
+          const id = inv.wish_id || inv.story_id;
+          if (id) {
+            myMap.set(id, (myMap.get(id) || 0) + Number(inv.amount || 0));
+          }
+        });
+
+        const wishesWithContribution: Wish[] = activeWishes.map((w) => {
+          const myAmount = myMap.get(w.id) || 0;
+          const target = Number(w.product_price || 1);
+          const ratio = Math.min(100, Math.round((myAmount / target) * 1000) / 10);
+          return {
+            ...w,
+            myInvestAmount: myAmount,
+            myContributionRatio: ratio,
+          };
+        });
+
+        setWishes(wishesWithContribution);
+      } else {
+        setWishes(activeWishes);
+      }
     } catch (err) {
       console.warn('載入願望異常:', err);
       setWishes([]);
@@ -65,7 +95,7 @@ export function HomePage({ onOpenHonorHall }: HomePageProps) {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, []);
+  }, [session?.user?.id]); // 登入/切換帳號即刻重新精準計算
 
   const handleScrollToWish = (wishId: string) => {
     if (activeTag !== '全部故事') setActiveTag('全部故事');
@@ -96,7 +126,6 @@ export function HomePage({ onOpenHonorHall }: HomePageProps) {
         onOpenHonorHall={onOpenHonorHall}
       />
 
-      {/* 動態標籤列 */}
       <div className="flex gap-2.5 overflow-x-auto pb-4 hide-scrollbar mb-10 border-b border-white/5">
         <button
           onClick={() => setActiveTag('全部故事')}
