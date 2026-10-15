@@ -50,6 +50,7 @@ export interface Wish {
   // 前端關聯或即時運算欄位
   anonymous_nickname?: string | null;
   myInvestAmount?: number;
+  myContributionRatio?: number; // 👈 0 ~ 100 之百分比數值 (例如: 25.5 代表 25.5%)
   isBookmarked?: boolean;
   isBookmarkedOnly?: boolean;
   hasInvested?: boolean;

@@ -1426,13 +1426,20 @@ function InvestedTab() {
       if (allWishIds.length > 0) {
         const { data: wishList } = await supabase.from('wishes').select('*').in('id', allWishIds);
         if (wishList) {
-          const merged: Wish[] = wishList.map((w: Wish) => ({
-            ...w,
-            myInvestAmount: investMap.get(w.id) || 0,
-            hasInvested: investMap.has(w.id),
-            isBookmarked: bookmarkedSet.has(w.id),
-            isBookmarkedOnly: !investMap.has(w.id) && bookmarkedSet.has(w.id),
-          }));
+          const merged: Wish[] = wishList.map((w: Wish) => {
+            const myAmount = investMap.get(w.id) || 0;
+            const targetPrice = Number(w.product_price || 1);
+            const ratio = Math.min(100, Math.round((myAmount / targetPrice) * 1000) / 10); // 計算至小數點後 1 位
+
+            return {
+              ...w,
+              myInvestAmount: myAmount,
+              myContributionRatio: ratio, // 👈 存入變數
+              hasInvested: investMap.has(w.id),
+              isBookmarked: bookmarkedSet.has(w.id),
+              isBookmarkedOnly: !investMap.has(w.id) && bookmarkedSet.has(w.id),
+            };
+          });
           setTrackedWishes(merged);
         }
       } else {

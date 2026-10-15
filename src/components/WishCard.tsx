@@ -1,5 +1,5 @@
 // src/components/WishCard.tsx
-import { useState, useEffect, useRef, useCallback, lazy, Suspense } from 'react';
+import { useState, useEffect, useRef, useCallback, lazy, Suspense, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import {
   Coins,
@@ -68,6 +68,45 @@ export function WishCard({
   const isFulfilled = wish.status === 'fulfilled' || progress >= 100;
   const isNearComplete = progress >= 90 && progress < 100;
   const isCardShining = isOfficial || isFulfilled;
+const ratio = Number(wish.myContributionRatio || 0);
+
+  const tierInfo = useMemo(() => {
+    if (variant !== 'tracked' || ratio <= 0) return null;
+    if (ratio >= 50) {
+      return {
+        tier: 4,
+        badgeText: `👑 星宿守護神 · ${ratio}%`,
+        borderClass: 'tier-4-border',
+        shineClass: 'tier-4-shine',
+        badgeBg: 'bg-gradient-to-r from-amber-400 via-yellow-300 to-amber-500 text-zinc-950 font-black border-amber-300 shadow-[0_0_15px_rgba(251,191,36,0.5)]',
+      };
+    }
+    if (ratio >= 40) {
+      return {
+        tier: 3,
+        badgeText: `✨ 群星耀夜 · ${ratio}%`,
+        borderClass: 'tier-3-border',
+        shineClass: 'tier-3-shine',
+        badgeBg: 'bg-amber-500/25 border-amber-400 text-amber-200 font-bold shadow-[0_0_10px_rgba(245,158,11,0.3)]',
+      };
+    }
+    if (ratio >= 20) {
+      return {
+        tier: 2,
+        badgeText: `🌌 璀璨領航 · ${ratio}%`,
+        borderClass: 'tier-2-border',
+        shineClass: 'tier-2-shine',
+        badgeBg: 'bg-indigo-500/25 border-indigo-400 text-indigo-200 font-bold shadow-[0_0_10px_rgba(167,139,250,0.25)]',
+      };
+    }
+    return {
+      tier: 1,
+      badgeText: `⭐ 微芒守護 · ${ratio}%`,
+      borderClass: 'tier-1-border',
+      shineClass: 'tier-1-shine',
+      badgeBg: 'bg-white/10 border-white/20 text-zinc-300',
+    };
+  }, [variant, ratio]);
 
   const handleMouseMove = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
     const card = cardContainerRef.current;
@@ -200,12 +239,19 @@ export function WishCard({
           }`}
         >
           {/* 正面 */}
+          {/* 正面 */}
           <div
-            className={`absolute inset-0 w-full h-full rounded-2xl glass glow-border overflow-hidden backface-hidden flex flex-col justify-between p-5 bg-zinc-950/90 shadow-2xl ${
-              isCardShining ? 'holo-border-gold' : 'border-white/10'
+            className={`absolute inset-0 w-full h-full rounded-2xl glass glow-border overflow-hidden backface-hidden flex flex-col justify-between p-5 bg-zinc-950/90 shadow-2xl transition-all ${
+              /* 🌟 1. 優先套用個人贊助專屬全息光框，無贊助則保留預設 */
+              tierInfo ? tierInfo.borderClass : isCardShining ? 'holo-border-gold' : 'border-white/10'
             }`}
           >
-            {isCardShining && <div className="trainer-gallery-shine" />}
+            {/* 🌟 2. 專屬全息光學薄膜層 */}
+            {tierInfo ? (
+              <div className={`absolute inset-0 rounded-inherit pointer-events-none z-20 transition-opacity ${tierInfo.shineClass}`} />
+            ) : isCardShining ? (
+              <div className="trainer-gallery-shine" />
+            ) : null}
 
             <div className="absolute inset-0 pointer-events-none overflow-hidden -z-10">
               {wish.image_url ? (
@@ -225,11 +271,19 @@ export function WishCard({
 
             <div className="relative z-30">
               <div className="flex items-center justify-between mb-3">
-                <span className="text-xs px-2.5 py-1 rounded-full bg-amber-500/15 border border-amber-400/30 text-amber-200 font-mono flex items-center gap-1 backdrop-blur-md">
-                  <Sparkles className="w-3 h-3 text-amber-300" />
-                  #{wish.tag_name}
-                </span>
+                {/* 🌟 3. 左上角標籤：如果在追番牆且有贊助比例，直接掛上榮譽階梯徽章 */}
+                {tierInfo ? (
+                  <span className={`text-[10px] px-2.5 py-1 rounded-full border flex items-center gap-1 backdrop-blur-md ${tierInfo.badgeBg}`}>
+                    {tierInfo.badgeText}
+                  </span>
+                ) : (
+                  <span className="text-xs px-2.5 py-1 rounded-full bg-amber-500/15 border border-amber-400/30 text-amber-200 font-mono flex items-center gap-1 backdrop-blur-md">
+                    <Sparkles className="w-3 h-3 text-amber-300" />
+                    #{wish.tag_name}
+                  </span>
+                )}
 
+                {/* 右側達成/進度狀態保持原有邏輯 */}
                 {isOfficial ? (
                   <span className="text-[10px] font-bold text-amber-300 bg-amber-500/20 px-2.5 py-0.5 rounded-full border border-amber-400/30 flex items-center gap-1">
                     <Sparkles className="w-3 h-3 text-amber-400" />
@@ -251,43 +305,6 @@ export function WishCard({
                 <Compass className="w-5 h-5 text-amber-300 flex-shrink-0" />
                 <span>{wish.product_name}</span>
               </h3>
-            </div>
-
-            <div className="relative z-30 space-y-3.5">
-              <div className="bg-black/50 border border-white/10 rounded-xl p-2.5 backdrop-blur-md">
-                <p className="text-[11px] text-zinc-400 line-clamp-1">
-                  <span className="text-amber-300/80 font-bold">終章承諾：</span>
-                  {wish.promise_text}
-                </p>
-              </div>
-
-              <div className="space-y-1.5">
-                <div className="flex justify-between items-baseline text-xs font-mono">
-                  <span className="text-zinc-400 flex items-center gap-1">
-                    <Coins className="w-3.5 h-3.5 text-amber-400" />
-                    {(wish.current_stardust || 0).toLocaleString()} / {(wish.product_price || 0).toLocaleString()} 星塵
-                  </span>
-                  <span
-                    className={`font-black ${
-                      isNearComplete ? 'text-amber-300 glow-text' : 'text-amber-200'
-                    }`}
-                  >
-                    {progress}%
-                  </span>
-                </div>
-                <div className="w-full h-2 rounded-full bg-white/10 overflow-hidden">
-                  <div
-                    className="h-full rounded-full bg-gradient-to-r from-amber-500 via-yellow-400 to-amber-200"
-                    style={{ width: `${progress}%` }}
-                  />
-                </div>
-              </div>
-
-              <div className="text-center pt-1">
-                <p className="text-[11px] text-zinc-500 group-hover:text-amber-300/80 transition-colors flex items-center justify-center gap-1 font-medium">
-                  <RotateCw className="w-3 h-3 text-amber-400/80" /> 點擊卡片翻面查閱
-                </p>
-              </div>
             </div>
           </div>
 
@@ -391,7 +408,7 @@ export function WishCard({
                       </>
                     ) : (
                       <>
-                        <MessageCircle className="w-3 h-3 text-zinc-400" /> 數位加油室
+                        <MessageCircle className="w-3 h-3 text-amber-400" /> 數位加油室
                       </>
                     )}
                   </button>
