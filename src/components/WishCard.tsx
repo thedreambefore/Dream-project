@@ -372,22 +372,26 @@ export function WishCard({
                       setShowDriftModal(true);
                     }}
                     className={`text-[10px] px-2.5 py-1 rounded-md border flex items-center gap-1 transition-all ${
-                      isOfficial || isFulfilled
+                      isOfficial || isFulfilled || session?.user?.id === wish.user_id
                         ? 'bg-amber-500/15 border-amber-400/30 text-amber-200 hover:bg-amber-500/25'
                         : 'bg-white/5 border-white/10 text-zinc-400 hover:text-zinc-200'
                     }`}
                   >
                     {isOfficial ? (
                       <>
-                        <MessageCircle className="w-3 h-3 text-amber-400" /> 意見留言板
+                        <MessageCircle className="w-3 h-3 text-amber-400" /> 意見交流板
                       </>
                     ) : isFulfilled ? (
                       <>
-                        <MessageCircle className="w-3 h-3 text-amber-300" /> 結局漂流瓶 (已解鎖)
+                        <MessageCircle className="w-3 h-3 text-amber-300" /> 加油牆 (已達成解鎖)
+                      </>
+                    ) : session?.user?.id === wish.user_id ? (
+                      <>
+                        <MessageCircle className="w-3 h-3 text-amber-300" /> 查看實時加油
                       </>
                     ) : (
                       <>
-                        <MessageCircle className="w-3 h-3 text-zinc-500" /> 漂流瓶 (個人留言)
+                        <MessageCircle className="w-3 h-3 text-zinc-400" /> 數位加油室
                       </>
                     )}
                   </button>
