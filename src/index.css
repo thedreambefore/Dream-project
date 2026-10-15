@@ -380,98 +380,71 @@ body {
 }
 
 /* =========================================================
-   🌌 夢沙 · 數位服務卡牌全息光學特效階梯 (Contribution Tiers)
+   🌌 夢沙 · 高級暗夜香檳鍛金微光階梯 (Refined Obsidian Gold)
    ========================================================= */
 
-/* Tier 1 (1%~19%): 微芒守護者 */
-.tier-1-border {
-  border-color: rgba(251, 191, 36, 0.4) !important;
-  box-shadow: 0 0 15px rgba(251, 191, 36, 0.12);
+/* Tier 1 (1% ~ 19%): 微芒守護 — 1px 銀灰微光細線 */
+.tier-1-card {
+  border-color: rgba(255, 255, 255, 0.2) !important;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
 }
-.tier-1-shine {
-  opacity: calc(var(--card-opacity) * 0.3);
-  mix-blend-mode: screen;
+.tier-1-glimmer {
+  opacity: calc(var(--card-opacity) * 0.25);
+  mix-blend-mode: overlay;
   background-image: radial-gradient(
     circle at var(--pointer-x) var(--pointer-y),
-    rgba(253, 224, 71, 0.25) 0%,
-    transparent 60%
+    rgba(255, 255, 255, 0.4) 0%,
+    transparent 55%
   );
 }
 
-/* Tier 2 (20%~39%): 璀璨領航者 (極光全息) */
-.tier-2-border {
-  border-color: rgba(147, 197, 253, 0.5) !important;
-  box-shadow: 0 0 20px rgba(167, 139, 250, 0.25), inset 0 0 10px rgba(147, 197, 253, 0.15);
+/* Tier 2 (20% ~ 39%): 璀璨領航 — 香檳冷金金屬細邊 + 絲滑高光 */
+.tier-2-card {
+  border-color: rgba(245, 215, 140, 0.45) !important;
+  box-shadow: 0 0 18px rgba(217, 180, 100, 0.15), inset 0 0 12px rgba(217, 180, 100, 0.08);
 }
-.tier-2-shine {
-  opacity: calc(var(--card-opacity) * 0.55);
-  mix-blend-mode: color-dodge;
+.tier-2-glimmer {
+  opacity: calc(var(--card-opacity) * 0.35);
+  mix-blend-mode: soft-light;
   background-image: 
-    radial-gradient(circle at var(--pointer-x) var(--pointer-y), rgba(255, 255, 255, 0.5) 10%, transparent 45%),
-    linear-gradient(135deg, rgba(99, 102, 241, 0.3) 0%, rgba(168, 85, 247, 0.3) 50%, rgba(236, 72, 153, 0.3) 100%);
-  background-size: 150% 150%;
-  filter: contrast(1.2);
+    radial-gradient(circle at var(--pointer-x) var(--pointer-y), rgba(255, 245, 220, 0.6) 0%, transparent 50%),
+    linear-gradient(125deg, transparent 30%, rgba(245, 215, 140, 0.2) 50%, transparent 70%);
+  background-size: 180% 180%;
 }
 
-/* Tier 3 (40%~49%): 群星耀夜者 (稜鏡折射金光) */
-.tier-3-border {
-  border-color: rgba(245, 158, 11, 0.8) !important;
-  box-shadow: 0 0 25px rgba(245, 158, 11, 0.4), inset 0 0 12px rgba(245, 158, 11, 0.25);
-  animation: pulse-border 3s infinite ease-in-out;
+/* Tier 3 (40% ~ 49%): 群星耀夜 — 鍛造琥珀金邊 + 凝聚光斑 */
+.tier-3-card {
+  border-color: rgba(245, 158, 11, 0.7) !important;
+  box-shadow: 0 0 24px rgba(245, 158, 11, 0.25), inset 0 0 15px rgba(245, 158, 11, 0.12);
 }
-.tier-3-shine {
-  opacity: calc(var(--card-opacity) * 0.75);
-  mix-blend-mode: hard-light;
+.tier-3-glimmer {
+  opacity: calc(var(--card-opacity) * 0.45);
+  mix-blend-mode: screen;
   background-image: 
-    radial-gradient(circle at var(--pointer-x) var(--pointer-y), rgba(255, 255, 255, 0.7) 12%, transparent 40%),
+    radial-gradient(circle at var(--pointer-x) var(--pointer-y), rgba(255, 235, 180, 0.7) 5%, transparent 45%),
+    linear-gradient(135deg, rgba(245, 158, 11, 0.15) 0%, rgba(253, 230, 138, 0.25) 50%, rgba(217, 119, 6, 0.15) 100%);
+  background-size: 160% 160%;
+}
+
+/* Tier 4 (≥ 50% 最高檔): 帝國黑金 (Obsidian Crown Gold) — 雙重鍛金流光，通透且極度尊爵 */
+.tier-4-card {
+  border: 1.5px solid rgba(251, 191, 36, 0.9) !important;
+  box-shadow: 
+    0 0 30px rgba(245, 158, 11, 0.35),
+    inset 0 0 20px rgba(251, 191, 36, 0.18);
+}
+.tier-4-glimmer {
+  opacity: calc(var(--card-opacity) * 0.6);
+  mix-blend-mode: soft-light;
+  background-image:
+    radial-gradient(farthest-corner circle at var(--pointer-x) var(--pointer-y), rgba(255, 255, 255, 0.8) 0%, rgba(251, 191, 36, 0.3) 25%, transparent 60%),
     linear-gradient(
       115deg,
-      rgba(245, 158, 11, 0.4) 0%,
-      rgba(251, 191, 36, 0.5) 30%,
-      rgba(255, 255, 255, 0.6) 50%,
-      rgba(245, 158, 11, 0.4) 70%,
-      rgba(217, 119, 6, 0.4) 100%
+      transparent 20%,
+      rgba(251, 191, 36, 0.3) 45%,
+      rgba(255, 250, 220, 0.5) 50%,
+      rgba(251, 191, 36, 0.3) 55%,
+      transparent 80%
     );
   background-size: 200% 200%;
-}
-
-/* Tier 4 (≥ 50%): 傳奇全息金箔鍍層 (Crown Gold Holo) */
-@keyframes goldShimmerSweep {
-  0% { background-position: 0% 50%; }
-  50% { background-position: 100% 50%; }
-  100% { background-position: 0% 50%; }
-}
-
-.tier-4-border {
-  border-width: 2px !important;
-  border-color: #fbbf24 !important;
-  box-shadow: 
-    0 0 35px rgba(251, 191, 36, 0.6),
-    0 0 60px rgba(245, 158, 11, 0.3),
-    inset 0 0 20px rgba(251, 191, 36, 0.35);
-  position: relative;
-}
-
-.tier-4-shine {
-  opacity: calc(var(--card-opacity) * 0.95);
-  mix-blend-mode: color-dodge;
-  background-image:
-    radial-gradient(farthest-corner circle at var(--pointer-x) var(--pointer-y), rgba(255, 255, 255, 0.95) 8%, rgba(251, 191, 36, 0.4) 25%, transparent 60%),
-    linear-gradient(
-      135deg,
-      rgba(255, 215, 0, 0.5) 0%,
-      rgba(255, 105, 180, 0.4) 20%,
-      rgba(0, 191, 255, 0.4) 40%,
-      rgba(255, 223, 0, 0.6) 60%,
-      rgba(255, 255, 255, 0.7) 80%,
-      rgba(255, 215, 0, 0.5) 100%
-    );
-  background-size: 250% 250%;
-  animation: goldShimmerSweep 5s ease infinite;
-  filter: contrast(1.35) brightness(1.1);
-}
-
-@keyframes pulse-border {
-  0%, 100% { box-shadow: 0 0 20px rgba(245, 158, 11, 0.3), inset 0 0 10px rgba(245, 158, 11, 0.15); }
-  50% { box-shadow: 0 0 32px rgba(245, 158, 11, 0.6), inset 0 0 18px rgba(245, 158, 11, 0.3); }
 }
