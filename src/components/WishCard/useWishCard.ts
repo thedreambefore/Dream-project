@@ -34,7 +34,7 @@ export function useWishCard(
     setLocalStardust(Number(wish.current_stardust || 0));
     setMyLocalInvest(Number(wish.myInvestAmount || 0));
   }, [wish.current_stardust, wish.myInvestAmount]);
-
+  
   // 進度與達成狀態
   const progress = Math.round((localStardust / targetPrice) * 100);
   const isFulfilled = wish.status === 'fulfilled' || wish.status === 'full_funded' || progress >= 100;
@@ -187,27 +187,12 @@ export function useWishCard(
   );
 
   // 投星完成後的即時響應
-  const handleInvestClosed = useCallback(
-    (addedAmount?: number) => {
+   const handleInvestClosed = useCallback(
+    () => {
       setShowInvest(false);
-      if (addedAmount && addedAmount > 0) {
-        const newTotal = (wish.current_stardust || 0) + addedAmount;
-        const newMyInvest = (wish.myInvestAmount || 0) + addedAmount;
-        setLocalStardust(newTotal);
-        setMyLocalInvest(newMyInvest);
-
-        // 🌟 即時將更新同步回傳給 HomePage，全域更新首頁列表與排行榜
-        if (onWishUpdated) {
-          onWishUpdated({
-            ...wish,
-            current_stardust: newTotal,
-            myInvestAmount: newMyInvest,
-          });
-        }
-      }
       refreshProfile();
     },
-    [wish, onWishUpdated, refreshProfile]
+    [refreshProfile]
   );
 
   return {
