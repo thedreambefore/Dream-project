@@ -174,7 +174,14 @@ export function HomePage({ onOpenHonorHall }: HomePageProps) {
                     : ''
                 }`}
               >
-                <WishCard wish={story} index={index} variant="market" />
+                <WishCard
+                  wish={story}
+                  index={index}
+                  variant="market"
+                  onWishUpdated={(updated) => {
+                    setWishes((prev) => prev.map((w) => (w.id === updated.id ? updated : w)));
+                  }}
+                />
               </div>
             ))}
           </Suspense>

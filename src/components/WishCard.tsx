@@ -23,6 +23,7 @@ import type { Wish } from '@/types/wish';
 import { supabase } from '@/lib/supabaseClient';
 import { useAuth } from '@/context/AuthContext';
 import { blockWish, deleteWish, updateWish, OFFICIAL_SPONSOR_ID } from '@/lib/backend';
+import { calculateProgress, calculateContributionRatio, getGuardianTier } from '@/lib/stardust';
 
 const InvestModal = lazy(() => import('./InvestModal').then((m) => ({ default: m.InvestModal })));
 const DriftBottleModal = lazy(() =>
@@ -36,6 +37,7 @@ export interface WishCardProps {
   onOpenLetterModal?: (wish: Wish) => void;
   onOpenEditModal?: (wish: Wish) => void;
   onCardDeleted?: (wishId: string) => void;
+  onWishUpdated?: (updatedWish: Wish) => void; // 🌟 新增：通知上層狀態更新
 }
 
 export function WishCard({
@@ -45,6 +47,7 @@ export function WishCard({
   onOpenLetterModal,
   onOpenEditModal,
   onCardDeleted,
+  onWishUpdated,
 }: WishCardProps) {
   const { session, isBanned, isAdmin, refreshProfile } = useAuth();
   const cardContainerRef = useRef<HTMLDivElement>(null);
@@ -61,7 +64,7 @@ export function WishCard({
   const isOfficial = wish.id === OFFICIAL_SPONSOR_ID;
   const targetPrice = Number(wish.product_price || 1);
 
-  // 🌟 本地響應狀態：投星後即時動態增加，徽章與進度隨投隨變！
+  // 🌟 本地響應狀態：隨投隨變
   const [localStardust, setLocalStardust] = useState(Number(wish.current_stardust || 0));
   const [myLocalInvest, setMyLocalInvest] = useState(Number(wish.myInvestAmount || 0));
 
@@ -70,8 +73,11 @@ export function WishCard({
     setMyLocalInvest(Number(wish.myInvestAmount || 0));
   }, [wish.current_stardust, wish.myInvestAmount]);
 
-  // 動態進度與個人佔比
-  const progress = Math.round((localStardust / targetPrice) * 100);
+  // 動態進度與個人佔比計算
+  const progress = useMemo(() => {
+    return calculateProgress(localStardust, targetPrice);
+  }, [localStardust, targetPrice]);
+
   const isFulfilled =
     wish.status === 'fulfilled' || wish.status === 'full_funded' || progress >= 100;
   const isOverFunded = progress > 100;
@@ -79,49 +85,13 @@ export function WishCard({
   const isNearComplete = progress >= 90 && progress < 100;
   const isCardShining = isOfficial || isFulfilled;
 
-  // 動態計算個人佔比 (小數點 1 位)
+  // 個人贊助佔比與守護階梯樣式
   const ratio = useMemo(() => {
-    if (myLocalInvest <= 0) return 0;
-    return Math.round((myLocalInvest / targetPrice) * 1000) / 10;
+    return calculateContributionRatio(myLocalInvest, targetPrice);
   }, [myLocalInvest, targetPrice]);
 
-  // 個人守護階梯樣式
   const tier = useMemo(() => {
-    if (ratio <= 0) return null;
-    if (ratio >= 50) {
-      return {
-        level: 4,
-        label: `✦ 守護神 · ${ratio}%`,
-        cardClass: 'tier-4-card',
-        glimmerClass: 'tier-4-glimmer',
-        badgeClass: 'bg-amber-950/80 border-amber-400/60 text-amber-200 shadow-sm',
-      };
-    }
-    if (ratio >= 40) {
-      return {
-        level: 3,
-        label: `✦ 耀夜者 · ${ratio}%`,
-        cardClass: 'tier-3-card',
-        glimmerClass: 'tier-3-glimmer',
-        badgeClass: 'bg-zinc-900/90 border-amber-500/40 text-amber-300',
-      };
-    }
-    if (ratio >= 20) {
-      return {
-        level: 2,
-        label: `✦ 領航者 · ${ratio}%`,
-        cardClass: 'tier-2-card',
-        glimmerClass: 'tier-2-glimmer',
-        badgeClass: 'bg-zinc-900/90 border-amber-300/30 text-amber-100',
-      };
-    }
-    return {
-      level: 1,
-      label: `✦ 已守護 · ${ratio}%`,
-      cardClass: 'tier-1-card',
-      glimmerClass: 'tier-1-glimmer',
-      badgeClass: 'bg-zinc-900/80 border-white/20 text-zinc-300',
-    };
+    return getGuardianTier(ratio);
   }, [ratio]);
 
   const handleMouseMove = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
@@ -245,7 +215,7 @@ export function WishCard({
               tier ? tier.cardClass : isCardShining ? 'holo-border-gold' : 'border-white/10'
             }`}
           >
-            {/* 🌟 頂層 Trainer 閃卡光學膜 */}
+            {/* 頂層 Trainer 閃卡光學膜 */}
             {isCardShining && <div className="trainer-gallery-shine" />}
 
             {/* 個人贊助階梯微光層 */}
@@ -253,7 +223,7 @@ export function WishCard({
               <div className={`absolute inset-0 rounded-inherit pointer-events-none z-30 ${tier.glimmerClass}`} />
             )}
 
-            {/* 背景圖底層 (-z-10) */}
+            {/* 背景圖底層 */}
             <div className="absolute inset-0 pointer-events-none overflow-hidden -z-10">
               {wish.image_url ? (
                 <div className="relative w-full h-full">
@@ -270,10 +240,9 @@ export function WishCard({
               )}
             </div>
 
-            {/* 正面上半部：徽章取代標籤 + 右上角達成與炫彩超額狀態 */}
+            {/* 正面上半部：徽章取代標籤 + 右上角達成狀態 */}
             <div className="relative z-30">
               <div className="flex items-center justify-between mb-3">
-                {/* 🌟 核心升級 1：若有個人守護佔比，直接「覆蓋取代」標籤位置 */}
                 {tier ? (
                   <span className={`text-[11px] px-2.5 py-0.5 rounded-full border font-mono flex items-center gap-1 backdrop-blur-md ${tier.badgeClass}`}>
                     {tier.level === 4 && <Crown className="w-3 h-3 text-amber-300" />}
@@ -286,7 +255,6 @@ export function WishCard({
                   </span>
                 )}
 
-                {/* 🌟 核心升級 2：右上角狀態膠囊：達成顯示「圓滿達成」；超額顯示「炫彩超額達成 XX%」 */}
                 {isOfficial ? (
                   <span className="text-[10px] font-bold text-amber-300 bg-amber-500/20 px-2.5 py-0.5 rounded-full border border-amber-400/30 flex items-center gap-1">
                     <Sparkles className="w-3 h-3 text-amber-400" />
@@ -315,7 +283,7 @@ export function WishCard({
               </h3>
             </div>
 
-            {/* 正面下半部：終章承諾 + 星塵進度條 (超額帶炫彩文字) + 點擊翻面提示 */}
+            {/* 正面下半部：終章承諾 + 星塵進度條 */}
             <div className="relative z-30 space-y-3.5">
               <div className="bg-black/60 border border-white/10 rounded-xl p-2.5 backdrop-blur-md">
                 <p className="text-[11px] text-zinc-300 line-clamp-1 leading-relaxed">
@@ -331,7 +299,6 @@ export function WishCard({
                     {localStardust.toLocaleString()} / {targetPrice.toLocaleString()} 星塵
                   </span>
 
-                  {/* 🌟 核心升級 3：進度條上方文字：超額帶白色炫彩！ */}
                   {isOverFunded ? (
                     <span className="text-prismatic-white">
                       超額 {progress}%
@@ -639,7 +606,7 @@ export function WishCard({
           document.body
         )}
 
-      {/* 🌟 投星彈窗：投完星直接回傳投入額，零延遲即時更新卡片與徽章 % 數！ */}
+      {/* 🌟 投星彈窗：投完星即時累加並更新卡片與上層狀態！ */}
       {showInvest && (
         <Suspense fallback={null}>
           <InvestModal
@@ -647,8 +614,20 @@ export function WishCard({
             onClose={(addedAmount?: number) => {
               setShowInvest(false);
               if (addedAmount && addedAmount > 0) {
-                setLocalStardust((prev) => prev + addedAmount);
-                setMyLocalInvest((prev) => prev + addedAmount);
+                const nextStardust = localStardust + addedAmount;
+                const nextInvest = myLocalInvest + addedAmount;
+                setLocalStardust(nextStardust);
+                setMyLocalInvest(nextInvest);
+
+                const updatedWish: Wish = {
+                  ...wish,
+                  current_stardust: nextStardust,
+                  myInvestAmount: nextInvest,
+                  status: nextStardust >= targetPrice && !isOfficial ? 'full_funded' : wish.status,
+                };
+                if (onWishUpdated) {
+                  onWishUpdated(updatedWish);
+                }
               }
               refreshProfile();
             }}
@@ -659,7 +638,7 @@ export function WishCard({
       {showDriftModal && (
         <Suspense fallback={null}>
           <DriftBottleModal
-            wish={wish}
+            wish={{ ...wish, current_stardust: localStardust }}
             progress={progress}
             isFulfilled={isFulfilled}
             onClose={() => setShowDriftModal(false)}

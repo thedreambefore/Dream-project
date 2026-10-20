@@ -6,15 +6,14 @@ import { supabase } from '@/lib/supabaseClient';
 import type { Wish } from '@/types/wish';
 import { useAuth } from '@/context/AuthContext';
 import { updateWish, OFFICIAL_SPONSOR_ID } from '@/lib/backend';
+import { calculateServiceFee, checkSensitiveWords } from '@/lib/stardust';
 
 export function InvestModal({ story, onClose }: { story: Wish; onClose: (addedAmount?: number) => void }) {
-  const { session, profile, refreshProfile } = useAuth();
+  const { session, refreshProfile } = useAuth();
   const isOfficial = story.id === OFFICIAL_SPONSOR_ID;
 
-  // 計算真正剩餘所需
   const currentStardust = Number(story.current_stardust || 0);
   const targetPrice = Number(story.product_price || 0);
-  const remainingNeed = isOfficial ? 999999 : Math.max(0, targetPrice - currentStardust);
 
   const [amount, setAmount] = useState<number>(50);
   const [customInput, setCustomInput] = useState<string>('');
@@ -23,25 +22,9 @@ export function InvestModal({ story, onClose }: { story: Wish; onClose: (addedAm
   const [agreeTerms, setAgreeTerms] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [successInfo, setSuccessInfo] = useState<{ effective: number; excess: number } | null>(null);
+  const [successInfo, setSuccessInfo] = useState<{ amount: number; isOverFunded: boolean } | null>(null);
 
-  // 服務費計算 (50~100元固定5元，>100元為5%)
-  const feeDetails = useMemo(() => {
-    const validAmount = Math.max(0, amount || 0);
-    if (validAmount < 50 && !isOfficial) {
-      return { fee: 0, total: validAmount, label: '單次最低需投下 50 顆星星', isValid: false };
-    }
-    let fee = 5;
-    if (validAmount > 100) {
-      fee = Math.round(validAmount * 0.05);
-    }
-    return {
-      fee,
-      total: validAmount + fee,
-      label: validAmount <= 100 ? '系統與技術服務費 (固定 NT$ 5)' : '系統與技術服務費 (5%)',
-      isValid: true,
-    };
-  }, [amount, isOfficial]);
+  const feeDetails = useMemo(() => calculateServiceFee(amount), [amount]);
 
   const handleSelectPreset = (val: number) => {
     setAmount(val);
@@ -60,7 +43,6 @@ export function InvestModal({ story, onClose }: { story: Wish; onClose: (addedAm
     }
   };
 
-  // 🌟 完整還原之核心 Checkout 作業（不漏掉任何閉環）
   const handleCheckout = async () => {
     setError('');
     if (!session?.user) {
@@ -80,79 +62,39 @@ export function InvestModal({ story, onClose }: { story: Wish; onClose: (addedAm
       return;
     }
 
+    const sensitiveWord = checkSensitiveWords(message);
+    if (sensitiveWord) {
+      setError(`留言包含不當詞彙 [${sensitiveWord}]，請修改後送出`);
+      return;
+    }
+
     setLoading(true);
     try {
       const payAmount = Number(amount);
-
-      // 🌟 超額星塵計算邏輯：
-      // 如果本活動還差 200，用戶付 300：
-      // effectiveAmount = 200 (注入心願，算在途)
-      // excessAmount = 100 (超過的轉入官方守護榜 + 直接結算為個人榮譽星塵)
-      let effectiveAmount = payAmount;
-      let excessAmount = 0;
-
-      if (!isOfficial) {
-        if (payAmount > remainingNeed) {
-          effectiveAmount = remainingNeed;
-          excessAmount = payAmount - remainingNeed;
-        }
-      }
-
-      const tasks: (Promise<any> | PromiseLike<any>)[] = [];
-
-      // 1. 寫入本心願的有效投入
-      if (effectiveAmount > 0) {
-        tasks.push(
-          supabase.from('investments').insert({
-            user_id: session.user.id,
-            wish_id: story.id,
-            story_id: story.id,
-            amount: effectiveAmount,
-            message: message.trim() || '投下了閃爍的願望星！',
-            is_hidden: false,
-          })
-        );
-      }
-
-      // 2. 自動加入追番牆
-      if (!isOfficial) {
-        tasks.push(
-          supabase.from('bookmarks').upsert(
-            { user_id: session.user.id, wish_id: story.id },
-            { onConflict: 'user_id,wish_id' }
-          )
-        );
-      }
-
-      // 3. 處理「超出額度」部分：寫入官方捐獻榜 + 即時結算榮譽星塵給用戶！
-      if (excessAmount > 0) {
-        // A. 記入官方常駐卡留言與支持榜
-        tasks.push(
-          supabase.from('investments').insert({
-            user_id: session.user.id,
-            wish_id: OFFICIAL_SPONSOR_ID,
-            story_id: OFFICIAL_SPONSOR_ID,
-            amount: excessAmount,
-            message: `💫 溢額守護：支持夢沙星空（來自：${story.product_name}）`,
-            is_hidden: false,
-          })
-        );
-
-        // B. 直接結算榮譽星塵記入個人錢包
-        const currentBalance = Number(profile?.wallet_balance || 0);
-        tasks.push(
-          supabase
-            .from('users')
-            .update({ wallet_balance: currentBalance + excessAmount })
-            .eq('id', session.user.id)
-        );
-      }
-
-      // 4. 更新心願狀態與累計星塵 (使用嚴格數值判斷)
-      const newTotal = currentStardust + effectiveAmount;
+      const newTotal = currentStardust + payAmount;
       const isNewlyFunded = !isOfficial && newTotal >= targetPrice;
       const newStatus = isNewlyFunded ? 'full_funded' : story.status;
 
+      // 1. 寫入 investments（100% 全額歸屬於本心願卡，不再移轉到官方贊助卡）
+      const { error: invErr } = await supabase.from('investments').insert({
+        user_id: session.user.id,
+        wish_id: story.id,
+        story_id: story.id,
+        amount: payAmount,
+        message: message.trim() || '投下了閃爍的願望星！',
+        is_hidden: false,
+      });
+      if (invErr) throw invErr;
+
+      // 2. 自動為贊助者加入追番牆（收藏）
+      if (!isOfficial) {
+        await supabase.from('bookmarks').upsert(
+          { user_id: session.user.id, wish_id: story.id },
+          { onConflict: 'user_id,wish_id' }
+        );
+      }
+
+      // 3. 更新心願狀態與累計星塵數
       const updatePayload: Record<string, any> = {
         current_stardust: newTotal,
         status: newStatus,
@@ -162,19 +104,17 @@ export function InvestModal({ story, onClose }: { story: Wish; onClose: (addedAm
         updatePayload.funded_at = new Date().toISOString();
       }
 
-      tasks.push(updateWish(story.id, updatePayload));
+      await updateWish(story.id, updatePayload);
 
-      // 🚀 平行執行所有後端作業，極速響應！
-      await Promise.all(tasks);
-
+      // 本地同步更新物件參考
       story.current_stardust = newTotal;
       story.status = newStatus;
 
-      setSuccessInfo({ effective: effectiveAmount, excess: excessAmount });
-      refreshProfile(); // 背景刷新不阻塞畫面
+      setSuccessInfo({ amount: payAmount, isOverFunded: newTotal > targetPrice && !isOfficial });
+      refreshProfile();
 
       setTimeout(() => {
-        onClose(payAmount); // 👈 將投下的金額直接回傳，卡片即時重算佔比！
+        onClose(payAmount); // 回傳投入額給上層即時刷新
       }, 1400);
     } catch (err: any) {
       setError(err.message || '金流連線異常，請稍後重試');
@@ -199,17 +139,16 @@ export function InvestModal({ story, onClose }: { story: Wish; onClose: (addedAm
             <div className="text-5xl mb-2 hourglass-anim inline-block">⭐</div>
             <h3 className="text-xl font-bold text-amber-200">願望星已順利送達！</h3>
             <p className="text-zinc-300 text-xs">
-              已注入 <span className="text-amber-300 font-bold">{successInfo.effective}</span> 顆途中星塵
+              已成功注入 <span className="text-amber-300 font-bold font-mono">{successInfo.amount}</span> 顆星塵至本願望。
             </p>
-            {successInfo.excess > 0 && (
-              <div className="mt-3 bg-indigo-500/15 border border-indigo-400/30 rounded-xl p-3 text-xs text-indigo-200">
-                ✨ 溢出的 <span className="text-amber-300 font-bold font-mono">{successInfo.excess}</span> 顆星星已登錄官方守護榜，並立即轉化為您的<b>個人榮譽星塵</b>！
+            {successInfo.isOverFunded && (
+              <div className="mt-3 bg-amber-500/15 border border-amber-400/30 rounded-xl p-3 text-xs text-amber-200">
+                ✨ 此活動已獲超額支持！所有星塵將完整保留在卡片榮譽中，並於履約完成後結算為個人榮譽點數！
               </div>
             )}
           </div>
         ) : (
           <div className="space-y-4">
-            {/* 頂部標題 */}
             <div className="flex items-center justify-between border-b border-white/10 pb-3">
               <div>
                 <h2 className="text-lg font-bold text-amber-100 flex items-center gap-2">
@@ -233,7 +172,6 @@ export function InvestModal({ story, onClose }: { story: Wish; onClose: (addedAm
               </button>
             </div>
 
-            {/* 互動星語 */}
             <div>
               <div className="flex items-center justify-between mb-1.5">
                 <label className="text-xs font-bold text-amber-100">
@@ -253,13 +191,12 @@ export function InvestModal({ story, onClose }: { story: Wish; onClose: (addedAm
               />
             </div>
 
-            {/* 選擇星星數額 */}
             <div>
               <div className="flex justify-between items-center mb-2">
                 <label className="text-xs font-bold text-amber-100">⭐ 選擇星星投入數量</label>
-                {!isOfficial && remainingNeed > 0 && (
+                {!isOfficial && (
                   <span className="text-[11px] text-amber-400 font-mono">
-                    距圓滿尚差：{remainingNeed.toLocaleString()} 顆 (超出將自動轉化榮譽)
+                    累積無上限，達成後可繼續超額支持
                   </span>
                 )}
               </div>
@@ -306,7 +243,6 @@ export function InvestModal({ story, onClose }: { story: Wish; onClose: (addedAm
               </div>
             </div>
 
-            {/* 費用明細小計 */}
             <div className="bg-zinc-900/80 border border-amber-400/20 rounded-xl p-3 space-y-1.5">
               <div className="flex justify-between text-xs text-gray-300">
                 <span>• 虛擬星星 ({amount} 顆)：</span>
@@ -324,7 +260,6 @@ export function InvestModal({ story, onClose }: { story: Wish; onClose: (addedAm
               </div>
             </div>
 
-            {/* 支付方式 */}
             <div className="flex items-center justify-center gap-3 text-xs">
               <button
                 type="button"
@@ -350,7 +285,6 @@ export function InvestModal({ story, onClose }: { story: Wish; onClose: (addedAm
               </button>
             </div>
 
-            {/* 條款核取方塊 */}
             <div className="bg-amber-500/5 border border-amber-500/20 rounded-xl p-3">
               <label className="flex items-start gap-2.5 cursor-pointer">
                 <input
@@ -381,8 +315,7 @@ export function InvestModal({ story, onClose }: { story: Wish; onClose: (addedAm
                 <Loader2 className="w-4 h-4 animate-spin" />
               ) : (
                 <>
-                  <Lock className="w-3.5 h-3.5" /> 確認付款並投下願望星 (NT${' '}
-                  {feeDetails.total.toLocaleString()})
+                  <Lock className="w-3.5 h-3.5" /> 確認付款並投下願望星 (NT$ {feeDetails.total.toLocaleString()})
                 </>
               )}
             </button>
