@@ -45,6 +45,7 @@ export interface Wish {
   unboxing_photo_url?: string | null;
   letter_status?: LetterStatus;
   letter_reject_reason?: string | null;
+  funded_at?: string | null;
   created_at: string;
   
   // 前端關聯或即時運算欄位
