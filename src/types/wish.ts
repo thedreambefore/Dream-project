@@ -16,10 +16,10 @@ export interface UserProfile {
 
 export type WishStatus =
   | 'pending'      // 待審核
-  | 'approved'     // 募資中
-  | 'full_funded'  // 募滿待出貨
-  | 'fulfilled'    // 已出貨完結
-  | 'blocked';     // 已下架封鎖
+  | 'approved'     // 推進中
+  | 'full_funded'  // 達成待出貨
+  | 'fulfilled'    // 履約完結
+  | 'blocked';     // 封鎖下架
 
 export type LetterStatus = 'none' | 'pending' | 'approved' | 'rejected';
 
@@ -45,13 +45,14 @@ export interface Wish {
   unboxing_photo_url?: string | null;
   letter_status?: LetterStatus;
   letter_reject_reason?: string | null;
-  funded_at?: string | null;
   created_at: string;
+  updated_at?: string;
+  funded_at?: string | null; // 🌟 達成時間戳記（用於次日凌晨 00:00 自動下架判定）
   
-  // 前端關聯或即時運算欄位
+  // 前端關聯運算欄位
   anonymous_nickname?: string | null;
   myInvestAmount?: number;
-  myContributionRatio?: number; // 👈 0 ~ 100 之百分比數值 (例如: 25.5 代表 25.5%)
+  myContributionRatio?: number; // 🌟 個人守護佔比（數值百分比，允許超額突破 100%）
   isBookmarked?: boolean;
   isBookmarkedOnly?: boolean;
   hasInvested?: boolean;
@@ -65,10 +66,11 @@ export interface Investment {
   amount: number;
   message: string | null;
   is_hidden: boolean;
+  reaction?: string | null; // 🌟 優質加油等審核註記
   created_at: string;
   users?: {
     anonymous_nickname: string | null;
-  };
+  } | null;
 }
 
 export interface Bookmark {

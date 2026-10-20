@@ -1,10 +1,11 @@
 // src/context/AuthContext.tsx
-import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
+import type { Session } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabaseClient';
 import type { UserProfile } from '@/types/wish';
 
 interface AuthContextType {
-  session: any;
+  session: Session | null;
   profile: UserProfile | null;
   loading: boolean;
   isBanned: boolean;
@@ -20,11 +21,11 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [session, setSession] = useState<any>(null);
+  const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const fetchUserProfile = async (userId: string): Promise<UserProfile | null> => {
+  const fetchUserProfile = useCallback(async (userId: string): Promise<UserProfile | null> => {
     try {
       const { data, error } = await supabase
         .from('users')
@@ -33,7 +34,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         .single();
 
       if (error && error.code === 'PGRST116') {
-        // 資料庫尚未建立對應 profile 時自動補建
         const { data: newProfile, error: insertError } = await supabase
           .from('users')
           .insert([
@@ -56,15 +56,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (error) throw error;
       return data as UserProfile;
     } catch (e) {
-      console.error('❌ 讀取用戶 Profile 發生異常:', e);
+      console.error('❌ 讀取用戶 Profile 異常:', e);
       return null;
     }
-  };
+  }, []);
 
   useEffect(() => {
     let isMounted = true;
 
-    const initializeAuth = async () => {
+    async function initializeAuth() {
       try {
         const { data: { session: initialSession } } = await supabase.auth.getSession();
         if (isMounted) setSession(initialSession);
@@ -74,11 +74,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           if (isMounted) setProfile(prof);
         }
       } catch (err) {
-        console.error('初始化 Auth 遭遇異常:', err);
+        console.error('初始化 Auth 異常:', err);
       } finally {
         if (isMounted) setLoading(false);
       }
-    };
+    }
 
     initializeAuth();
 
@@ -100,9 +100,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       isMounted = false;
       subscription.unsubscribe();
     };
-  }, []);
+  }, [fetchUserProfile]);
 
-  const login = async (emailInput: string, passwordInput: string) => {
+  const login = useCallback(async (emailInput: string, passwordInput: string): Promise<boolean> => {
     const { error } = await supabase.auth.signInWithPassword({
       email: emailInput,
       password: passwordInput,
@@ -112,48 +112,51 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return false;
     }
     return true;
-  };
+  }, []);
 
-  const signUp = async (emailInput: string, passwordInput: string, nameInput: string) => {
-    const { data, error } = await supabase.auth.signUp({
-      email: emailInput,
-      password: passwordInput,
-    });
-    if (error) {
-      alert(`註冊失敗: ${error.message}`);
-      return false;
-    }
-    if (data.user) {
-      const chosenName = nameInput.trim() || '新星旅人';
-      await supabase.from('users').upsert([
-        {
-          id: data.user.id,
-          real_name: chosenName,
-          anonymous_nickname: chosenName,
-          role: 'user',
-          wallet_balance: 0,
-          is_phone_verified: false,
-        },
-      ]);
-    }
-    return true;
-  };
+  const signUp = useCallback(
+    async (emailInput: string, passwordInput: string, nameInput: string): Promise<boolean> => {
+      const { data, error } = await supabase.auth.signUp({
+        email: emailInput,
+        password: passwordInput,
+      });
+      if (error) {
+        alert(`註冊失敗: ${error.message}`);
+        return false;
+      }
+      if (data.user) {
+        const chosenName = nameInput.trim() || '新星旅人';
+        await supabase.from('users').upsert([
+          {
+            id: data.user.id,
+            real_name: chosenName,
+            anonymous_nickname: chosenName,
+            role: 'user',
+            wallet_balance: 0,
+            is_phone_verified: false,
+          },
+        ]);
+      }
+      return true;
+    },
+    []
+  );
 
-  const logout = async () => {
+  const logout = useCallback(async (): Promise<void> => {
     await supabase.auth.signOut();
     setSession(null);
     setProfile(null);
-  };
+  }, []);
 
-  const refreshProfile = async () => {
+  const refreshProfile = useCallback(async (): Promise<void> => {
     const currentUserId = session?.user?.id || (await supabase.auth.getUser()).data.user?.id;
     if (currentUserId) {
       const prof = await fetchUserProfile(currentUserId);
       setProfile(prof);
     }
-  };
+  }, [session?.user?.id, fetchUserProfile]);
 
-  const resetPasswordEmail = async (email: string) => {
+  const resetPasswordEmail = useCallback(async (email: string): Promise<boolean> => {
     try {
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
         redirectTo: `${window.location.origin}/reset-password`,
@@ -161,23 +164,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (error) throw error;
       alert('密碼重設星光郵件已發送，請檢查信箱。');
       return true;
-    } catch (err: any) {
-      alert(`發送失敗: ${err.message}`);
+    } catch (err: unknown) {
+      alert(`發送失敗: ${err instanceof Error ? err.message : '未知錯誤'}`);
       return false;
     }
-  };
+  }, []);
 
-  const updatePassword = async (newPassword: string) => {
+  const updatePassword = useCallback(async (newPassword: string): Promise<boolean> => {
     try {
       const { error } = await supabase.auth.updateUser({ password: newPassword });
       if (error) throw error;
       alert('密碼修改成功！');
       return true;
-    } catch (err: any) {
-      alert(`密碼修改失敗: ${err.message}`);
+    } catch (err: unknown) {
+      alert(`密碼修改失敗: ${err instanceof Error ? err.message : '未知錯誤'}`);
       return false;
     }
-  };
+  }, []);
 
   const isBanned = profile?.role === 'banned';
   const isAdmin = profile?.role === 'admin';
