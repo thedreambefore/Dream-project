@@ -1,25 +1,13 @@
 // src/services/emailService.ts
 import { supabase } from '@/lib/supabaseClient';
+import { generateExclusiveAccessLink } from './tokenService';
 
-interface SendAccessEmailParams {
+export interface SendAccessEmailParams {
   toEmail: string;
   toName: string;
   wishId: string;
   wishTitle: string;
   amount: number;
-}
-
-/**
- * 產生 30 天時效之免登入回訪 Token 連結
- */
-export function generateAccessLink(wishId: string): string {
-  const payload = {
-    wid: wishId,
-    ts: Date.now(),
-    exp: Date.now() + 1000 * 60 * 60 * 24 * 30, // 30 天
-  };
-  const token = btoa(JSON.stringify(payload));
-  return `${window.location.origin}/?accessWish=${wishId}&token=${encodeURIComponent(token)}`;
 }
 
 /**
@@ -32,9 +20,11 @@ export async function sendContributionAccessEmail({
   wishTitle,
   amount,
 }: SendAccessEmailParams): Promise<boolean> {
-  const accessLink = generateAccessLink(wishId);
-
   try {
+    // 1. 產生永久有效之免登入專屬連結
+    const accessLink = generateExclusiveAccessLink(wishId, toEmail);
+
+    // 2. 透過 Supabase SDK 安全調用伺服器端 Edge Function
     const { data, error } = await supabase.functions.invoke('send-access-email', {
       body: {
         toEmail,
@@ -47,13 +37,13 @@ export async function sendContributionAccessEmail({
     });
 
     if (error) {
-      console.warn('⚠️ Edge Function 發信回傳異常:', error);
+      console.error('❌ Edge Function 發信失敗:', error.message);
       return false;
     }
 
-    return data?.success === true;
+    return Boolean(data?.success);
   } catch (err) {
-    console.warn('⚠️ 呼叫發信 Edge Function 失敗:', err);
+    console.error('❌ 發信服務調用異常:', err);
     return false;
   }
 }

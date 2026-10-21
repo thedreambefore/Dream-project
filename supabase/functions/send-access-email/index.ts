@@ -36,7 +36,11 @@ Deno.serve(async (req: Request) => {
       throw new Error('Supabase Secrets 尚未設定 BREVO_API_KEY 或 BREVO_SENDER_EMAIL');
     }
 
-    // 🌟 重新設計之暗夜全息鍛金信件樣式
+    if (!toEmail || !accessLink) {
+      throw new Error('收件信箱或專屬連結參數缺失');
+    }
+
+    // 🌟 暗夜全息鍛金信件樣式（聲明為永久典藏憑證）
     const htmlContent = `
       <!DOCTYPE html>
       <html>
@@ -58,7 +62,7 @@ Deno.serve(async (req: Request) => {
                       ⏳ 夢沙 DreamSand
                     </div>
                     <div style="display: inline-block; background: rgba(245, 158, 11, 0.15); border: 1px solid rgba(245, 158, 11, 0.4); border-radius: 99px; padding: 4px 14px; margin-top: 10px; font-size: 11px; font-weight: bold; color: #fbbf24; font-family: monospace;">
-                      ✦ 星砂追番專屬免阻斷憑證 ✦
+                      ✦ 星砂追番專屬免阻斷憑證 · 永久典藏 ✦
                     </div>
                   </td>
                 </tr>
@@ -108,11 +112,11 @@ Deno.serve(async (req: Request) => {
                   </td>
                 </tr>
 
-                <!-- 頁尾聲明 -->
+                <!-- 頁尾永久聲明 -->
                 <tr>
                   <td align="center" style="border-top: 1px solid rgba(255, 255, 255, 0.08); padding-top: 24px; font-size: 11px; color: #475569; line-height: 1.6;">
                     此信件由夢沙 DreamSand 系統自動發送 · 線上數位加油與虛擬卡牌互動平台<br>
-                    此專屬免阻斷憑證效期為 30 天，請妥善保存。
+                    ✦ 此專屬免阻斷憑證為永久有效，為您永久典藏這段美好的築夢結局，您可隨時點擊回訪。
                   </td>
                 </tr>
 
