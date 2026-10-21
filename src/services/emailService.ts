@@ -47,4 +47,4 @@ export async function sendContributionAccessEmail({
     console.error('❌ 發信連線嚴重異常:', err);
     return false;
   }
-}
+}npx supabase login
