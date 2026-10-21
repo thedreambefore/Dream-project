@@ -1,6 +1,5 @@
 // supabase/functions/send-access-email/index.ts
 
-// 🌟 宣告 Deno 環境全域物件，讓前端 VS Code 不再報紅字錯誤
 declare const Deno: {
   env: {
     get(key: string): string | undefined;
@@ -23,7 +22,6 @@ interface RequestPayload {
 }
 
 Deno.serve(async (req: Request) => {
-  // 處理瀏覽器 CORS OPTIONS 預檢請求
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
   }
@@ -31,7 +29,6 @@ Deno.serve(async (req: Request) => {
   try {
     const { toEmail, toName, wishTitle, amount, accessLink } = (await req.json()) as RequestPayload;
 
-    // 從 Supabase Secrets 取出金鑰
     const apiKey = Deno.env.get('BREVO_API_KEY');
     const senderEmail = Deno.env.get('BREVO_SENDER_EMAIL');
 
@@ -39,54 +36,90 @@ Deno.serve(async (req: Request) => {
       throw new Error('Supabase Secrets 尚未設定 BREVO_API_KEY 或 BREVO_SENDER_EMAIL');
     }
 
+    // 🌟 重新設計之暗夜全息鍛金信件樣式
     const htmlContent = `
       <!DOCTYPE html>
       <html>
       <head>
         <meta charset="utf-8">
-        <style>
-          body { margin: 0; padding: 0; background-color: #0a0a1a; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; color: #e8e6f0; }
-          .container { max-width: 580px; margin: 40px auto; background: #121026; border: 1px solid rgba(251, 191, 36, 0.3); border-radius: 24px; padding: 36px; box-shadow: 0 0 30px rgba(0,0,0,0.8); }
-          .header { text-align: center; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 20px; }
-          .logo { font-size: 22px; font-weight: bold; color: #fde68a; letter-spacing: 1px; }
-          .badge { display: inline-block; background: rgba(245, 158, 11, 0.15); border: 1px solid rgba(245, 158, 11, 0.4); color: #fde68a; font-size: 11px; padding: 4px 12px; border-radius: 99px; margin-top: 10px; }
-          .content { margin: 28px 0; line-height: 1.7; font-size: 14px; color: #cbd5e1; }
-          .wish-box { background: rgba(0,0,0,0.4); border-left: 3px solid #f59e0b; padding: 14px 18px; border-radius: 12px; margin: 18px 0; }
-          .btn-wrap { text-align: center; margin: 36px 0; }
-          .btn { display: inline-block; background: linear-gradient(135deg, #f59e0b, #d97706); color: #09090b !important; text-decoration: none; font-weight: bold; font-size: 14px; padding: 14px 32px; border-radius: 14px; box-shadow: 0 4px 20px rgba(245, 158, 11, 0.4); }
-          .footer { text-align: center; font-size: 11px; color: #64748b; border-top: 1px solid rgba(255,255,255,0.08); padding-top: 20px; }
-        </style>
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>心願守護專屬憑證</title>
       </head>
-      <body>
-        <div class="container">
-          <div class="header">
-            <div class="logo">⏳ 夢沙 DreamSand</div>
-            <div class="badge">✦ 星砂追番專屬免阻斷憑證 ✦</div>
-          </div>
-          
-          <div class="content">
-            <p>親愛的星旅人 <b>${toName}</b> 您好：</p>
-            <p>感謝您為心願投入了 <b>${amount} 顆虛擬星星</b>，點亮前行者的微光！</p>
-            
-            <div class="wish-box">
-              <div style="font-size: 12px; color: #94a3b8;">守護對象：</div>
-              <div style="font-size: 15px; font-weight: bold; color: #fde68a; margin-top: 4px;">${wishTitle}</div>
-            </div>
+      <body style="margin: 0; padding: 0; background-color: #070714; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color: #f1f5f9;">
+        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background-color: #070714; padding: 40px 15px;">
+          <tr>
+            <td align="center">
+              <table role="presentation" width="100%" style="max-width: 540px; background: linear-gradient(165deg, #13122b 0%, #0c0b1c 100%); border: 1px solid rgba(251, 191, 36, 0.35); border-radius: 28px; padding: 40px 32px; box-shadow: 0 25px 60px rgba(0, 0, 0, 0.85);">
+                
+                <!-- 標題頂部 -->
+                <tr>
+                  <td align="center" style="padding-bottom: 24px; border-bottom: 1px solid rgba(255, 255, 255, 0.08);">
+                    <div style="font-size: 22px; font-weight: 800; color: #fde68a; letter-spacing: 1px;">
+                      ⏳ 夢沙 DreamSand
+                    </div>
+                    <div style="display: inline-block; background: rgba(245, 158, 11, 0.15); border: 1px solid rgba(245, 158, 11, 0.4); border-radius: 99px; padding: 4px 14px; margin-top: 10px; font-size: 11px; font-weight: bold; color: #fbbf24; font-family: monospace;">
+                      ✦ 星砂追番專屬免阻斷憑證 ✦
+                    </div>
+                  </td>
+                </tr>
 
-            <p>依據星空規範，本活動達成並換日後將自首頁封存。您可隨時透過下方專屬連結，<b>免登入直接回訪專屬時空室</b>，查閱創作者的開箱感謝信與漂流瓶留言：</p>
-            
-            <div class="btn-wrap">
-              <a href="${accessLink}" target="_blank" class="btn">✨ 進入專屬心願追番結局室</a>
-            </div>
+                <!-- 信件內文 -->
+                <tr>
+                  <td style="padding-top: 28px; font-size: 14px; line-height: 1.7; color: #cbd5e1;">
+                    親愛的星旅人 <b style="color: #fde68a;">${toName}</b> 您好：<br><br>
+                    感謝您剛才投入了 <b style="color: #fbbf24; font-family: monospace; font-size: 16px;">${amount} 顆虛擬星星</b>，以星塵微光守護這段前行之旅！
+                  </td>
+                </tr>
 
-            <p style="font-size: 11px; color: #64748b; text-align: center;">若按鈕無法點擊，可複製此連結至瀏覽器：<br><a href="${accessLink}" style="color: #f59e0b; word-break: break-all;">${accessLink}</a></p>
-          </div>
+                <!-- 心願資訊卡 -->
+                <tr>
+                  <td style="padding: 20px 0;">
+                    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background: rgba(0, 0, 0, 0.5); border-left: 3px solid #f59e0b; border-radius: 14px; padding: 16px 20px;">
+                      <tr>
+                        <td>
+                          <div style="font-size: 11px; color: #94a3b8; font-weight: bold;">守護對象活動：</div>
+                          <div style="font-size: 16px; font-weight: 800; color: #ffffff; margin-top: 4px;">${wishTitle}</div>
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
 
-          <div class="footer">
-            此信件由夢沙 DreamSand 系統自動發送 · 線上數位加油與虛擬卡牌互動平台<br>
-            憑證有效期限為 30 天，請妥善留存。
-          </div>
-        </div>
+                <tr>
+                  <td style="font-size: 13px; line-height: 1.7; color: #94a3b8;">
+                    依據平台履約規範，活動達成並換日後將自動自首頁淡出。您可隨時透過下方專屬憑證按鈕，<b>免登入直接穿透回訪心願時空室</b>，隨時查閱創作者的開箱感謝信與您的漂流瓶星語：
+                  </td>
+                </tr>
+
+                <!-- 🌟 鍛造琥珀金 CTA 按鈕 -->
+                <tr>
+                  <td align="center" style="padding: 32px 0;">
+                    <a href="${accessLink}" target="_blank" style="display: inline-block; background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); color: #09090b !important; text-decoration: none; font-weight: 900; font-size: 14px; padding: 15px 36px; border-radius: 14px; box-shadow: 0 4px 20px rgba(245, 158, 11, 0.45); letter-spacing: 0.5px;">
+                      ✨ 進入專屬心願追番結局室
+                    </a>
+                  </td>
+                </tr>
+
+                <!-- 備用純文字連結 -->
+                <tr>
+                  <td align="center" style="font-size: 11px; color: #64748b; line-height: 1.5; padding-bottom: 20px;">
+                    若按鈕無法點擊，可複製下方時空連結至瀏覽器開啟：<br>
+                    <a href="${accessLink}" target="_blank" style="color: #f59e0b; word-break: break-all;">${accessLink}</a>
+                  </td>
+                </tr>
+
+                <!-- 頁尾聲明 -->
+                <tr>
+                  <td align="center" style="border-top: 1px solid rgba(255, 255, 255, 0.08); padding-top: 24px; font-size: 11px; color: #475569; line-height: 1.6;">
+                    此信件由夢沙 DreamSand 系統自動發送 · 線上數位加油與虛擬卡牌互動平台<br>
+                    此專屬免阻斷憑證效期為 30 天，請妥善保存。
+                  </td>
+                </tr>
+
+              </table>
+            </td>
+          </tr>
+        </table>
       </body>
       </html>
     `;
