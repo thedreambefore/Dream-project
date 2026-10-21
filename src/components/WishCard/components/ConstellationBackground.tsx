@@ -5,16 +5,13 @@ interface Props {
   wishId: string;
 }
 
-interface StarPoint {
+interface StarNode {
   x: number;
   y: number;
-  isAnchor?: boolean; // 是否為帶光暈的大主星
+  isAnchor?: boolean;
 }
 
-/**
- * 依據 wishId 產生確定性的隨機種子，確保每張卡片形狀獨一無二且固定
- */
-function createDeterministicRandom(seedStr: string) {
+function getDeterministicRng(seedStr: string) {
   let hash = 0;
   for (let i = 0; i < seedStr.length; i++) {
     hash = (hash << 5) - hash + seedStr.charCodeAt(i);
@@ -29,110 +26,88 @@ function createDeterministicRandom(seedStr: string) {
 }
 
 export function ConstellationBackground({ wishId }: Props) {
-  const points = useMemo(() => {
-    const rng = createDeterministicRandom(wishId || 'default-seed');
+  const { points, uniqueId } = useMemo(() => {
+    const rng = getDeterministicRng(wishId || 'dreamsand');
+    const safeId = (wishId || 'default').replace(/[^a-zA-Z0-9]/g, '');
 
-    // 隨機決定星座型態 (4 顆或 5 顆星)
-    const starCount = rng() > 0.4 ? 4 : 5;
-    const list: StarPoint[] = [];
+    // 🌟 在 340 x 220 的黃金比例中，1:1 還原原版截圖的 4 星波浪航跡
+    const pts: StarNode[] = [
+      { x: 42 + rng() * 15, y: 55 + rng() * 15 },             // 1. 左上起點 (約 x:45, y:60)
+      { x: 125 + rng() * 15, y: 110 + rng() * 18, isAnchor: true }, // 2. 核心大光暈沉降主星 (約 x:130, y:118)
+      { x: 225 + rng() * 18, y: 88 + rng() * 15 },            // 3. 右上回彈星點 (約 x:230, y:92)
+      { x: 285 + rng() * 15, y: 145 + rng() * 18 },           // 4. 右下尾端收斂星點 (約 x:290, y:150)
+    ];
 
-    // 決定哪一顆是帶光環的大主星（通常在第 2 顆或第 3 顆的波谷/波峰）
-    const anchorIndex = 1 + Math.floor(rng() * (starCount - 2));
-
-    if (starCount === 4) {
-      // 🌟 1:1 還原截圖中的經典 4 星波浪起伏
-      list.push({ x: 12 + rng() * 4, y: 22 + rng() * 8 });              // 左上起點 (約 14%, 25%)
-      list.push({ x: 34 + rng() * 5, y: 38 + rng() * 8, isAnchor: true }); // 下沉主星 (約 36%, 42%)
-      list.push({ x: 62 + rng() * 6, y: 30 + rng() * 8 });              // 上揚星點 (約 65%, 34%)
-      list.push({ x: 80 + rng() * 5, y: 50 + rng() * 10 });             // 右下尾星 (約 82%, 54%)
-    } else {
-      // 5 星溫柔波浪延伸型態
-      list.push({ x: 12 + rng() * 4, y: 24 + rng() * 8 });
-      list.push({ x: 28 + rng() * 5, y: 38 + rng() * 8 });
-      list.push({ x: 48 + rng() * 6, y: 28 + rng() * 8, isAnchor: true });
-      list.push({ x: 68 + rng() * 5, y: 44 + rng() * 8 });
-      list.push({ x: 82 + rng() * 5, y: 32 + rng() * 8 });
-    }
-
-    return list;
+    return { points: pts, uniqueId: safeId };
   }, [wishId]);
 
   return (
-    <div className="absolute inset-0 pointer-events-none overflow-hidden z-10">
+    <div className="absolute inset-x-0 top-16 h-56 pointer-events-none overflow-hidden z-10 flex items-center justify-center">
       <svg
-        viewBox="0 0 100 100"
-        preserveAspectRatio="none"
-        className="w-full h-full opacity-70 group-hover:opacity-100 transition-opacity duration-500"
+        viewBox="0 0 340 220"
+        className="w-full h-full"
+        style={{ overflow: 'visible' }}
       >
-        {/* 1. 溫潤砂金寬虛線連線 (一條線貫穿連接) */}
+        <defs>
+          {/* 🌟 核心大光暈星：柔和自然擴散，完全無硬邊 */}
+          <radialGradient id={`anchor-glow-${uniqueId}`} cx="50%" cy="50%" r="50%">
+            <stop offset="0%" stopColor="#fef3c7" stopOpacity="0.85" />
+            <stop offset="25%" stopColor="#e5d0b5" stopOpacity="0.55" />
+            <stop offset="55%" stopColor="#c8b29b" stopOpacity="0.22" />
+            <stop offset="100%" stopColor="#c8b29b" stopOpacity="0" />
+          </radialGradient>
+
+          {/* 一般伴星微光暈 */}
+          <radialGradient id={`star-glow-${uniqueId}`} cx="50%" cy="50%" r="50%">
+            <stop offset="0%" stopColor="#ffffff" stopOpacity="0.85" />
+            <stop offset="40%" stopColor="#d8c5b0" stopOpacity="0.4" />
+            <stop offset="100%" stopColor="#c8b29b" stopOpacity="0" />
+          </radialGradient>
+        </defs>
+
+        {/* 1. 溫潤砂金極細寬虛線（與原版截圖完全同頻） */}
         {points.map((pt, idx) => {
           if (idx === points.length - 1) return null;
           const nextPt = points[idx + 1];
           return (
             <line
               key={`line-${idx}`}
-              x1={`${pt.x}%`}
-              y1={`${pt.y}%`}
-              x2={`${nextPt.x}%`}
-              y2={`${nextPt.y}%`}
-              stroke="rgba(218, 195, 160, 0.32)"
-              strokeWidth="0.55"
-              strokeDasharray="2 2"
+              x1={pt.x}
+              y1={pt.y}
+              x2={nextPt.x}
+              y2={nextPt.y}
+              stroke="rgba(200, 178, 155, 0.35)"
+              strokeWidth="1.2"
+              strokeDasharray="4 4.5"
               strokeLinecap="round"
             />
           );
         })}
 
-        {/* 2. 星星節點 */}
-        {points.map((pt, idx) => (
-          <g key={`star-${idx}`}>
-            {pt.isAnchor ? (
-              /* 🌟 大主星（如截圖中間偏左的那顆核心焦點星） */
-              <>
-                {/* 最外層半透明砂金大光暈 */}
-                <circle
-                  cx={`${pt.x}%`}
-                  cy={`${pt.y}%`}
-                  r="3.2"
-                  fill="rgba(218, 195, 160, 0.28)"
-                />
-                {/* 中層核心星光 */}
-                <circle
-                  cx={`${pt.x}%`}
-                  cy={`${pt.y}%`}
-                  r="1.8"
-                  fill="rgba(235, 220, 195, 0.75)"
-                />
-                {/* 最內層微光亮點 */}
-                <circle
-                  cx={`${pt.x}%`}
-                  cy={`${pt.y}%`}
-                  r="0.75"
-                  fill="#ffffff"
-                  opacity="0.9"
-                />
-              </>
-            ) : (
-              /* 精緻伴星（其餘星點） */
-              <>
-                {/* 伴星外圈微芒 */}
-                <circle
-                  cx={`${pt.x}%`}
-                  cy={`${pt.y}%`}
-                  r="1.6"
-                  fill="rgba(218, 195, 160, 0.2)"
-                />
-                {/* 伴星核心 */}
-                <circle
-                  cx={`${pt.x}%`}
-                  cy={`${pt.y}%`}
-                  r="1.0"
-                  fill="rgba(235, 220, 195, 0.85)"
-                />
-              </>
-            )}
-          </g>
-        ))}
+        {/* 2. 自然星芒節點（消除靶心感） */}
+        {points.map((pt, idx) => {
+          if (pt.isAnchor) {
+            return (
+              <g key={`anchor-${idx}`}>
+                {/* 霧化漫射大光環（柔和融入深空背景） */}
+                <circle cx={pt.x} cy={pt.y} r="14" fill={`url(#anchor-glow-${uniqueId})`} />
+                {/* 凝縮砂金星核 */}
+                <circle cx={pt.x} cy={pt.y} r="3.2" fill="rgba(235, 222, 205, 0.7)" />
+                {/* 中心微亮焦點 */}
+                <circle cx={pt.x} cy={pt.y} r="1.4" fill="#ffffff" opacity="0.95" />
+              </g>
+            );
+          }
+
+          return (
+            <g key={`sub-star-${idx}`}>
+              {/* 伴星柔和擴散 */}
+              <circle cx={pt.x} cy={pt.y} r="7" fill={`url(#star-glow-${uniqueId})`} />
+              {/* 伴星核心 */}
+              <circle cx={pt.x} cy={pt.y} r="2.2" fill="rgba(230, 218, 202, 0.85)" />
+            </g>
+          );
+        })}
       </svg>
     </div>
   );
