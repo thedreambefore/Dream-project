@@ -1,76 +1,129 @@
 // src/components/WishCard/components/ConstellationBackground.tsx
-import { useMemo } from 'react';
+import React, { useMemo } from 'react';
 
-interface Props {
-  wishId: string;
+interface ConstellationProps {
+  wishId: string; // 根據 wishId 雜湊生成穩定的圖案
+  starCount?: number;
 }
 
-export function ConstellationBackground({ wishId }: Props) {
-  // 依據 wishId 決定微幅起伏，讓每張卡片有專屬星軌
-  const offset = useMemo(() => {
-    let hash = 0;
-    for (let i = 0; i < (wishId || '').length; i++) {
-      hash = (hash << 5) - hash + wishId.charCodeAt(i);
+// 🌟 你原版的穩定字串雜湊種子
+const SEED_FROM_ID = (str: string): number => {
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    hash = str.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  return Math.abs(hash);
+};
+
+// 🌟 你原版的 PRNG 偽隨機數產生器
+const createRandom = (seed: number) => {
+  let s = seed;
+  return () => {
+    s = (s * 9301 + 49297) % 233280;
+    return s / 233280;
+  };
+};
+
+export const ConstellationBackground: React.FC<ConstellationProps> = ({
+  wishId,
+  starCount = 5,
+}) => {
+  // 固定向量畫布尺寸 (500x200)，透過 viewBox 自動隨卡片自適應縮放
+  const width = 500;
+  const height = 200;
+
+  // 避免特殊符號破壞 SVG 濾鏡 ID
+  const safeId = useMemo(() => (wishId || 'default').replace(/[^a-zA-Z0-9]/g, ''), [wishId]);
+
+  // 🌟 完全採用你原本的區間分佈算法
+  const stars = useMemo(() => {
+    const seed = SEED_FROM_ID(wishId || 'dreamsand');
+    const nextRandom = createRandom(seed);
+    const points: { x: number; y: number; r: number }[] = [];
+
+    // 沿著 X 軸均勻分佈並加上隨機偏移，避免點擠在一起
+    const segmentWidth = (width * 0.8) / starCount;
+    const startX = width * 0.1;
+
+    for (let i = 0; i < starCount; i++) {
+      const x = startX + i * segmentWidth + nextRandom() * (segmentWidth * 0.5);
+      const y = height * 0.2 + nextRandom() * (height * 0.6);
+      const r = 3 + nextRandom() * 3; // 星星大小 3~6px
+
+      points.push({ x, y, r });
     }
-    return (Math.abs(hash) % 7) - 3; // -3 ~ +3 微調
-  }, [wishId]);
+
+    return points;
+  }, [wishId, starCount]);
+
+  // 折線連線坐標
+  const pointsPath = useMemo(() => stars.map((s) => `${s.x},${s.y}`).join(' '), [stars]);
 
   return (
-    <div className="absolute inset-x-0 top-14 h-48 pointer-events-none overflow-hidden z-10 flex items-center justify-center">
+    <div className="absolute inset-0 pointer-events-none overflow-hidden z-10 flex items-center justify-center">
+      {/* 🌟 只有透明度一閃一閃（0% 位置偏移，絕對不移動！） */}
+      <style>
+        {`
+          @keyframes starTwinkle {
+            0%, 100% { opacity: 0.3; }
+            50% { opacity: 1.0; }
+          }
+        `}
+      </style>
+
       <svg
-        viewBox="0 0 100 50"
+        viewBox={`0 0 ${width} ${height}`}
         className="w-full h-full"
         preserveAspectRatio="xMidYMid meet"
       >
-        <style>
-          {`
-            @keyframes starBreathe {
-              0%, 100% { opacity: 0.35; transform: scale(0.9); }
-              50% { opacity: 0.95; transform: scale(1.15); filter: drop-shadow(0 0 4px rgba(251, 191, 36, 0.7)); }
-            }
-            .star-pulse-1 { animation: starBreathe 3.5s ease-in-out infinite; transform-origin: 15% ${14 + offset}%; }
-            .star-pulse-anchor { animation: starBreathe 2.8s ease-in-out infinite 0.5s; transform-origin: 38% ${24 + offset}%; }
-            .star-pulse-2 { animation: starBreathe 4.0s ease-in-out infinite 1.2s; transform-origin: 66% ${18 + offset}%; }
-            .star-pulse-3 { animation: starBreathe 3.2s ease-in-out infinite 0.8s; transform-origin: 84% ${32 + offset}%; }
-          `}
-        </style>
+        <defs>
+          {/* 🌟 你原版的 feGaussianBlur 外發光濾鏡 */}
+          <filter id={`glow-${safeId}`} x="-30%" y="-30%" width="160%" height="160%">
+            <feGaussianBlur stdDeviation="3" result="blur" />
+            <feComposite in="SourceGraphic" in2="blur" operator="over" />
+          </filter>
+        </defs>
 
-        {/* 1. 溫潤砂金寬虛線連線（貫穿 4 顆星） */}
+        {/* 1. 星座連線（虛線） */}
         <polyline
-          points={`15,${14 + offset} 38,${24 + offset} 66,${18 + offset} 84,${32 + offset}`}
+          points={pointsPath}
           fill="none"
-          stroke="rgba(215, 195, 160, 0.35)"
-          strokeWidth="0.55"
-          strokeDasharray="1.8 1.8"
+          stroke="rgba(255, 255, 255, 0.25)"
+          strokeWidth="1.8"
+          strokeDasharray="6,6"
           strokeLinecap="round"
+          strokeLinejoin="round"
         />
 
-        {/* 2. 呼吸星芒節點 */}
-        {/* 星點 1 (左上) */}
-        <g className="star-pulse-1">
-          <circle cx="15" cy={14 + offset} r="1.5" fill="rgba(215, 195, 160, 0.25)" />
-          <circle cx="15" cy={14 + offset} r="0.75" fill="#fef3c7" />
-        </g>
-
-        {/* 🌟 核心主星 (帶雙層呼吸光暈) */}
-        <g className="star-pulse-anchor">
-          <circle cx="38" cy={24 + offset} r="3.2" fill="rgba(215, 195, 160, 0.22)" />
-          <circle cx="38" cy={24 + offset} r="1.8" fill="rgba(245, 225, 195, 0.45)" />
-          <circle cx="38" cy={24 + offset} r="0.9" fill="#ffffff" />
-        </g>
-
-        {/* 星點 2 (右上) */}
-        <g className="star-pulse-2">
-          <circle cx="66" cy={18 + offset} r="1.6" fill="rgba(215, 195, 160, 0.25)" />
-          <circle cx="66" cy={18 + offset} r="0.8" fill="#fef3c7" />
-        </g>
-
-        {/* 星點 3 (右下尾星) */}
-        <g className="star-pulse-3">
-          <circle cx="84" cy={32 + offset} r="1.4" fill="rgba(215, 195, 160, 0.25)" />
-          <circle cx="84" cy={32 + offset} r="0.75" fill="#fef3c7" />
-        </g>
+        {/* 2. 星座節點（星星與光暈） */}
+        {stars.map((star, index) => (
+          <g
+            key={index}
+            style={{
+              animation: `starTwinkle 3s ease-in-out infinite`,
+              animationDelay: `${index * 0.6}s`, // 錯開閃爍時間
+            }}
+          >
+            {/* 底層較大的半透明光暈圓點 */}
+            <circle
+              cx={star.x}
+              cy={star.y}
+              r={star.r * 2.2}
+              fill="rgba(255, 255, 255, 0.15)"
+              filter={`url(#glow-${safeId})`}
+            />
+            {/* 頂層核心亮點 */}
+            <circle
+              cx={star.x}
+              cy={star.y}
+              r={star.r}
+              fill="rgba(255, 255, 255, 0.85)"
+            />
+          </g>
+        ))}
       </svg>
     </div>
   );
-}
+};
+
+export default ConstellationBackground;
