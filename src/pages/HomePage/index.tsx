@@ -1,10 +1,15 @@
 // src/pages/HomePage/index.tsx
+import { lazy, Suspense } from 'react';
 import { HomeHeroCarousel } from '@/components/HomeHeroCarousel';
 import { LeaderboardWidget } from '@/components/LeaderboardWidget';
 import { TagFilterBar } from './components/TagFilterBar';
 import { WishGrid } from './components/WishGrid';
 import { useHomePage } from './useHomePage';
 import type { HomePageProps } from './types';
+
+const DriftBottleModal = lazy(() =>
+  import('@/components/DriftBottleModal').then((m) => ({ default: m.DriftBottleModal }))
+);
 
 export function HomePage({ onOpenHonorHall }: HomePageProps) {
   const {
@@ -17,6 +22,8 @@ export function HomePage({ onOpenHonorHall }: HomePageProps) {
     highlightedWishId,
     cardRefs,
     handleScrollToWish,
+    accessWishData,
+    setAccessWishData,
   } = useHomePage();
 
   return (
@@ -34,6 +41,18 @@ export function HomePage({ onOpenHonorHall }: HomePageProps) {
         highlightedWishId={highlightedWishId}
         cardRefs={cardRefs}
       />
+
+      {/* 🌟 專屬免阻斷連結：當訪客從信件點擊專屬連結時，自動彈出專屬漂流瓶結局室 */}
+      {accessWishData && (
+        <Suspense fallback={null}>
+          <DriftBottleModal
+            wish={accessWishData}
+            progress={100}
+            isFulfilled={accessWishData.status === 'fulfilled' || accessWishData.status === 'full_funded'}
+            onClose={() => setAccessWishData(null)}
+          />
+        </Suspense>
+      )}
     </div>
   );
 }

@@ -13,6 +13,9 @@ export function useHomePage() {
   const [loading, setLoading] = useState(true);
   const [highlightedWishId, setHighlightedWishId] = useState<string | null>(null);
 
+  // 🌟 專屬免阻斷連結之目標卡片狀態
+  const [accessWishData, setAccessWishData] = useState<Wish | null>(null);
+
   const cardRefs = useRef<Record<string, HTMLDivElement | null>>({});
 
   const loadTags = useCallback(async () => {
@@ -27,7 +30,6 @@ export function useHomePage() {
     try {
       const publicWishes = await fetchPublicWishes();
 
-      // 關聯登入者的個人贊助紀錄，計算個人佔比（可超過 100%）
       if (session?.user?.id && publicWishes.length > 0) {
         const { data: invData } = await supabase
           .from('investments')
@@ -80,7 +82,26 @@ export function useHomePage() {
     };
   }, [loadTags, loadWishes]);
 
-  // 榮譽榜點擊平滑滾動定位至卡片並閃爍金光
+  // 🌟 核心：監聽網址參數，支援信件點入免登入直接回訪漂流瓶
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const targetWishId = params.get('accessWish');
+    const token = params.get('token');
+
+    if (targetWishId && token) {
+      supabase
+        .from('wishes')
+        .select('*')
+        .eq('id', targetWishId)
+        .single()
+        .then(({ data }) => {
+          if (data) {
+            setAccessWishData(data as Wish);
+          }
+        });
+    }
+  }, []);
+
   const handleScrollToWish = useCallback((wishId: string) => {
     setActiveTag('全部故事');
 
@@ -110,5 +131,7 @@ export function useHomePage() {
     highlightedWishId,
     cardRefs,
     handleScrollToWish,
+    accessWishData,
+    setAccessWishData,
   };
 }

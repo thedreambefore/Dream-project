@@ -1,6 +1,7 @@
 // src/services/investmentService.ts
 import { supabase } from '@/lib/supabaseClient';
 import { updateWish, OFFICIAL_SPONSOR_ID } from '@/lib/backend';
+import { sendContributionAccessEmail } from '@/services/emailService';
 import type { Wish } from '@/types/wish';
 
 export interface FeeCalculation {
@@ -10,11 +11,6 @@ export interface FeeCalculation {
   isValid: boolean;
 }
 
-/**
- * 計算金流與技術服務費：
- * - 50 ~ 100 顆：固定收 NT$ 5
- * - 超過 100 顆：依 5% 計收
- */
 export function calculateServiceFee(amount: number, isOfficial: boolean): FeeCalculation {
   const validAmount = Math.max(0, amount || 0);
 
@@ -52,13 +48,6 @@ export interface InvestmentResult {
   isNewlyFunded: boolean;
 }
 
-/**
- * 執行星塵注入交易（統一帳目與閉環）：
- * 1. 100% 全額投入目標心願（杜絕過去分流導致帳目不一致問題）
- * 2. 寫入 investments 表
- * 3. 非官方心願自動登錄追番牆 bookmarks
- * 4. 更新 wishes 累計星塵；若首次達標（>= product_price），自動更新狀態為 full_funded 並記錄 funded_at
- */
 export async function executeStarInvestment({
   userId,
   story,
@@ -70,32 +59,32 @@ export async function executeStarInvestment({
   const targetPrice = Number(story.product_price || 0);
   const payAmount = Number(amount);
 
-  // 1. 寫入投資紀錄（全額計入本心願，保證帳目 1:1 絕對吻合）
-  const { error: invError } = await supabase.from('investments').insert({
-    user_id: userId,
-    wish_id: story.id,
-    story_id: story.id,
-    amount: payAmount,
-    message: message.trim() || '投下了閃爍的願望星！',
-    is_hidden: false,
-  });
+  // 🌟 核心修正：改用 PromiseLike<unknown>[] 以完美相容 Supabase Postgrest Builder
+  const tasks: PromiseLike<unknown>[] = [];
 
-  if (invError) {
-    throw new Error(`星塵紀錄寫入失敗: ${invError.message}`);
-  }
+  // 1. 寫入投資紀錄
+  tasks.push(
+    supabase.from('investments').insert({
+      user_id: userId,
+      wish_id: story.id,
+      story_id: story.id,
+      amount: payAmount,
+      message: message.trim() || '投下了閃爍的願望星！',
+      is_hidden: false,
+    })
+  );
 
-  // 2. 非官方活動自動加入個人追番牆
+  // 2. 自動加入追番牆
   if (!isOfficial) {
-    const { error: bmError } = await supabase.from('bookmarks').upsert(
-      { user_id: userId, wish_id: story.id },
-      { onConflict: 'user_id,wish_id' }
+    tasks.push(
+      supabase.from('bookmarks').upsert(
+        { user_id: userId, wish_id: story.id },
+        { onConflict: 'user_id,wish_id' }
+      )
     );
-    if (bmError) {
-      console.warn('追番牆自動登錄失敗 (非致命):', bmError.message);
-    }
   }
 
-  // 3. 計算新星塵總額與達標狀態
+  // 3. 計算新星塵總額
   const newTotal = currentStardust + payAmount;
   const isNewlyFunded = !isOfficial && newTotal >= targetPrice && story.status === 'approved';
   const newStatus = isNewlyFunded ? 'full_funded' : story.status;
@@ -109,12 +98,24 @@ export async function executeStarInvestment({
     updatePayload.funded_at = new Date().toISOString();
   }
 
-  // 4. 更新心願狀態
-  await updateWish(story.id, updatePayload);
+  tasks.push(updateWish(story.id, updatePayload));
 
-  // 同步當前內存物件
+  await Promise.all(tasks);
+
   story.current_stardust = newTotal;
   story.status = newStatus as Wish['status'];
+
+  // 觸發 Brevo 專屬憑證郵件
+  const authUser = (await supabase.auth.getUser()).data.user;
+  if (authUser?.email && !isOfficial) {
+    sendContributionAccessEmail({
+      toEmail: authUser.email,
+      toName: story.anonymous_nickname || '星旅人',
+      wishId: story.id,
+      wishTitle: story.product_name,
+      amount: payAmount,
+    }).catch((e) => console.warn('發送信件略過:', e));
+  }
 
   return {
     newTotalStardust: newTotal,
