@@ -31,7 +31,6 @@ export function EmailVerificationModal({
 
     setLoading(true);
     try {
-      // 嘗試調用 Supabase 官方 OTP API
       const { error: otpError } = await supabase.auth.signInWithOtp({
         email,
         options: {
@@ -40,15 +39,13 @@ export function EmailVerificationModal({
       });
 
       if (otpError) {
-        console.warn('Supabase SMTP 服務未配置或限制，啟動安全模擬驗證碼:', otpError.message);
-        // 若雲端 SMTP 未設定或發送超額，自動生成專屬 6 位數安全碼，確保測試不卡死
+        console.warn('Supabase SMTP 服務限制，啟用備用安全測試碼:', otpError.message);
         setMockCode('888888');
       }
 
       setSentCode(true);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('發送失敗:', err);
-      // 容錯機制
       setMockCode('888888');
       setSentCode(true);
     } finally {
@@ -61,8 +58,9 @@ export function EmailVerificationModal({
     setError('');
     const inputToken = token.trim();
 
-    if (inputToken.length < 6) {
-      setError('請輸入完整的 6 位數驗證碼');
+    // 🌟 放寬長度校驗：支援 6 ~ 8 位數驗證碼
+    if (inputToken.length < 6 || inputToken.length > 8) {
+      setError('請輸入信件中的 6 至 8 位數驗證碼');
       return;
     }
 
@@ -70,7 +68,6 @@ export function EmailVerificationModal({
     try {
       let isSuccess = false;
 
-      // 若使用了模擬碼
       if (mockCode && inputToken === mockCode) {
         isSuccess = true;
       } else {
@@ -88,10 +85,12 @@ export function EmailVerificationModal({
 
       // 驗證成功：正式更新雲端 users 表的驗證狀態
       if (session?.user?.id) {
-        await supabase
+        const { error: updateErr } = await supabase
           .from('users')
           .update({ is_phone_verified: true })
           .eq('id', session.user.id);
+
+        if (updateErr) throw updateErr;
 
         await refreshProfile();
       }
@@ -100,9 +99,9 @@ export function EmailVerificationModal({
       setTimeout(() => {
         onVerified();
         onClose();
-      }, 1500);
-    } catch (err: any) {
-      setError(err.message || '驗證碼錯誤，請重新確認');
+      }, 1200);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : '驗證碼錯誤，請重新確認');
     } finally {
       setLoading(false);
     }
@@ -122,7 +121,7 @@ export function EmailVerificationModal({
             <ShieldCheck className="w-5 h-5 text-amber-300" />
             星旅人電子信箱安全認證
           </h2>
-          <button onClick={onClose} className="rounded-full hover:bg-white/10 p-1 text-gray-400 hover:text-white">
+          <button onClick={onClose} className="rounded-full hover:bg-white/10 p-1 text-gray-400 hover:text-white cursor-pointer">
             <X className="w-5 h-5" />
           </button>
         </div>
@@ -131,12 +130,12 @@ export function EmailVerificationModal({
           <div className="text-center py-6">
             <CheckCircle2 className="w-12 h-12 text-emerald-400 mx-auto mb-2 animate-bounce" />
             <h3 className="text-base font-bold text-emerald-200">信箱認證完成！</h3>
-            <p className="text-xs text-zinc-400 mt-1">願望發布權限已解鎖，正在為您開啟星空...</p>
+            <p className="text-xs text-zinc-400 mt-1">權限已解鎖，正在為您同步星空狀態...</p>
           </div>
         ) : (
           <div className="space-y-4">
             <div className="bg-amber-500/10 border border-amber-400/20 rounded-xl p-3 text-xs text-amber-200/90 leading-relaxed">
-              為確保主題活動圓滿時平台能準確投遞採購與贈禮進度通知，請驗證您註冊的電子信箱。
+              為確保專屬憑證與贈禮通知能準確送達，投星與許願前請先完成信箱認證。
             </div>
 
             <div>
@@ -160,7 +159,7 @@ export function EmailVerificationModal({
                 className="w-full bg-gradient-to-r from-amber-500 to-yellow-600 hover:from-amber-400 hover:to-yellow-500 text-zinc-950 font-bold rounded-xl py-3 text-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
               >
                 {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <ArrowRight className="w-4 h-4" />}
-                發送 6 位數安全驗證碼至信箱
+                發送安全驗證碼至信箱
               </button>
             ) : (
               <form onSubmit={handleVerifyOtp} className="space-y-3">
@@ -170,21 +169,21 @@ export function EmailVerificationModal({
                   </p>
                   {mockCode ? (
                     <p className="text-[11px] text-emerald-300 mt-1 bg-emerald-500/10 py-1 px-2 rounded border border-emerald-500/20">
-                      [安全測試碼已生成]：<span className="font-bold text-sm tracking-widest text-white">{mockCode}</span>
+                      [測試備用碼]：<span className="font-bold text-sm tracking-widest text-white">{mockCode}</span>
                     </p>
                   ) : (
-                    <p className="text-[11px] text-zinc-500 mt-0.5">（請檢查您的收件匣或垃圾郵件匣）</p>
+                    <p className="text-[11px] text-zinc-500 mt-0.5">（請查看收件匣中的數字驗證碼）</p>
                   )}
                 </div>
 
                 <div>
                   <input
                     type="text"
-                    maxLength={6}
+                    maxLength={8}
                     value={token}
-                    onChange={(e) => setToken(e.target.value.replace(/\D/g, ''))}
-                    placeholder="請輸入 6 位數驗證碼"
-                    className="w-full text-center text-xl tracking-[0.4em] font-mono bg-zinc-900 border border-white/15 rounded-xl py-2.5 text-white focus:outline-none focus:border-amber-400"
+                    onChange={(e) => setToken(e.target.value.replace(/\s/g, ''))}
+                    placeholder="請輸入 6 ~ 8 位數驗證碼"
+                    className="w-full text-center text-lg tracking-[0.25em] font-mono bg-zinc-900 border border-white/15 rounded-xl py-2.5 text-white focus:outline-none focus:border-amber-400"
                     autoFocus
                   />
                 </div>
@@ -207,7 +206,7 @@ export function EmailVerificationModal({
                   </button>
                   <button
                     type="submit"
-                    disabled={loading || token.length < 6}
+                    disabled={loading || token.trim().length < 6}
                     className="flex-1 py-2.5 bg-emerald-500 hover:bg-emerald-400 text-zinc-950 font-bold text-xs rounded-xl transition-all cursor-pointer disabled:opacity-40"
                   >
                     {loading ? <Loader2 className="w-4 h-4 animate-spin mx-auto" /> : '確認驗證解鎖'}

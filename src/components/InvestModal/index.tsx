@@ -4,6 +4,7 @@ import { X, Sparkles, AlertCircle, Lock, Loader2 } from 'lucide-react';
 import { PresetButtons } from './components/PresetButtons';
 import { FeeSummary } from './components/FeeSummary';
 import { useInvestModal } from './useInvestModal';
+import { EmailVerificationModal } from '@/components/EmailVerificationModal';
 import type { InvestModalProps } from './types';
 
 export function InvestModal({ story, onClose }: InvestModalProps) {
@@ -22,6 +23,8 @@ export function InvestModal({ story, onClose }: InvestModalProps) {
     loading,
     error,
     successPaidAmount,
+    showEmailVerify,
+    setShowEmailVerify,
     feeDetails,
     handleSelectPreset,
     handleCustomChange,
@@ -42,7 +45,7 @@ export function InvestModal({ story, onClose }: InvestModalProps) {
             <div className="text-5xl mb-2 hourglass-anim inline-block">⭐</div>
             <h3 className="text-xl font-bold text-amber-200">願望星已順利送達！</h3>
             <p className="text-zinc-300 text-xs">
-              已全額注入 <span className="text-amber-300 font-bold font-mono">{successPaidAmount}</span> 顆星塵至心願中
+              已注入 <span className="text-amber-300 font-bold font-mono">{successPaidAmount}</span> 顆星塵至心願中
             </p>
           </div>
         ) : (
@@ -152,6 +155,16 @@ export function InvestModal({ story, onClose }: InvestModalProps) {
           </div>
         )}
       </div>
+
+      {/* 🌟 付款前強制信箱認證彈窗 */}
+      {showEmailVerify && (
+        <EmailVerificationModal
+          onClose={() => setShowEmailVerify(false)}
+          onVerified={() => {
+            setShowEmailVerify(false);
+          }}
+        />
+      )}
     </div>,
     document.body
   );

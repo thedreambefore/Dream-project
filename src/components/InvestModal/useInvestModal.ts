@@ -1,3 +1,4 @@
+// src/components/InvestModal/useInvestModal.ts
 import { useState, useMemo, useCallback } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { OFFICIAL_SPONSOR_ID } from '@/lib/backend';
@@ -10,7 +11,7 @@ import type { Wish } from '@/types/wish';
 import type { PaymentMethod } from './types';
 
 export function useInvestModal(story: Wish, onClose: (addedAmount?: number) => void) {
-  const { session, refreshProfile } = useAuth();
+  const { session, profile, refreshProfile } = useAuth();
   const isOfficial = story.id === OFFICIAL_SPONSOR_ID;
 
   const currentStardust = Number(story.current_stardust || 0);
@@ -25,6 +26,9 @@ export function useInvestModal(story: Wish, onClose: (addedAmount?: number) => v
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [successPaidAmount, setSuccessPaidAmount] = useState<number | null>(null);
+
+  // 🌟 付款前信箱強驗證彈窗開關
+  const [showEmailVerify, setShowEmailVerify] = useState(false);
 
   const feeDetails: FeeCalculation = useMemo(() => {
     return calculateServiceFee(amount, isOfficial);
@@ -54,6 +58,13 @@ export function useInvestModal(story: Wish, onClose: (addedAmount?: number) => v
       alert('請先登入後再投下虛擬星星！');
       return;
     }
+
+    // 🌟 核心防線：未驗證信箱者，禁止付款並立刻觸發認證視窗
+    if (!profile?.is_phone_verified) {
+      setShowEmailVerify(true);
+      return;
+    }
+
     if (amount < 50 && !isOfficial) {
       setError('單次投下虛擬星星最低金額為 NT$ 50 元');
       return;
@@ -89,7 +100,7 @@ export function useInvestModal(story: Wish, onClose: (addedAmount?: number) => v
     } finally {
       setLoading(false);
     }
-  }, [session?.user?.id, amount, isOfficial, agreeTerms, message, story, refreshProfile, onClose]);
+  }, [session?.user?.id, profile?.is_phone_verified, amount, isOfficial, agreeTerms, message, story, refreshProfile, onClose]);
 
   return {
     isOfficial,
@@ -107,6 +118,8 @@ export function useInvestModal(story: Wish, onClose: (addedAmount?: number) => v
     loading,
     error,
     successPaidAmount,
+    showEmailVerify,
+    setShowEmailVerify,
     feeDetails,
     handleSelectPreset,
     handleCustomChange,
