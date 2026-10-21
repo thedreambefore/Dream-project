@@ -1,5 +1,6 @@
 // src/components/WishCard/components/CardFront.tsx
 import { Sparkles, Compass, CheckCircle2, Coins, Crown, RotateCw } from 'lucide-react';
+import { ConstellationBackground } from './ConstellationBackground';
 import type { Wish } from '@/types/wish';
 import type { CardTier } from '../types';
 
@@ -34,6 +35,9 @@ export function CardFront({
         tier ? tier.cardClass : isCardShining ? 'holo-border-gold' : 'border-white/10'
       }`}
     >
+      {/* 🌟 專屬 AI 星座微光連線層 */}
+      <ConstellationBackground wishId={wish.id} />
+
       {/* 頂層 Trainer Gallery 光學膜 */}
       {isCardShining && <div className="trainer-gallery-shine" />}
 
