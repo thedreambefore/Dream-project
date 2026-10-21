@@ -1,5 +1,20 @@
 // src/components/WishCard/components/CardFront.tsx
-import { Sparkles, Compass, CheckCircle2, Coins, Crown, RotateCw } from 'lucide-react';
+import {
+  Sparkles,
+  Compass,
+  CheckCircle2,
+  Coins,
+  Crown,
+  RotateCw,
+  Laptop,
+  BookOpen,
+  Palette,
+  Music,
+  Coffee,
+  Camera,
+  Gift,
+  Heart,
+} from 'lucide-react';
 import { ConstellationBackground } from './ConstellationBackground';
 import type { Wish } from '@/types/wish';
 import type { CardTier } from '../types';
@@ -17,6 +32,30 @@ interface Props {
   targetPrice: number;
 }
 
+function renderIcon(iconNameOrEmoji?: string) {
+  if (!iconNameOrEmoji) return <Compass className="w-5 h-5 text-amber-300 flex-shrink-0" />;
+
+  const ICON_MAP: Record<string, React.ComponentType<{ className?: string }>> = {
+    Sparkles,
+    Compass,
+    Laptop,
+    BookOpen,
+    Palette,
+    Music,
+    Coffee,
+    Camera,
+    Gift,
+    Heart,
+  };
+
+  const IconComp = ICON_MAP[iconNameOrEmoji];
+  if (IconComp) {
+    return <IconComp className="w-5 h-5 text-amber-300 flex-shrink-0" />;
+  }
+
+  return <span className="text-lg flex-shrink-0 leading-none">{iconNameOrEmoji}</span>;
+}
+
 export function CardFront({
   wish,
   tier,
@@ -29,16 +68,18 @@ export function CardFront({
   localStardust,
   targetPrice,
 }: Props) {
+  const hasImage = Boolean(wish.image_url);
+
   return (
     <div
       className={`absolute inset-0 w-full h-full rounded-2xl glass overflow-hidden backface-hidden flex flex-col justify-between p-5 bg-zinc-950/90 shadow-2xl border transition-all ${
         tier ? tier.cardClass : isCardShining ? 'holo-border-gold' : 'border-white/10'
       }`}
     >
-      {/* 🌟 專屬 AI 星座微光連線層 */}
-      <ConstellationBackground wishId={wish.id} />
+      {/* 🌟 A 案：原汁原味星宿幾何與雙色溫星雲漸層 */}
+      <ConstellationBackground wishId={wish.id} hasImage={hasImage} />
 
-      {/* 頂層 Trainer Gallery 光學膜 */}
+      {/* 頂層 Trainer Gallery 閃卡光學膜 */}
       {isCardShining && <div className="trainer-gallery-shine" />}
 
       {/* 個人守護階梯微光層 */}
@@ -46,22 +87,18 @@ export function CardFront({
         <div className={`absolute inset-0 rounded-inherit pointer-events-none z-30 ${tier.glimmerClass}`} />
       )}
 
-      {/* 背景圖片層 (-z-10) */}
-      <div className="absolute inset-0 pointer-events-none overflow-hidden -z-10">
-        {wish.image_url ? (
-          <div className="relative w-full h-full">
-            <img
-              src={wish.image_url}
-              alt={wish.product_name}
-              className="w-full h-full object-cover brightness-60 contrast-125"
-            />
-            <div className="absolute inset-0 bg-gradient-to-t from-[#0a0a1a] via-[#120e28]/85 to-[#241446]/60 mix-blend-overlay" />
-            <div className="absolute inset-0 bg-gradient-to-b from-transparent via-black/40 to-[#0a0a1a]" />
-          </div>
-        ) : (
-          <div className="w-full h-full bg-gradient-to-br from-indigo-950/60 via-purple-950/40 to-[#0a0a1a]" />
-        )}
-      </div>
+      {/* 若有真實照片則呈現照片與遮罩 */}
+      {hasImage && (
+        <div className="absolute inset-0 pointer-events-none overflow-hidden -z-10">
+          <img
+            src={wish.image_url!}
+            alt={wish.product_name}
+            className="w-full h-full object-cover brightness-60 contrast-125"
+          />
+          <div className="absolute inset-0 bg-gradient-to-t from-[#0a0a1a] via-[#120e28]/85 to-[#241446]/60 mix-blend-overlay" />
+          <div className="absolute inset-0 bg-gradient-to-b from-transparent via-black/40 to-[#0a0a1a]" />
+        </div>
+      )}
 
       {/* 正面上半部：守護徽章覆蓋標籤 + 右上角達成膠囊 */}
       <div className="relative z-30">
@@ -102,13 +139,14 @@ export function CardFront({
           )}
         </div>
 
+        {/* 標題與圖示 */}
         <h3 className="font-bold text-amber-100 text-lg leading-snug line-clamp-2 mt-2 drop-shadow-md flex items-center gap-2">
-          <Compass className="w-5 h-5 text-amber-300 flex-shrink-0" />
+          {renderIcon(wish.cover_emoji)}
           <span>{wish.product_name}</span>
         </h3>
       </div>
 
-      {/* 正面下半部：終章承諾 + 星塵進度條 (超額帶炫彩珍珠白) */}
+      {/* 正面下半部：終章承諾 + 星塵進度條 */}
       <div className="relative z-30 space-y-3.5">
         <div className="bg-black/60 border border-white/10 rounded-xl p-2.5 backdrop-blur-md">
           <p className="text-[11px] text-zinc-300 line-clamp-1 leading-relaxed">
