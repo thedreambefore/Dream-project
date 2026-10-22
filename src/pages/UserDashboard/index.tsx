@@ -29,7 +29,8 @@ export function UserDashboard({ onClose, onGoHome, onOpenAdmin, initialTab = 'ac
 
       <main className="max-w-4xl mx-auto px-4 sm:px-6 py-8">
         {activeTab === 'account' && <AccountTab />}
-        {activeTab === 'myWishes' && <MyWishesTab />}
+        {/* 🌟 傳入一鍵跳轉至帳號資訊的回調 */}
+        {activeTab === 'myWishes' && <MyWishesTab onSwitchToAccount={() => setActiveTab('account')} />}
         {activeTab === 'publish' && <PublishTab onRequireVerify={() => setShowEmailVerify(true)} />}
         {activeTab === 'wallet' && <WalletTab />}
         {activeTab === 'invested' && <InvestedTab />}
@@ -41,3 +42,5 @@ export function UserDashboard({ onClose, onGoHome, onOpenAdmin, initialTab = 'ac
     </div>
   );
 }
+
+export default UserDashboard;

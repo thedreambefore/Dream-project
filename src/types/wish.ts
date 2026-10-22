@@ -11,6 +11,8 @@ export interface UserProfile {
   wallet_balance: number;
   phone?: string | null;
   address?: string | null;
+  id_number?: string | null;        // 🌟 身分證字號（稅務所得申報用）
+  domicile_address?: string | null; // 🌟 戶籍地址（免扣繳憑單寄送地址）
   created_at?: string;
 }
 
@@ -47,12 +49,12 @@ export interface Wish {
   letter_reject_reason?: string | null;
   created_at: string;
   updated_at?: string;
-  funded_at?: string | null; // 🌟 達成時間戳記（用於次日凌晨 00:00 自動下架判定）
+  funded_at?: string | null;
   
   // 前端關聯運算欄位
   anonymous_nickname?: string | null;
   myInvestAmount?: number;
-  myContributionRatio?: number; // 🌟 個人守護佔比（數值百分比，允許超額突破 100%）
+  myContributionRatio?: number;
   isBookmarked?: boolean;
   isBookmarkedOnly?: boolean;
   hasInvested?: boolean;
@@ -66,7 +68,7 @@ export interface Investment {
   amount: number;
   message: string | null;
   is_hidden: boolean;
-  reaction?: string | null; // 🌟 優質加油等審核註記
+  reaction?: string | null;
   created_at: string;
   users?: {
     anonymous_nickname: string | null;

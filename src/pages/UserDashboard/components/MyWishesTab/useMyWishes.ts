@@ -1,3 +1,4 @@
+// src/pages/UserDashboard/components/MyWishesTab/useMyWishes.ts
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 import { useAuth } from '@/context/AuthContext';
@@ -6,7 +7,7 @@ import type { Wish } from '@/types/wish';
 export type MyWishesFilter = 'all' | 'approved' | 'pending' | 'fulfilled' | 'blocked';
 
 export function useMyWishes() {
-  const { session } = useAuth();
+  const { session, profile } = useAuth();
   const [myWishes, setMyWishes] = useState<Wish[]>([]);
   const [filterTag, setFilterTag] = useState<MyWishesFilter>('all');
   const [loading, setLoading] = useState(true);
@@ -145,6 +146,7 @@ export function useMyWishes() {
     }
   }, [letterWish, thankYouLetter, unboxingPhoto, loadMyWishes]);
 
+  // 篩選列表
   const filteredList = useMemo(() => {
     return myWishes.filter((w) => {
       if (filterTag === 'all') return true;
@@ -156,10 +158,21 @@ export function useMyWishes() {
     });
   }, [myWishes, filterTag]);
 
+  // 🌟 透過 useMemo 在 Hook 內部精算：是否有達標滿千、但未齊備稅務資料的心願
+  const taxDeclarationWish = useMemo(() => {
+    return myWishes.find((w) => {
+      const isFunded = w.status === 'full_funded' || w.status === 'fulfilled' || (Number(w.current_stardust) >= Number(w.product_price));
+      const isOverThreshold = Number(w.product_price || 0) >= 1000;
+      const isMissingTaxInfo = !profile?.id_number || !profile?.domicile_address;
+      return isFunded && isOverThreshold && isMissingTaxInfo;
+    });
+  }, [myWishes, profile?.id_number, profile?.domicile_address]);
+
   return {
     filteredList,
     filterTag,
     setFilterTag,
+    taxDeclarationWish,
     loading,
     editingWish,
     setEditingWish,

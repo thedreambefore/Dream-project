@@ -58,7 +58,6 @@ export function EmailVerificationModal({
     setError('');
     const inputToken = token.trim();
 
-    // 🌟 放寬長度校驗：支援 6 ~ 8 位數驗證碼
     if (inputToken.length < 6 || inputToken.length > 8) {
       setError('請輸入信件中的 6 至 8 位數驗證碼');
       return;
@@ -83,7 +82,6 @@ export function EmailVerificationModal({
         throw new Error('驗證碼不正確或已逾期，請重新輸入');
       }
 
-      // 驗證成功：正式更新雲端 users 表的驗證狀態
       if (session?.user?.id) {
         const { error: updateErr } = await supabase
           .from('users')
@@ -135,7 +133,7 @@ export function EmailVerificationModal({
         ) : (
           <div className="space-y-4">
             <div className="bg-amber-500/10 border border-amber-400/20 rounded-xl p-3 text-xs text-amber-200/90 leading-relaxed">
-              為確保專屬憑證與贈禮通知能準確送達，投星與許願前請先完成信箱認證。
+              為確保主題活動圓滿時平台能準確投遞活動贈禮寄送與履約進度通知，請驗證您註冊的電子信箱。
             </div>
 
             <div>
@@ -221,3 +219,5 @@ export function EmailVerificationModal({
     document.body
   );
 }
+
+export default EmailVerificationModal;
