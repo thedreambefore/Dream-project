@@ -40,7 +40,7 @@ Deno.serve(async (req: Request) => {
       throw new Error('收件信箱或專屬連結參數缺失');
     }
 
-    // 🌟 採用 Gmail 保證 100% 不會被過濾之冷金排版符號（✦、◈、➔），取代彩色 Emoji 與被閹割的 SVG
+    // 🌟 採用雙單元格中線強制作齊（valign="middle" + line-height: 1），徹底解決高低歪斜問題
     const htmlContent = `
       <!DOCTYPE html>
       <html lang="zh-TW">
@@ -62,7 +62,7 @@ Deno.serve(async (req: Request) => {
               width: 100% !important;
               box-sizing: border-box !important;
               text-align: center !important;
-              padding: 15px 12px !important;
+              padding: 15px 10px !important;
             }
             .email-wish-title {
               font-size: 16px !important;
@@ -70,7 +70,7 @@ Deno.serve(async (req: Request) => {
           }
         </style>
       </head>
-      <body style="margin: 0; padding: 0; background-color: #070714; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color: #e2e8f0; -webkit-font-smoothing: antialiased;">
+      <body style="margin: 0; padding: 0; background-color: #070714; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Noto Sans TC', Helvetica, Arial, sans-serif; color: #e2e8f0; -webkit-font-smoothing: antialiased;">
         <table role="presentation" width="100%" cellspacing="0" cellpadding="0" class="email-outer-table" style="background-color: #070714; padding: 40px 15px;">
           <tr>
             <td align="center">
@@ -78,15 +78,26 @@ Deno.serve(async (req: Request) => {
               <!-- 全息卡牌容器（深空曜石 + 琥珀金微光細邊） -->
               <table role="presentation" width="100%" cellspacing="0" cellpadding="0" class="email-card-container" style="max-width: 520px; background: linear-gradient(165deg, #14122d 0%, #0a0918 100%); border: 1.5px solid rgba(251, 191, 36, 0.4); border-radius: 28px; padding: 40px 32px; box-shadow: 0 25px 60px rgba(0, 0, 0, 0.9), 0 0 35px rgba(245, 158, 11, 0.12);">
                 
-                <!-- 品牌頂部 -->
+                <!-- 品牌頂部（🌟 採用絕對幾何垂直置中結構，徹底解決歪斜） -->
                 <tr>
                   <td align="center" style="padding-bottom: 22px; border-bottom: 1px solid rgba(255, 255, 255, 0.08);">
-                    <div style="font-size: 21px; font-weight: 900; letter-spacing: 1.5px; color: #fde68a;">
-                      <span style="color: #fbbf24; font-size: 19px; vertical-align: middle; margin-right: 6px;">✦</span>
-                      <span>夢沙 DreamSand</span>
-                    </div>
-                    <div style="display: inline-block; background: rgba(245, 158, 11, 0.12); border: 1px solid rgba(245, 158, 11, 0.4); border-radius: 99px; padding: 4px 14px; margin-top: 10px; font-size: 11px; font-weight: bold; color: #fbbf24; font-family: monospace; letter-spacing: 0.8px;">
-                      ✦ 星砂追番專屬免阻斷憑證 · 永久典藏 ✦
+                    <table role="presentation" cellspacing="0" cellpadding="0" style="margin: 0 auto; display: inline-table; vertical-align: middle;">
+                      <tr>
+                        <td valign="middle" style="vertical-align: middle; padding-right: 8px; line-height: 1;">
+                          <span style="color: #fbbf24; font-size: 17px; line-height: 1; display: block;">✦</span>
+                        </td>
+                        <td valign="middle" style="vertical-align: middle; line-height: 1;">
+                          <span style="font-size: 22px; font-weight: 900; letter-spacing: 1px; color: #fde68a; line-height: 1; display: block;">
+                            夢沙 DreamSand
+                          </span>
+                        </td>
+                      </tr>
+                    </table>
+                    
+                    <div style="display: block; margin-top: 10px;">
+                      <span style="display: inline-block; background: rgba(245, 158, 11, 0.12); border: 1px solid rgba(245, 158, 11, 0.4); border-radius: 99px; padding: 4px 14px; font-size: 11px; font-weight: bold; color: #fbbf24; font-family: monospace; letter-spacing: 0.8px;">
+                        ✦ 星砂追番專屬免阻斷憑證 · 永久典藏 ✦
+                      </span>
                     </div>
                   </td>
                 </tr>
@@ -99,17 +110,25 @@ Deno.serve(async (req: Request) => {
                   </td>
                 </tr>
 
-                <!-- 守護心願卡牌條 -->
+                <!-- 守護心願卡牌條（🌟 圖示與標題幾何置中鎖定） -->
                 <tr>
                   <td style="padding: 18px 0;">
                     <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background: rgba(0, 0, 0, 0.55); border-left: 3.5px solid #f59e0b; border-radius: 14px; padding: 16px 18px; box-shadow: inset 0 0 20px rgba(0, 0, 0, 0.5);">
                       <tr>
                         <td>
-                          <div style="font-size: 11px; color: #94a3b8; font-weight: bold; letter-spacing: 1px;">
-                            <span style="color: #f59e0b; margin-right: 5px; font-size: 13px;">◈</span>
-                            <span>守護對象主題活動</span>
-                          </div>
-                          <div class="email-wish-title" style="font-size: 17px; font-weight: 900; color: #ffffff; margin-top: 6px; line-height: 1.4;">
+                          <table role="presentation" cellspacing="0" cellpadding="0" style="display: inline-table; vertical-align: middle;">
+                            <tr>
+                              <td valign="middle" style="vertical-align: middle; padding-right: 6px; line-height: 1;">
+                                <span style="color: #f59e0b; font-size: 13px; line-height: 1; display: block;">◈</span>
+                              </td>
+                              <td valign="middle" style="vertical-align: middle; line-height: 1;">
+                                <span style="font-size: 11px; color: #94a3b8; font-weight: bold; letter-spacing: 1px; line-height: 1; display: block;">
+                                  守護對象主題活動
+                                </span>
+                              </td>
+                            </tr>
+                          </table>
+                          <div class="email-wish-title" style="font-size: 17px; font-weight: 900; color: #ffffff; margin-top: 8px; line-height: 1.4;">
                             ${wishTitle}
                           </div>
                         </td>
@@ -125,13 +144,25 @@ Deno.serve(async (req: Request) => {
                   </td>
                 </tr>
 
-                <!-- 🌟 核心 CTA 按鈕（金光發光 + 向量排版符號 ✦ ... ➔） -->
+                <!-- 🌟 核心 CTA 按鈕（按鈕內圖示與文字 100% 幾何水平垂直居中） -->
                 <tr>
                   <td align="center" style="padding: 30px 0 34px 0;">
-                    <a href="${accessLink}" target="_blank" class="email-cta-btn" style="display: inline-block; background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); color: #09090b !important; text-decoration: none; font-weight: 900; font-size: 14px; padding: 15px 36px; border-radius: 14px; box-shadow: 0 6px 25px rgba(245, 158, 11, 0.45); letter-spacing: 0.6px;">
-                      <span style="font-size: 14px; margin-right: 4px;">✦</span>
-                      <span>進入專屬心願追番結局室</span>
-                      <span style="font-size: 15px; margin-left: 6px; font-weight: bold;">➔</span>
+                    <a href="${accessLink}" target="_blank" class="email-cta-btn" style="display: inline-block; background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); color: #09090b !important; text-decoration: none; padding: 15px 36px; border-radius: 14px; box-shadow: 0 6px 25px rgba(245, 158, 11, 0.45);">
+                      <table role="presentation" cellspacing="0" cellpadding="0" style="margin: 0 auto; display: inline-table; vertical-align: middle;">
+                        <tr>
+                          <td valign="middle" style="vertical-align: middle; padding-right: 6px; line-height: 1;">
+                            <span style="font-size: 13px; color: #09090b; line-height: 1; display: block;">✦</span>
+                          </td>
+                          <td valign="middle" style="vertical-align: middle; line-height: 1;">
+                            <span style="font-size: 14px; font-weight: 900; color: #09090b; letter-spacing: 0.6px; line-height: 1; display: block;">
+                              進入專屬心願追番結局室
+                            </span>
+                          </td>
+                          <td valign="middle" style="vertical-align: middle; padding-left: 6px; line-height: 1;">
+                            <span style="font-size: 14px; font-weight: 900; color: #09090b; line-height: 1; display: block;">➔</span>
+                          </td>
+                        </tr>
+                      </table>
                     </a>
                   </td>
                 </tr>
