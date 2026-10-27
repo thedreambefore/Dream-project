@@ -7,7 +7,7 @@ import type { Wish } from '@/types/wish';
 export type MyWishesFilter = 'all' | 'approved' | 'pending' | 'fulfilled' | 'blocked';
 
 export function useMyWishes() {
-  const { session, profile } = useAuth();
+  const { session, profile, refreshProfile } = useAuth();
   const [myWishes, setMyWishes] = useState<Wish[]>([]);
   const [filterTag, setFilterTag] = useState<MyWishesFilter>('all');
   const [loading, setLoading] = useState(true);
@@ -43,7 +43,8 @@ export function useMyWishes() {
 
   useEffect(() => {
     loadMyWishes();
-  }, [loadMyWishes]);
+    refreshProfile(); // 確保切換進心願追蹤館時取得最新 profile 稅務資訊
+  }, [loadMyWishes, refreshProfile]);
 
   const handleStartEdit = useCallback((w: Wish) => {
     setEditingWish(w);
@@ -146,7 +147,6 @@ export function useMyWishes() {
     }
   }, [letterWish, thankYouLetter, unboxingPhoto, loadMyWishes]);
 
-  // 篩選列表
   const filteredList = useMemo(() => {
     return myWishes.filter((w) => {
       if (filterTag === 'all') return true;
@@ -158,13 +158,24 @@ export function useMyWishes() {
     });
   }, [myWishes, filterTag]);
 
-  // 🌟 透過 useMemo 在 Hook 內部精算：是否有達標滿千、但未齊備稅務資料的心願
+  // 🌟 核心防線：只要身分證號與戶籍地址皆已完備（非空），taxDeclarationWish 必為 undefined，100% 隱藏提醒橫幅！
   const taxDeclarationWish = useMemo(() => {
+    const hasValidId = Boolean(profile?.id_number && profile.id_number.trim().length > 0);
+    const hasValidDomicile = Boolean(profile?.domicile_address && profile.domicile_address.trim().length > 0);
+
+    // 資料已齊全，直接放行，不顯示提醒橫幅
+    if (hasValidId && hasValidDomicile) {
+      return undefined;
+    }
+
+    // 只有在資料未齊備、且存在滿千達成的心願時才顯示
     return myWishes.find((w) => {
-      const isFunded = w.status === 'full_funded' || w.status === 'fulfilled' || (Number(w.current_stardust) >= Number(w.product_price));
+      const isFunded =
+        w.status === 'full_funded' ||
+        w.status === 'fulfilled' ||
+        Number(w.current_stardust) >= Number(w.product_price);
       const isOverThreshold = Number(w.product_price || 0) >= 1000;
-      const isMissingTaxInfo = !profile?.id_number || !profile?.domicile_address;
-      return isFunded && isOverThreshold && isMissingTaxInfo;
+      return isFunded && isOverThreshold;
     });
   }, [myWishes, profile?.id_number, profile?.domicile_address]);
 

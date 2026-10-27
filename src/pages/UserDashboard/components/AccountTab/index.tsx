@@ -30,7 +30,7 @@ export function AccountTab() {
       <form onSubmit={account.handleSave} className="space-y-5 bg-white/5 border border-white/10 p-6 rounded-2xl glow-border">
         <BasicInfoSection realName={account.realName} setRealName={account.setRealName} nickname={account.nickname} setNickname={account.setNickname} />
         <IdVerificationBox hasStoredId={account.hasStoredId} isEditingId={account.isEditingId} storedMaskedId={account.storedMaskedId} newIdInput={account.newIdInput} setNewIdInput={account.setNewIdInput} onStartEdit={account.handleStartEditId} onCancelEdit={account.handleCancelEditId} />
-        <TaiwanAddressInput value={account.domicileAddress} onChange={(formatted) => account.setDomicileAddress(formatted)} />
+        <TaiwanAddressInput hasStoredDomicile={account.hasStoredDomicile} isEditingDomicile={account.isEditingDomicile} storedDomicile={account.storedDomicile} onChange={(formatted) => account.setNewDomicileInput(formatted)} onStartEdit={account.handleStartEditDomicile} onCancelEdit={account.handleCancelEditDomicile} />
         <ContactInfoSection phone={account.phone} setPhone={account.setPhone} address={account.address} setAddress={account.setAddress} />
         <PrivacyNoticeCard />
 
