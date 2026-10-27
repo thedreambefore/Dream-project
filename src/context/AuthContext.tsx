@@ -10,6 +10,9 @@ interface AuthContextType {
   loading: boolean;
   isBanned: boolean;
   isAdmin: boolean;
+  isAuthModalOpen: boolean;
+  openAuthModal: () => void;
+  closeAuthModal: () => void;
   login: (emailInput: string, passwordInput: string) => Promise<boolean>;
   signUp: (emailInput: string, passwordInput: string, nameInput: string) => Promise<boolean>;
   logout: () => Promise<void>;
@@ -24,23 +27,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
 
-  const fetchUserProfile = useCallback(async (userId: string): Promise<UserProfile | null> => {
+  const openAuthModal = useCallback(() => setIsAuthModalOpen(true), []);
+  const closeAuthModal = useCallback(() => setIsAuthModalOpen(false), []);
+
+  const fetchUserProfile = useCallback(async (userId: string, fallbackNickname?: string): Promise<UserProfile | null> => {
     try {
       const { data, error } = await supabase
         .from('users')
         .select('*')
         .eq('id', userId)
-        .single();
+        .maybeSingle();
 
-      if (error && error.code === 'PGRST116') {
+      if (!data) {
+        // 若資料庫尚未建立 Profile，寫入時優先採用傳入的暱稱，防止被預設值覆蓋
+        const chosenNickname = fallbackNickname?.trim() || '新星旅人';
         const { data: newProfile, error: insertError } = await supabase
           .from('users')
           .insert([
             {
               id: userId,
               real_name: null,
-              anonymous_nickname: '新星旅人',
+              anonymous_nickname: chosenNickname,
               role: 'user',
               wallet_balance: 0,
               is_phone_verified: false,
@@ -70,7 +79,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (isMounted) setSession(initialSession);
 
         if (initialSession?.user) {
-          const prof = await fetchUserProfile(initialSession.user.id);
+          const userMetaNickname = initialSession.user.user_metadata?.full_name || initialSession.user.user_metadata?.name;
+          const prof = await fetchUserProfile(initialSession.user.id, userMetaNickname);
           if (isMounted) setProfile(prof);
         }
       } catch (err) {
@@ -87,7 +97,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (isMounted) setSession(currentSession);
 
         if (currentSession?.user) {
-          const prof = await fetchUserProfile(currentSession.user.id);
+          const userMetaNickname = currentSession.user.user_metadata?.full_name || currentSession.user.user_metadata?.name;
+          const prof = await fetchUserProfile(currentSession.user.id, userMetaNickname);
           if (isMounted) setProfile(prof);
         } else {
           if (isMounted) setProfile(null);
@@ -116,26 +127,45 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signUp = useCallback(
     async (emailInput: string, passwordInput: string, nameInput: string): Promise<boolean> => {
+      const chosenName = nameInput.trim() || '新星旅人';
+
+      // 🌟 核心防線：將暱稱同時放入 user_metadata，確保 Supabase 認證層與公開表皆具備完整暱稱
       const { data, error } = await supabase.auth.signUp({
         email: emailInput,
         password: passwordInput,
+        options: {
+          data: {
+            full_name: chosenName,
+            name: chosenName,
+          },
+        },
       });
+
       if (error) {
         alert(`註冊失敗: ${error.message}`);
         return false;
       }
+
       if (data.user) {
-        const chosenName = nameInput.trim() || '新星旅人';
+        // 即時於 public.users 表建立或更新紀錄
         await supabase.from('users').upsert([
           {
             id: data.user.id,
-            real_name: chosenName,
+            real_name: null,
             anonymous_nickname: chosenName,
             role: 'user',
             wallet_balance: 0,
             is_phone_verified: false,
           },
         ]);
+
+        // 🌟 註冊成功後若未自帶 session，自動為使用者執行登入
+        if (!data.session) {
+          await supabase.auth.signInWithPassword({
+            email: emailInput,
+            password: passwordInput,
+          });
+        }
       }
       return true;
     },
@@ -193,6 +223,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         loading,
         isBanned,
         isAdmin,
+        isAuthModalOpen,
+        openAuthModal,
+        closeAuthModal,
         login,
         signUp,
         logout,
@@ -209,19 +242,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 export function useAuth() {
   const context = useContext(AuthContext);
   if (!context) {
-    return {
-      session: null,
-      profile: null,
-      loading: true,
-      isBanned: false,
-      isAdmin: false,
-      login: async () => false,
-      signUp: async () => false,
-      logout: async () => {},
-      refreshProfile: async () => {},
-      resetPasswordEmail: async () => false,
-      updatePassword: async () => false,
-    };
+    throw new Error('useAuth must be used within an AuthProvider');
   }
   return context;
 }

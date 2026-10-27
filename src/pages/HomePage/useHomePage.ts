@@ -3,6 +3,7 @@ import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 import { useAuth } from '@/context/AuthContext';
 import { fetchPublicWishes } from '@/lib/backend';
+import { useAccessWishDetector } from '@/hooks/useAccessWishDetector';
 import type { Wish, Tag } from '@/types/wish';
 
 export function useHomePage() {
@@ -13,16 +14,13 @@ export function useHomePage() {
   const [loading, setLoading] = useState(true);
   const [highlightedWishId, setHighlightedWishId] = useState<string | null>(null);
 
-  // 🌟 專屬免阻斷連結之目標卡片狀態
-  const [accessWishData, setAccessWishData] = useState<Wish | null>(null);
-
   const cardRefs = useRef<Record<string, HTMLDivElement | null>>({});
 
+  // 整合專屬免阻斷時空憑證偵測
+  const { accessWish, clearAccessWish } = useAccessWishDetector();
+
   const loadTags = useCallback(async () => {
-    const { data } = await supabase
-      .from('tags')
-      .select('*')
-      .order('sort_order', { ascending: true });
+    const { data } = await supabase.from('tags').select('*').order('sort_order', { ascending: true });
     setTags((data as Tag[]) || []);
   }, []);
 
@@ -39,20 +37,14 @@ export function useHomePage() {
         const myMap = new Map<string, number>();
         invData?.forEach((inv) => {
           const id = inv.wish_id || inv.story_id;
-          if (id) {
-            myMap.set(id, (myMap.get(id) || 0) + Number(inv.amount || 0));
-          }
+          if (id) myMap.set(id, (myMap.get(id) || 0) + Number(inv.amount || 0));
         });
 
         const merged: Wish[] = publicWishes.map((w) => {
           const myAmount = myMap.get(w.id) || 0;
           const target = Number(w.product_price || 1);
           const ratio = Math.round((myAmount / target) * 1000) / 10;
-          return {
-            ...w,
-            myInvestAmount: myAmount,
-            myContributionRatio: ratio,
-          };
+          return { ...w, myInvestAmount: myAmount, myContributionRatio: ratio };
         });
 
         setWishes(merged);
@@ -82,29 +74,8 @@ export function useHomePage() {
     };
   }, [loadTags, loadWishes]);
 
-  // 🌟 核心：監聽網址參數，支援信件點入免登入直接回訪漂流瓶
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const targetWishId = params.get('accessWish');
-    const token = params.get('token');
-
-    if (targetWishId && token) {
-      supabase
-        .from('wishes')
-        .select('*')
-        .eq('id', targetWishId)
-        .single()
-        .then(({ data }) => {
-          if (data) {
-            setAccessWishData(data as Wish);
-          }
-        });
-    }
-  }, []);
-
   const handleScrollToWish = useCallback((wishId: string) => {
     setActiveTag('全部故事');
-
     setTimeout(() => {
       const targetEl = cardRefs.current[wishId];
       if (targetEl) {
@@ -131,7 +102,7 @@ export function useHomePage() {
     highlightedWishId,
     cardRefs,
     handleScrollToWish,
-    accessWishData,
-    setAccessWishData,
+    accessWish,
+    clearAccessWish,
   };
 }

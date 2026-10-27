@@ -54,6 +54,15 @@ export interface InvestmentResult {
 }
 
 /**
+ * 檢驗字串是否含有外部連結或網址
+ */
+export function containsUrl(text: string): boolean {
+  if (!text) return false;
+  const urlPattern = /(https?:\/\/|www\.|\.com|\.tw|\.org|\.net|\.xyz|\.io|bit\.ly|t\.co)/i;
+  return urlPattern.test(text);
+}
+
+/**
  * 執行星塵投入核心事務
  */
 export async function executeStarInvestment({
@@ -67,9 +76,13 @@ export async function executeStarInvestment({
   const targetPrice = Number(story.product_price || 0);
   const payAmount = Number(amount);
 
+  // 🌟 核心防護：偵測留言是否含有外部網址，若含有則自動屏蔽封鎖
+  const hasUrl = containsUrl(message);
+  const sanitizedMessage = message.trim() || '投下了閃爍的願望星！';
+
   const tasks: PromiseLike<unknown>[] = [];
 
-  // 1. 寫入加油投資紀錄（加入 .throwOnError() 杜絕靜默失敗）
+  // 1. 寫入加油投資紀錄（若帶網址則自動設為 is_hidden = true）
   tasks.push(
     supabase
       .from('investments')
@@ -78,8 +91,8 @@ export async function executeStarInvestment({
         wish_id: story.id,
         story_id: story.id,
         amount: payAmount,
-        message: message.trim() || '投下了閃爍的願望星！',
-        is_hidden: false,
+        message: sanitizedMessage,
+        is_hidden: hasUrl, // 🌟 自動防禦：帶網址留言自動遮蔽
       })
       .throwOnError()
   );
@@ -97,7 +110,7 @@ export async function executeStarInvestment({
     );
   }
 
-  // 3. 計算累計星塵與首次達標狀態
+  // 3. 計算累計星塵與首次達標狀態（超額星塵全額保留累加）
   const newTotal = currentStardust + payAmount;
   const isNewlyFunded = !isOfficial && newTotal >= targetPrice && story.status === 'approved';
   const newStatus = isNewlyFunded ? 'full_funded' : story.status;
@@ -120,10 +133,9 @@ export async function executeStarInvestment({
   story.current_stardust = newTotal;
   story.status = newStatus as Wish['status'];
 
-  // 🌟 4. 派發 Brevo 專屬免阻斷憑證信件
+  // 4. 派發 Brevo 專屬免阻斷憑證信件
   const authUser = (await supabase.auth.getUser()).data.user;
   if (authUser?.email && !isOfficial) {
-    // 修正：抓取投星支持者本人的暱稱，而非許願者的暱稱
     const { data: userData } = await supabase
       .from('users')
       .select('anonymous_nickname')

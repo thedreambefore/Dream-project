@@ -1,4 +1,5 @@
-import { useState, useEffect, useCallback } from 'react';
+// src/pages/UserDashboard/components/PublishTab/usePublish.ts
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 import { useAuth } from '@/context/AuthContext';
 import type { Tag } from '@/types/wish';
@@ -11,9 +12,16 @@ export function usePublish(onRequireVerify: () => void) {
   const [title, setTitle] = useState('');
   const [story, setStory] = useState('');
   const [promise, setPromise] = useState('');
-  const [productPrice, setProductPrice] = useState<number>(500);
-  const [productUrl, setProductUrl] = useState('');
 
+  // 🌟 運費快捷選項：商品原價 + 勾選超商運費 (+NT$ 60)
+  const [basePrice, setBasePrice] = useState<number>(500);
+  const [hasShippingFee, setHasShippingFee] = useState<boolean>(false);
+
+  const finalPrice = useMemo(() => {
+    return basePrice + (hasShippingFee ? 60 : 0);
+  }, [basePrice, hasShippingFee]);
+
+  const [productUrl, setProductUrl] = useState('');
   const [tags, setTags] = useState<Tag[]>([]);
   const [tagName, setTagName] = useState('');
   const [coverEmoji, setCoverEmoji] = useState('Sparkles');
@@ -111,7 +119,7 @@ export function usePublish(onRequireVerify: () => void) {
         setError('故事內文不能超過 200 字');
         return;
       }
-      if (productPrice < 50 || productPrice > 20000) {
+      if (finalPrice < 50 || finalPrice > 20000) {
         setError('心願星塵數額限定在 50 ~ 20,000 顆之間（依合規防止機會中獎稅門檻）');
         return;
       }
@@ -129,7 +137,7 @@ export function usePublish(onRequireVerify: () => void) {
           user_id: currentUserId,
           title: title.trim(),
           product_name: title.trim(),
-          product_price: Number(productPrice),
+          product_price: Number(finalPrice),
           current_stardust: 0,
           tag_name: tagName,
           cover_emoji: coverEmoji,
@@ -150,6 +158,7 @@ export function usePublish(onRequireVerify: () => void) {
         setPromise('');
         setProductUrl('');
         setImageBase64(null);
+        setHasShippingFee(false);
       } catch (err: unknown) {
         setError(`發布失敗: ${err instanceof Error ? err.message : '請確認網路狀態'}`);
       } finally {
@@ -164,7 +173,7 @@ export function usePublish(onRequireVerify: () => void) {
       title,
       story,
       promise,
-      productPrice,
+      finalPrice,
       productUrl,
       session?.user?.id,
       coverEmoji,
@@ -179,8 +188,11 @@ export function usePublish(onRequireVerify: () => void) {
     setStory,
     promise,
     setPromise,
-    productPrice,
-    setProductPrice,
+    basePrice,
+    setBasePrice,
+    hasShippingFee,
+    setHasShippingFee,
+    finalPrice,
     productUrl,
     setProductUrl,
     tags,

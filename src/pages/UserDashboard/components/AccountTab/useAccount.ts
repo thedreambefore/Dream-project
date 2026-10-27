@@ -1,5 +1,5 @@
 // src/pages/UserDashboard/components/AccountTab/useAccount.ts
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 import { useAuth } from '@/context/AuthContext';
 
@@ -12,8 +12,8 @@ export function useAccount() {
   const [nickname, setNickname] = useState('');
   const [phone, setPhone] = useState('');
   const [address, setAddress] = useState('');
-  
-  // 🌟 身分證與戶籍地址狀態
+
+  // 身分證與戶籍地址狀態
   const [hasStoredId, setHasStoredId] = useState(false);
   const [storedMaskedId, setStoredMaskedId] = useState('');
   const [newIdInput, setNewIdInput] = useState('');
@@ -94,7 +94,7 @@ export function useAccount() {
         return;
       }
 
-      // 🌟 安全檢驗：如果使用者正在編輯輸入新身分證
+      // 安全檢驗：如果使用者正在編輯輸入新身分證
       const cleanNewId = newIdInput.trim().toUpperCase();
       if (isEditingId && cleanNewId) {
         if (!TW_ID_REGEX.test(cleanNewId)) {
@@ -114,14 +114,12 @@ export function useAccount() {
           domicile_address: domicileAddress.trim() || null,
         };
 
-        // 🌟 核心防覆蓋保護：只有在編輯模式且有輸入新身分證時，才覆蓋後端！
-        // 若處於鎖定脫敏檢視態，絕對不傳送 id_number 欄位，杜絕星號覆蓋！
+        // 核心防覆蓋保護：只有在編輯模式且有輸入新身分證時才寫入
         if (isEditingId && cleanNewId) {
           updatePayload.id_number = cleanNewId;
         }
 
         const { error: upsertError } = await supabase.from('users').upsert(updatePayload, { onConflict: 'id' });
-
         if (upsertError) throw upsertError;
 
         if (isEditingId && cleanNewId) {

@@ -5,51 +5,27 @@ import { LeaderboardWidget } from '@/components/LeaderboardWidget';
 import { TagFilterBar } from './components/TagFilterBar';
 import { WishGrid } from './components/WishGrid';
 import { useHomePage } from './useHomePage';
-import { useAccessWishDetector } from '@/hooks/useAccessWishDetector';
 import type { HomePageProps } from './types';
 
 const DriftBottleModal = lazy(() => import('@/components/DriftBottleModal'));
 
 export function HomePage({ onOpenHonorHall }: HomePageProps) {
-  const {
-    activeTag,
-    setActiveTag,
-    tags,
-    wishes,
-    filteredWishes,
-    loading,
-    highlightedWishId,
-    cardRefs,
-    handleScrollToWish,
-  } = useHomePage();
-
-  // 🌟 專屬免阻斷時空憑證偵測器
-  const { accessWish, clearAccessWish } = useAccessWishDetector();
+  const home = useHomePage();
 
   return (
     <div className="max-w-6xl mx-auto px-4 sm:px-6 pt-4 pb-32 relative z-10 animate-fade-in">
       <HomeHeroCarousel />
-      <LeaderboardWidget
-        wishes={wishes}
-        onScrollToWish={handleScrollToWish}
-        onOpenHonorHall={onOpenHonorHall}
-      />
-      <TagFilterBar activeTag={activeTag} tags={tags} onSelectTag={setActiveTag} />
-      <WishGrid
-        loading={loading}
-        filteredWishes={filteredWishes}
-        highlightedWishId={highlightedWishId}
-        cardRefs={cardRefs}
-      />
+      <LeaderboardWidget wishes={home.wishes} onScrollToWish={home.handleScrollToWish} onOpenHonorHall={onOpenHonorHall} />
+      <TagFilterBar activeTag={home.activeTag} tags={home.tags} onSelectTag={home.setActiveTag} />
+      <WishGrid loading={home.loading} filteredWishes={home.filteredWishes} highlightedWishId={home.highlightedWishId} cardRefs={home.cardRefs} />
 
-      {/* 🌟 憑證直通專屬漂流瓶結局室（永久有效，首頁下架仍可直達） */}
-      {accessWish && (
+      {home.accessWish && (
         <Suspense fallback={null}>
           <DriftBottleModal
-            wish={accessWish}
-            progress={Math.min(100, Math.round(((accessWish.current_stardust || 0) / (accessWish.product_price || 1)) * 100))}
-            isFulfilled={accessWish.status === 'fulfilled' || accessWish.status === 'full_funded'}
-            onClose={clearAccessWish}
+            wish={home.accessWish}
+            progress={Math.min(100, Math.round(((home.accessWish.current_stardust || 0) / (home.accessWish.product_price || 1)) * 100))}
+            isFulfilled={home.accessWish.status === 'fulfilled' || home.accessWish.status === 'full_funded'}
+            onClose={home.clearAccessWish}
           />
         </Suspense>
       )}

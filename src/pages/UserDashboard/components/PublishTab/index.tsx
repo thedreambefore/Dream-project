@@ -5,12 +5,7 @@ import { PublishSuccessCard } from './components/PublishSuccessCard';
 import { PublishForm } from './components/PublishForm';
 
 export function PublishTab({ onRequireVerify }: { onRequireVerify: () => void }) {
-  const {
-    title, setTitle, story, setStory, promise, setPromise, productPrice, setProductPrice,
-    productUrl, setProductUrl, tags, tagName, setTagName, coverEmoji, setCoverEmoji,
-    imageBase64, setImageBase64, compressing, submitting, error, success, setSuccess,
-    handleImageChange, handlePublishClick,
-  } = usePublish(onRequireVerify);
+  const publish = usePublish(onRequireVerify);
 
   return (
     <div className="max-w-xl space-y-5 animate-fade-in">
@@ -18,15 +13,21 @@ export function PublishTab({ onRequireVerify }: { onRequireVerify: () => void })
         <Sparkles className="w-5 h-5 text-amber-300" /> 發布主題心願活動
       </h2>
 
-      {success ? (
-        <PublishSuccessCard onReset={() => setSuccess(false)} />
+      {publish.success ? (
+        <PublishSuccessCard onReset={() => publish.setSuccess(false)} />
       ) : (
         <PublishForm
-          title={title} setTitle={setTitle} story={story} setStory={setStory} promise={promise} setPromise={setPromise}
-          productPrice={productPrice} setProductPrice={setProductPrice} productUrl={productUrl} setProductUrl={setProductUrl}
-          tags={tags} tagName={tagName} setTagName={setTagName} coverEmoji={coverEmoji} setCoverEmoji={setCoverEmoji}
-          imageBase64={imageBase64} setImageBase64={setImageBase64} compressing={compressing} submitting={submitting} error={error}
-          onImageChange={handleImageChange} onSubmit={handlePublishClick}
+          title={publish.title} setTitle={publish.setTitle}
+          story={publish.story} setStory={publish.setStory}
+          promise={publish.promise} setPromise={publish.setPromise}
+          basePrice={publish.basePrice} setBasePrice={publish.setBasePrice}
+          hasShippingFee={publish.hasShippingFee} setHasShippingFee={publish.setHasShippingFee}
+          finalPrice={publish.finalPrice} productUrl={publish.productUrl} setProductUrl={publish.setProductUrl}
+          tags={publish.tags} tagName={publish.tagName} setTagName={publish.setTagName}
+          coverEmoji={publish.coverEmoji} setCoverEmoji={publish.setCoverEmoji}
+          imageBase64={publish.imageBase64} setImageBase64={publish.setImageBase64}
+          compressing={publish.compressing} submitting={publish.submitting} error={publish.error}
+          onImageChange={publish.handleImageChange} onSubmit={publish.handlePublishClick}
         />
       )}
     </div>

@@ -17,9 +17,8 @@ export function useDriftBottleModal(wish: Wish, isFulfilled: boolean) {
 
   const currentStardust = Number(wish.current_stardust || 0);
   const targetStardust = Number(wish.product_price || 1);
-  const progressPercent = Math.min(100, Math.round((currentStardust / targetStardust) * 100));
+  const progressPercent = Math.round((currentStardust / targetStardust) * 100);
 
-  // 判定是否超過達成隔天凌晨 00:00:00 (換日過期)
   const isExpiredFromHome = useMemo(() => {
     if (!isFulfilled || isOfficial) return false;
     const fundedDateStr = (wish as { funded_at?: string; created_at: string }).funded_at || wish.created_at;
@@ -36,7 +35,6 @@ export function useDriftBottleModal(wish: Wish, isFulfilled: boolean) {
     return new Date().getTime() >= nextDayMidnight.getTime();
   }, [isFulfilled, isOfficial, wish]);
 
-  // 1. 查詢登入者是否曾投星
   useEffect(() => {
     if (!session?.user?.id || isOfficial) return;
     supabase
@@ -50,7 +48,6 @@ export function useDriftBottleModal(wish: Wish, isFulfilled: boolean) {
       });
   }, [session?.user?.id, wish.id, isOfficial]);
 
-  // 2. 時空矩陣權限計算
   const canAccessFullRoom =
     isOfficial ||
     isAdmin ||
@@ -69,40 +66,34 @@ export function useDriftBottleModal(wish: Wish, isFulfilled: boolean) {
       .or(`wish_id.eq.${wish.id},story_id.eq.${wish.id}`)
       .order('created_at', { ascending: false });
 
-    if (!error && data) {
-      setMessages(data as Investment[]);
-    }
+    if (!error && data) setMessages(data as Investment[]);
     setLoading(false);
   }, [wish.id]);
 
   useEffect(() => {
-    if (canAccess) {
-      loadMessages();
-    } else {
-      setLoading(false);
-    }
+    if (canAccess) loadMessages();
+    else setLoading(false);
   }, [canAccess, loadMessages]);
 
-  // 累計投入星塵與佔比
   const userContributionMap = useMemo(() => {
     const map = new Map<string, UserContributionStat>();
     messages.forEach((m) => {
       if (m.user_id) {
         const prev = map.get(m.user_id)?.total || 0;
         const newTotal = prev + Number(m.amount || 0);
-        const percent = Math.min(100, Math.round((newTotal / targetStardust) * 1000) / 10);
+        const percent = Math.round((newTotal / targetStardust) * 1000) / 10;
         map.set(m.user_id, { total: newTotal, percent });
       }
     });
     return map;
   }, [messages, targetStardust]);
 
-  // 顯示訊息過濾
   const displayedMessages = useMemo(() => {
     if (canAccessSelfOnly) {
       return messages.filter((m) => m.user_id === session?.user?.id);
     }
-    if (!isOfficial || !session?.user?.id) return messages;
+    if (!session?.user?.id) return messages;
+
     return [...messages].sort((a, b) => {
       const aIsMe = a.user_id === session.user.id;
       const bIsMe = b.user_id === session.user.id;
@@ -110,27 +101,58 @@ export function useDriftBottleModal(wish: Wish, isFulfilled: boolean) {
       if (!aIsMe && bIsMe) return 1;
       return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
     });
-  }, [messages, canAccessSelfOnly, isOfficial, session?.user?.id]);
+  }, [messages, canAccessSelfOnly, session?.user?.id]);
 
-  // 管理員：優質註記
+  // 🌟 將原先混在 JSX 裡面的文字計算抽至 Hook
+  const modalTitles = useMemo(() => {
+    if (isOfficial) {
+      return {
+        title: '夢沙星空意見箱 · 公開留言板',
+        subtitle: '官方公開交流區 · 支持星空並留下寶貴建言',
+        footer: '您的寶貴建言將於投入星星時永久留存，管理團隊將定期檢閱回饋',
+      };
+    }
+    if (isFulfilled && !isExpiredFromHome) {
+      return {
+        title: '心願達成公開慶典 · 星砂加油牆',
+        subtitle: '🎉 今日全站公開同慶 · 共同沐浴達成微光',
+        footer: '🎉 今日為達成公開慶典，明日凌晨起將永久封藏至追番空間',
+      };
+    }
+    if (isFulfilled && isExpiredFromHome) {
+      return {
+        title: '心願追番結局室 · 私密星語存檔',
+        subtitle: '🔒 已換日封藏至追番牆 · 僅限許願者與支持者重溫結局',
+        footer: '純粹善意 · 每一句加油話語都點亮了前行築夢的光芒',
+      };
+    }
+    if (isOwner) {
+      return {
+        title: '星旅人實時加油室 (許願者專屬)',
+        subtitle: '✨ 實時見證陌生星旅人為您投下的每一次鼓勵與加油',
+        footer: '純粹善意 · 每一句加油話語都點亮了前行築夢的光芒',
+      };
+    }
+    return {
+      title: '我的心願加油紀錄',
+      subtitle: '⭐ 記錄您為這段夢想點亮的星光與話語',
+      footer: '純粹善意 · 每一句加油話語都點亮了前行築夢的光芒',
+    };
+  }, [isOfficial, isFulfilled, isExpiredFromHome, isOwner]);
+
   const handleSetReaction = useCallback(async (msgId: string, tag: string) => {
     try {
       await supabase.from('investments').update({ reaction: tag } as unknown as Partial<Investment>).eq('id', msgId);
-      setMessages((prev) =>
-        prev.map((m) => (m.id === msgId ? ({ ...m, reaction: tag } as unknown as Investment) : m))
-      );
+      setMessages((prev) => prev.map((m) => (m.id === msgId ? ({ ...m, reaction: tag } as unknown as Investment) : m)));
     } catch (err: unknown) {
       alert(`註記失敗: ${err instanceof Error ? err.message : '未知錯誤'}`);
     }
   }, []);
 
-  // 管理員：非破壞性遮蔽
   const handleToggleHideMessage = useCallback(async (msgId: string, currentHidden: boolean) => {
     try {
       await supabase.from('investments').update({ is_hidden: !currentHidden }).eq('id', msgId);
-      setMessages((prev) =>
-        prev.map((m) => (m.id === msgId ? { ...m, is_hidden: !currentHidden } : m))
-      );
+      setMessages((prev) => prev.map((m) => (m.id === msgId ? { ...m, is_hidden: !currentHidden } : m)));
     } catch (err: unknown) {
       alert(`處置失敗: ${err instanceof Error ? err.message : '未知錯誤'}`);
     }
@@ -148,6 +170,7 @@ export function useDriftBottleModal(wish: Wish, isFulfilled: boolean) {
     loading,
     displayedMessages,
     userContributionMap,
+    modalTitles,
     isAdmin,
     session,
     handleSetReaction,

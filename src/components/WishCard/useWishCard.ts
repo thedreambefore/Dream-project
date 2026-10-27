@@ -9,9 +9,9 @@ import type { CardTier } from './types';
 export function useWishCard(
   wish: Wish,
   onCardDeleted?: (wishId: string) => void,
-  onWishUpdated?: (updatedWish: Wish) => void // 👈 增加第 3 個參數
+  onWishUpdated?: (updatedWish: Wish) => void
 ) {
-  const { session, isBanned, isAdmin, refreshProfile } = useAuth();
+  const { session, isBanned, isAdmin, refreshProfile, openAuthModal } = useAuth();
   const cardContainerRef = useRef<HTMLDivElement>(null);
 
   const [isFlipped, setIsFlipped] = useState(false);
@@ -26,7 +26,6 @@ export function useWishCard(
   const isOfficial = wish.id === OFFICIAL_SPONSOR_ID;
   const targetPrice = Number(wish.product_price || 1);
 
-  // 本地即時響應星塵與個人贊助額度
   const [localStardust, setLocalStardust] = useState(Number(wish.current_stardust || 0));
   const [myLocalInvest, setMyLocalInvest] = useState(Number(wish.myInvestAmount || 0));
 
@@ -34,8 +33,7 @@ export function useWishCard(
     setLocalStardust(Number(wish.current_stardust || 0));
     setMyLocalInvest(Number(wish.myInvestAmount || 0));
   }, [wish.current_stardust, wish.myInvestAmount]);
-  
-  // 進度與達成狀態
+
   const progress = Math.round((localStardust / targetPrice) * 100);
   const isFulfilled = wish.status === 'fulfilled' || wish.status === 'full_funded' || progress >= 100;
   const isOverFunded = progress > 100;
@@ -43,13 +41,11 @@ export function useWishCard(
   const isNearComplete = progress >= 90 && progress < 100;
   const isCardShining = isOfficial || isFulfilled;
 
-  // 動態個人貢獻佔比
   const ratio = useMemo(() => {
     if (myLocalInvest <= 0) return 0;
     return Math.round((myLocalInvest / targetPrice) * 1000) / 10;
   }, [myLocalInvest, targetPrice]);
 
-  // 四階段守護階梯樣式
   const tier: CardTier | null = useMemo(() => {
     if (ratio <= 0) return null;
     if (ratio >= 50) {
@@ -88,7 +84,6 @@ export function useWishCard(
     };
   }, [ratio]);
 
-  // 3D 卡牌滑鼠視差計算
   const handleMouseMove = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
     const card = cardContainerRef.current;
     if (!card) return;
@@ -128,8 +123,11 @@ export function useWishCard(
   const handleToggleBookmark = useCallback(
     async (e: React.MouseEvent) => {
       e.stopPropagation();
-      if (!session?.user?.id) return alert('請先登入後再加入追番收藏！');
-      if (isBanned) return alert('您的帳號已被停權，無法使用收藏功能。');
+      if (!session?.user?.id) {
+        openAuthModal();
+        return;
+      }
+      if (isBanned) return alert('您的帳號已被停權，無法使用追番功能。');
 
       try {
         if (isBookmarked) {
@@ -143,7 +141,20 @@ export function useWishCard(
         console.error('收藏切換失敗:', err);
       }
     },
-    [session?.user?.id, isBanned, isBookmarked, wish.id]
+    [session?.user?.id, isBanned, isBookmarked, wish.id, openAuthModal]
+  );
+
+  // 🌟 核心防線：未登入時點擊投星支持，直接喚起全域 AuthModal
+  const handleOpenInvest = useCallback(
+    (e: React.MouseEvent) => {
+      e.stopPropagation();
+      if (!session) {
+        openAuthModal();
+        return;
+      }
+      setShowInvest(true);
+    },
+    [session, openAuthModal]
   );
 
   const handleConfirmAction = useCallback(async () => {
@@ -186,14 +197,10 @@ export function useWishCard(
     [isAdmin, wish.id, wish.product_name, onCardDeleted]
   );
 
-  // 投星完成後的即時響應
-   const handleInvestClosed = useCallback(
-    () => {
-      setShowInvest(false);
-      refreshProfile();
-    },
-    [refreshProfile]
-  );
+  const handleInvestClosed = useCallback(() => {
+    setShowInvest(false);
+    refreshProfile();
+  }, [refreshProfile]);
 
   return {
     cardContainerRef,
@@ -224,6 +231,7 @@ export function useWishCard(
     handleMouseMove,
     handleMouseLeave,
     handleToggleBookmark,
+    handleOpenInvest,
     handleConfirmAction,
     handleDeleteCard,
     handleInvestClosed,
