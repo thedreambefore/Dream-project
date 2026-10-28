@@ -102,10 +102,10 @@ export function usePublish(onRequireVerify: () => void) {
       if (publishBlockedReason) return setError(publishBlockedReason);
       if (!tagName.trim()) return setError('請選擇分類標籤');
 
-      // 🌟 違禁詞綜合檢驗
+      // 🌟 風控防線：僅提示包含違禁詞，不透露具體詞彙以防試探
       const violation = await checkTextViolations([title, story, promise]);
       if (violation.hasBlocked) {
-        return setError(`內容包含封禁詞 [ ${violation.blockedWord} ]，請修正後再提交。`);
+        return setError('內容包含違禁詞，請修正後再提交。');
       }
 
       if (title.length > 20) return setError('標題不能超過 20 字');

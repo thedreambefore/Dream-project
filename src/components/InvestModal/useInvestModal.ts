@@ -76,11 +76,11 @@ export function useInvestModal(story: Wish, onClose: (addedAmount?: number) => v
       return;
     }
 
-    // 🌟 核心封禁：加油留言違禁詞即時阻斷
+    // 🌟 風控防線：留言違禁詞模糊攔截，不洩漏具體詞彙
     if (message.trim()) {
       const violation = await checkTextViolations([message]);
       if (violation.hasBlocked) {
-        setError(`留言內容包含封禁詞 [ ${violation.blockedWord} ]，請修正後再提交！`);
+        setError('留言內容包含違禁詞，請修正後再提交。');
         return;
       }
     }
