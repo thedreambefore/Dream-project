@@ -12,6 +12,7 @@ import {
   Sparkles,
   Coins,
   AlertTriangle,
+  RotateCcw,
 } from 'lucide-react';
 import type { Wish } from '@/types/wish';
 import type { WishCardVariant } from '../types';
@@ -58,11 +59,11 @@ export function CardBack({
 
   return (
     <div
-      onClick={(e) => e.stopPropagation()} // 🌟 阻止背面非按鈕空白處以外的誤觸
       className={`absolute inset-0 w-full h-full rounded-2xl glass-strong glow-border p-5 flex flex-col justify-between backface-hidden rotate-y-180 bg-zinc-950 border shadow-2xl z-20 ${
         isBlocked ? 'border-red-500/60' : isLetterRejected ? 'border-purple-500/60' : 'border-amber-400/30'
       }`}
     >
+      {/* 頂部標題列 */}
       <div className="border-b border-white/10 pb-2.5">
         <div className="flex items-center justify-between text-xs text-zinc-400 mb-1">
           <span className="flex items-center gap-1 text-amber-300 truncate max-w-[200px]">
@@ -70,11 +71,14 @@ export function CardBack({
             {isOfficial ? '夢沙官方團隊' : `${wish.anonymous_nickname || '匿名星旅人'} 的心願`}
           </span>
 
-          <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
+          <div className="flex items-center gap-1.5">
             {isAdmin && (
               <button
                 type="button"
-                onClick={onDeleteCard}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onDeleteCard(e);
+                }}
                 className="p-1.5 rounded-full bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/30 transition-all cursor-pointer"
                 title="永久刪除此卡片"
               >
@@ -85,7 +89,10 @@ export function CardBack({
             {!isOfficial && (
               <button
                 type="button"
-                onClick={onToggleBookmark}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onToggleBookmark(e);
+                }}
                 className={`p-1.5 rounded-full border transition-all cursor-pointer ${
                   isBookmarked
                     ? 'bg-rose-500/20 border-rose-500/50 text-rose-400 scale-110 shadow-[0_0_10px_rgba(244,63,94,0.4)]'
@@ -100,11 +107,11 @@ export function CardBack({
         <h4 className="font-bold text-amber-100 text-sm truncate">{wish.product_name}</h4>
       </div>
 
-      {/* 🌟 1. 提案被下架警示 */}
+      {/* 核心內容區（點擊此區可自然翻轉回正面） */}
       {isBlocked ? (
-        <div className="my-2 p-3 rounded-xl bg-red-950/40 border border-red-500/40 space-y-1.5">
+        <div className="my-2 p-3 rounded-xl bg-red-950/40 border border-red-500/40 space-y-1">
           <div className="flex items-center gap-1.5 text-red-300 font-bold text-xs">
-            <AlertTriangle className="w-4 h-4 text-red-400 flex-shrink-0" />
+            <AlertTriangle className="w-3.5 h-3.5 text-red-400 flex-shrink-0" />
             <span>【此活動已被管理員下架】</span>
           </div>
           <p className="text-[11px] text-red-200/90 leading-relaxed bg-black/40 p-2 rounded-lg border border-red-500/20">
@@ -112,20 +119,14 @@ export function CardBack({
           </p>
         </div>
       ) : isLetterRejected ? (
-        /* 🌟 2. 開箱信被駁回警示 */
-        <div className="my-2 p-3 rounded-xl bg-purple-950/40 border border-purple-500/40 space-y-1.5">
+        <div className="my-2 p-3 rounded-xl bg-purple-950/40 border border-purple-500/40 space-y-1">
           <div className="flex items-center gap-1.5 text-purple-300 font-bold text-xs">
-            <AlertTriangle className="w-4 h-4 text-purple-400 flex-shrink-0" />
-            <span>【開箱感謝信未通過審核】</span>
+            <AlertTriangle className="w-3.5 h-3.5 text-purple-400 flex-shrink-0" />
+            <span>【開箱感謝信未通過審查】</span>
           </div>
           <p className="text-[11px] text-purple-200/90 leading-relaxed bg-black/40 p-2 rounded-lg border border-purple-500/20">
-            駁回原因：{wish.letter_reject_reason || '請補充更清晰的商品實體照或感謝內文'}
+            原因：{wish.letter_reject_reason || '請補充更清晰的商品照片或詳細感謝心得'}
           </p>
-          {isOwner && onOpenLetterModal && (
-            <p className="text-[10px] text-amber-300 pt-0.5">
-              提示：請點擊下方「修改開箱信」重新提交審查。
-            </p>
-          )}
         </div>
       ) : (
         <div className="relative my-2 flex-1 overflow-hidden">
@@ -144,7 +145,8 @@ export function CardBack({
         </div>
       )}
 
-      <div className="flex justify-between items-center text-xs text-zinc-400 mb-2.5 px-0.5 font-mono" onClick={(e) => e.stopPropagation()}>
+      {/* 資訊與快捷按鈕列 */}
+      <div className="flex justify-between items-center text-xs text-zinc-400 mb-2 px-0.5 font-mono">
         <div className="flex items-center gap-2">
           <span>進度 {progress}%</span>
           {wish.product_url && (
@@ -152,7 +154,8 @@ export function CardBack({
               href={wish.product_url}
               target="_blank"
               rel="noreferrer"
-              className="text-[10px] text-sky-400 hover:underline flex items-center gap-0.5"
+              onClick={(e) => e.stopPropagation()}
+              className="text-[10px] text-sky-400 hover:underline flex items-center gap-0.5 cursor-pointer"
             >
               <ExternalLink className="w-2.5 h-2.5" /> 檢視商品
             </a>
@@ -163,7 +166,10 @@ export function CardBack({
           {variant !== 'preview' && (
             <button
               type="button"
-              onClick={onOpenDriftModal}
+              onClick={(e) => {
+                e.stopPropagation();
+                onOpenDriftModal(e);
+              }}
               className={`text-[10px] px-2.5 py-1 rounded-md border flex items-center gap-1 transition-all cursor-pointer ${
                 isOfficial || isFulfilled || isOwner
                   ? 'bg-amber-500/15 border-amber-400/30 text-amber-200 hover:bg-amber-500/25'
@@ -177,7 +183,10 @@ export function CardBack({
           {!isOfficial && (
             <button
               type="button"
-              onClick={onOpenActionModal}
+              onClick={(e) => {
+                e.stopPropagation();
+                onOpenActionModal(e);
+              }}
               className="text-[10px] px-2 py-0.5 rounded-md bg-white/5 border border-white/10 text-zinc-400 hover:text-white flex items-center gap-1 transition-all cursor-pointer"
             >
               {isAdmin ? <><ShieldAlert className="w-3 h-3 text-red-400" /> 下架</> : <><Flag className="w-3 h-3 text-amber-400" /> 檢舉</>}
@@ -186,8 +195,8 @@ export function CardBack({
         </div>
       </div>
 
-      {/* 🌟 操作按鈕列：徹底加強 stopPropagation 與顯眼度 */}
-      <div className="space-y-1.5 relative z-30" onClick={(e) => e.stopPropagation()}>
+      {/* 主操作按鈕（僅按鈕本身阻斷冒泡，其餘留白皆可點擊翻面） */}
+      <div className="space-y-1.5">
         {(variant === 'myWishes' || (isOwner && (isBlocked || isLetterRejected))) && (
           <div className="flex gap-2">
             {onOpenEditModal && wish.status !== 'fulfilled' && (
@@ -230,7 +239,10 @@ export function CardBack({
         {variant === 'tracked' && !isOwner && (
           <button
             type="button"
-            onClick={onOpenDriftModal}
+            onClick={(e) => {
+              e.stopPropagation();
+              onOpenDriftModal(e);
+            }}
             className="w-full py-2.5 bg-amber-500/20 hover:bg-amber-500/30 border border-amber-400/40 text-amber-200 text-xs font-bold rounded-xl flex items-center justify-center gap-1.5 transition-all cursor-pointer"
           >
             <Sparkles className="w-3.5 h-3.5 text-amber-400" />
@@ -241,8 +253,11 @@ export function CardBack({
         {variant === 'market' && !isBlocked && (
           <button
             type="button"
-            onClick={onOpenInvestModal}
-            className="w-full py-3 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 transition-all shadow-lg cursor-pointer bg-gradient-to-r from-amber-500 to-yellow-600 hover:from-amber-400 hover:to-yellow-500 text-zinc-950 shadow-amber-500/20"
+            onClick={(e) => {
+              e.stopPropagation();
+              onOpenInvestModal(e);
+            }}
+            className="w-full py-2.5 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 transition-all shadow-lg cursor-pointer bg-gradient-to-r from-amber-500 to-yellow-600 hover:from-amber-400 hover:to-yellow-500 text-zinc-950 shadow-amber-500/20"
           >
             <Coins className="w-3.5 h-3.5 fill-current" />
             {isOfficial
@@ -254,6 +269,13 @@ export function CardBack({
               : '購買星星支持他'}
           </button>
         )}
+
+        {/* 🌟 背面翻轉引導列（點擊自然冒泡翻回正面） */}
+        <div className="text-center pt-1">
+          <p className="text-[10px] text-zinc-400 hover:text-amber-300 transition-colors flex items-center justify-center gap-1 font-medium cursor-pointer">
+            <RotateCcw className="w-3 h-3 text-amber-400/80" /> 點擊卡片翻回正面
+          </p>
+        </div>
       </div>
     </div>
   );
