@@ -1,4 +1,5 @@
-import { CheckCircle2, PackageCheck, Users, Megaphone, Tag } from 'lucide-react';
+// src/pages/AdminConsole/components/AdminTabBar.tsx
+import { CheckCircle2, PackageCheck, Users, Layers, Megaphone, Tag } from 'lucide-react';
 import type { AdminTab } from '../types';
 
 interface Props {
@@ -10,6 +11,7 @@ const TABS: { id: AdminTab; label: string; icon: React.ComponentType<{ className
   { id: 'pending', label: '待審核心願', icon: CheckCircle2 },
   { id: 'moderation', label: '巡檢與出貨', icon: PackageCheck },
   { id: 'users', label: '星旅人名冊', icon: Users },
+  { id: 'allCards', label: '全站卡片庫', icon: Layers },
   { id: 'announcements', label: '公告廣播部署', icon: Megaphone },
   { id: 'tags', label: '標籤庫管理', icon: Tag },
 ];

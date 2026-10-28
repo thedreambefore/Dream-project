@@ -1,6 +1,7 @@
+// src/pages/AdminConsole/types.ts
 import type { Wish, Tag, Announcement } from '@/types/wish';
 
-export type AdminTab = 'pending' | 'moderation' | 'users' | 'announcements' | 'tags';
+export type AdminTab = 'pending' | 'moderation' | 'users' | 'allCards' | 'announcements' | 'tags';
 
 export interface AdminConsoleProps {
   onClose: () => void;

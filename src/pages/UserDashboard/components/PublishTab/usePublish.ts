@@ -2,9 +2,11 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 import { useAuth } from '@/context/AuthContext';
-import type { Tag } from '@/types/wish';
-
-const SENSITIVE_WORDS = ['詐騙', '匯款', '違禁品', '賭博', '毒品', '槍械', '代購', '眾籌', '募資'];
+import {
+  fetchSensitiveWords,
+  checkCanPublishNewWish,
+} from '@/services/complianceService';
+import type { Tag, Wish } from '@/types/wish';
 
 export function usePublish(onRequireVerify: () => void) {
   const { session, profile, isBanned } = useAuth();
@@ -13,7 +15,7 @@ export function usePublish(onRequireVerify: () => void) {
   const [story, setStory] = useState('');
   const [promise, setPromise] = useState('');
 
-  // 🌟 運費快捷選項：商品原價 + 勾選超商運費 (+NT$ 60)
+  // 運費快捷選項：商品原價 + 勾選超商運費 (+NT$ 60)
   const [basePrice, setBasePrice] = useState<number>(500);
   const [hasShippingFee, setHasShippingFee] = useState<boolean>(false);
 
@@ -31,6 +33,30 @@ export function usePublish(onRequireVerify: () => void) {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
+
+  // 🌟 單一心願約束狀態
+  const [isCheckingConstraint, setIsCheckingConstraint] = useState(true);
+  const [publishBlockedReason, setPublishBlockedReason] = useState<string | null>(null);
+  const [blockingWish, setBlockingWish] = useState<Wish | null>(null);
+
+  // 檢查是否符合發布條件
+  const verifyEligibility = useCallback(async () => {
+    if (!session?.user?.id) return;
+    setIsCheckingConstraint(true);
+    const result = await checkCanPublishNewWish(session.user.id);
+    if (!result.canPublish) {
+      setPublishBlockedReason(result.reason || '尚有未完成的心願活動');
+      setBlockingWish(result.blockingWish || null);
+    } else {
+      setPublishBlockedReason(null);
+      setBlockingWish(null);
+    }
+    setIsCheckingConstraint(false);
+  }, [session?.user?.id]);
+
+  useEffect(() => {
+    verifyEligibility();
+  }, [verifyEligibility]);
 
   useEffect(() => {
     supabase
@@ -99,12 +125,20 @@ export function usePublish(onRequireVerify: () => void) {
         return;
       }
 
+      // 再次進行發布資格閘門校驗
+      if (publishBlockedReason) {
+        setError(publishBlockedReason);
+        return;
+      }
+
       if (!tagName.trim()) {
         setError('請選擇分類標籤（如無標籤請聯絡管理員設定）');
         return;
       }
 
-      for (const word of SENSITIVE_WORDS) {
+      // 🌟 動態違禁詞校驗
+      const currentSensitiveWords = await fetchSensitiveWords();
+      for (const word of currentSensitiveWords) {
         if (title.includes(word) || story.includes(word) || promise.includes(word)) {
           setError(`防護盾牌提示：內容包含敏感詞 [ ${word} ]，請修正後再提交。`);
           return;
@@ -159,6 +193,7 @@ export function usePublish(onRequireVerify: () => void) {
         setProductUrl('');
         setImageBase64(null);
         setHasShippingFee(false);
+        verifyEligibility();
       } catch (err: unknown) {
         setError(`發布失敗: ${err instanceof Error ? err.message : '請確認網路狀態'}`);
       } finally {
@@ -169,6 +204,7 @@ export function usePublish(onRequireVerify: () => void) {
       isBanned,
       profile?.is_phone_verified,
       onRequireVerify,
+      publishBlockedReason,
       tagName,
       title,
       story,
@@ -178,6 +214,7 @@ export function usePublish(onRequireVerify: () => void) {
       session?.user?.id,
       coverEmoji,
       imageBase64,
+      verifyEligibility,
     ]
   );
 
@@ -207,7 +244,11 @@ export function usePublish(onRequireVerify: () => void) {
     error,
     success,
     setSuccess,
+    isCheckingConstraint,
+    publishBlockedReason,
+    blockingWish,
     handleImageChange,
     handlePublishClick,
+    verifyEligibility,
   };
 }

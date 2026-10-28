@@ -11,8 +11,8 @@ export interface UserProfile {
   wallet_balance: number;
   phone?: string | null;
   address?: string | null;
-  id_number?: string | null;        // 🌟 身分證字號（稅務所得申報用）
-  domicile_address?: string | null; // 🌟 戶籍地址（免扣繳憑單寄送地址）
+  id_number?: string | null;        // 身分證字號（稅務所得申報用）
+  domicile_address?: string | null; // 戶籍地址（免扣繳憑單寄送地址）
   created_at?: string;
 }
 
@@ -50,7 +50,7 @@ export interface Wish {
   created_at: string;
   updated_at?: string;
   funded_at?: string | null;
-  
+
   // 前端關聯運算欄位
   anonymous_nickname?: string | null;
   myInvestAmount?: number;
@@ -95,5 +95,27 @@ export interface Tag {
   name: string;
   icon: string;
   sort_order: number;
+  created_at?: string;
+}
+
+// 🌟 新增：自訂違禁詞實體
+export interface SensitiveWord {
+  id: string;
+  word: string;
+  created_at: string;
+}
+
+// 🌟 新增：贈禮所得稅申報留存紀錄實體
+export interface TaxDeclarationRecord {
+  id?: string;
+  wish_id: string;
+  user_id: string;
+  product_name: string;
+  amount: number;
+  real_name: string;
+  id_number: string;
+  domicile_address: string;
+  phone?: string | null;
+  shipping_address?: string | null;
   created_at?: string;
 }

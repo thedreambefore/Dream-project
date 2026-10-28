@@ -15,6 +15,7 @@ export function useShippingModal(
   const [submitting, setSubmitting] = useState(false);
   const [loadingCreator, setLoadingCreator] = useState(true);
   const [creatorTaxInfo, setCreatorTaxInfo] = useState<{
+    real_name: string | null;
     id_number: string | null;
     domicile_address: string | null;
   } | null>(null);
@@ -26,7 +27,7 @@ export function useShippingModal(
       setLoadingCreator(true);
       const { data } = await supabase
         .from('users')
-        .select('id_number, domicile_address')
+        .select('real_name, id_number, domicile_address')
         .eq('id', shippingStory.user_id)
         .maybeSingle();
 
@@ -37,7 +38,12 @@ export function useShippingModal(
   }, [shippingStory.user_id]);
 
   const isShippingFrozen = useMemo(() => {
-    return isTaxThresholdReached && (!creatorTaxInfo?.id_number || !creatorTaxInfo?.domicile_address);
+    return (
+      isTaxThresholdReached &&
+      (!creatorTaxInfo?.id_number ||
+        !creatorTaxInfo?.domicile_address ||
+        !creatorTaxInfo?.real_name)
+    );
   }, [isTaxThresholdReached, creatorTaxInfo]);
 
   const handleToggleHide = useCallback(async (invId: string, currentHidden: boolean) => {
@@ -48,18 +54,21 @@ export function useShippingModal(
   }, []);
 
   const handleConfirmShipment = useCallback(async () => {
-    if (isShippingFrozen) return alert('【寄送凍結】提案人尚未補齊所得稅申報所需之身分證字號與戶籍地址！');
+    if (isShippingFrozen) {
+      alert('【寄送凍結】提案人尚未補齊所得稅申報所需之真實姓名、身分證字號與戶籍地址！');
+      return;
+    }
     setSubmitting(true);
     try {
-      await fulfillWishAndSettleHonor(shippingStory.id, adminBlessing);
-      alert('已完成活動贈禮寄送審核！支持者榮譽點數已全數結算！');
+      await fulfillWishAndSettleHonor(shippingStory, adminBlessing);
+      alert('已完成活動贈禮寄送審核！支持者榮譽點數已全數結算，所得稅申報資料已存檔。');
       onSuccess();
     } catch (e: unknown) {
       alert(`出貨失敗: ${e instanceof Error ? e.message : '未知錯誤'}`);
     } finally {
       setSubmitting(false);
     }
-  }, [isShippingFrozen, shippingStory.id, adminBlessing, onSuccess]);
+  }, [isShippingFrozen, shippingStory, adminBlessing, onSuccess]);
 
   return {
     investments,

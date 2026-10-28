@@ -5,6 +5,7 @@ import { AdminTabBar } from './components/AdminTabBar';
 import { PendingTab } from './components/PendingTab';
 import { ModerationTab } from './components/ModerationTab';
 import { UsersTab } from './components/UsersTab';
+import { AllCardsTab } from './components/AllCardsTab';
 import { AnnouncementsTab } from './components/AnnouncementsTab';
 import { TagsTab } from './components/TagsTab';
 import { useAdminConsole } from './useAdminConsole';
@@ -20,12 +21,7 @@ export function AdminConsole({ onClose, onGoHome }: AdminConsoleProps) {
           <AlertTriangle className="w-12 h-12 text-red-400 mx-auto mb-4" />
           <h2 className="text-lg font-bold text-red-300 mb-2">權限不足</h2>
           <p className="text-xs text-zinc-400 mb-4">此核心區域僅限星空管理團隊存取</p>
-          <button
-            onClick={onGoHome}
-            className="w-full bg-amber-500/15 border border-amber-400/30 text-amber-200 rounded-xl py-2.5 text-xs font-bold hover:bg-amber-500/25 transition-all cursor-pointer"
-          >
-            返回首頁
-          </button>
+          <button onClick={onGoHome} className="w-full bg-amber-500/15 border border-amber-400/30 text-amber-200 rounded-xl py-2.5 text-xs font-bold hover:bg-amber-500/25 transition-all cursor-pointer">返回首頁</button>
         </div>
       </div>
     );
@@ -39,9 +35,12 @@ export function AdminConsole({ onClose, onGoHome }: AdminConsoleProps) {
         {activeTab === 'pending' && <PendingTab />}
         {activeTab === 'moderation' && <ModerationTab />}
         {activeTab === 'users' && <UsersTab />}
+        {activeTab === 'allCards' && <AllCardsTab />}
         {activeTab === 'announcements' && <AnnouncementsTab />}
         {activeTab === 'tags' && <TagsTab />}
       </main>
     </div>
   );
 }
+
+export default AdminConsole;
