@@ -1,5 +1,5 @@
 // src/components/WishCard/components/CardFront.tsx
-import { Sparkles, CheckCircle2, Coins, Crown, RotateCw } from 'lucide-react';
+import { Sparkles, CheckCircle2, Coins, Crown, RotateCw, ShieldAlert } from 'lucide-react';
 import { ConstellationBackground } from './ConstellationBackground';
 import { CardIcon } from './CardIcon';
 import type { Wish } from '@/types/wish';
@@ -22,14 +22,21 @@ export function CardFront({
   wish, tier, isOfficial, isCardShining, isOverFunded, isExactlyFunded, isNearComplete, progress, localStardust, targetPrice,
 }: Props) {
   const hasImage = Boolean(wish.image_url);
+  const isBlocked = wish.status === 'blocked';
 
   return (
     <div className={`absolute inset-0 w-full h-full rounded-2xl glass overflow-hidden backface-hidden flex flex-col justify-between p-5 bg-zinc-950/90 shadow-2xl border transition-all ${
-      tier ? tier.cardClass : isCardShining ? 'holo-border-gold' : 'border-white/10'
+      isBlocked
+        ? 'border-red-500/60 shadow-red-950/40'
+        : tier
+        ? tier.cardClass
+        : isCardShining
+        ? 'holo-border-gold'
+        : 'border-white/10'
     }`}>
       <ConstellationBackground wishId={wish.id} hasImage={hasImage} />
-      {isCardShining && <div className="trainer-gallery-shine" />}
-      {tier && <div className={`absolute inset-0 rounded-inherit pointer-events-none z-30 ${tier.glimmerClass}`} />}
+      {isCardShining && !isBlocked && <div className="trainer-gallery-shine" />}
+      {tier && !isBlocked && <div className={`absolute inset-0 rounded-inherit pointer-events-none z-30 ${tier.glimmerClass}`} />}
 
       {hasImage && (
         <div className="absolute inset-0 pointer-events-none overflow-hidden -z-10">
@@ -41,7 +48,11 @@ export function CardFront({
 
       <div className="relative z-30">
         <div className="flex items-center justify-between mb-3">
-          {tier ? (
+          {isBlocked ? (
+            <span className="text-xs px-2.5 py-0.5 rounded-full bg-red-500/20 border border-red-500/50 text-red-300 font-bold flex items-center gap-1 backdrop-blur-md">
+              <ShieldAlert className="w-3.5 h-3.5" /> 已下架駁回
+            </span>
+          ) : tier ? (
             <span className={`text-[11px] px-2.5 py-0.5 rounded-full border font-mono flex items-center gap-1 backdrop-blur-md ${tier.badgeClass}`}>
               {tier.level === 4 && <Crown className="w-3 h-3 text-amber-300" />}
               {tier.label}
@@ -56,6 +67,10 @@ export function CardFront({
           {isOfficial ? (
             <span className="text-[10px] font-bold text-amber-300 bg-amber-500/20 px-2.5 py-0.5 rounded-full border border-amber-400/30 flex items-center gap-1">
               <Sparkles className="w-3 h-3 text-amber-400" /> 官方常駐
+            </span>
+          ) : isBlocked ? (
+            <span className="text-[10px] font-mono text-red-400 bg-red-950/60 px-2 py-0.5 rounded-md border border-red-500/30">
+              審核未過
             </span>
           ) : isOverFunded ? (
             <span className="text-[10px] px-2.5 py-0.5 rounded-full badge-prismatic-white flex items-center gap-1">
@@ -81,8 +96,16 @@ export function CardFront({
       <div className="relative z-30 space-y-3.5">
         <div className="bg-black/60 border border-white/10 rounded-xl p-2.5 backdrop-blur-md">
           <p className="text-[11px] text-zinc-300 line-clamp-1 leading-relaxed">
-            <span className="text-amber-300 font-bold">終章承諾：</span>
-            {wish.promise_text || '心願達成後公開開箱感謝信與成果！'}
+            {isBlocked ? (
+              <span className="text-red-300 font-bold flex items-center gap-1">
+                <ShieldAlert className="w-3.5 h-3.5" /> 此心願已被暫時下架，點擊翻面查閱原因
+              </span>
+            ) : (
+              <>
+                <span className="text-amber-300 font-bold">終章承諾：</span>
+                {wish.promise_text || '心願達成後公開開箱感謝信與成果！'}
+              </>
+            )}
           </p>
         </div>
 
@@ -97,7 +120,7 @@ export function CardFront({
 
           <div className="w-full h-2 rounded-full bg-white/10 overflow-hidden">
             <div
-              className={`h-full rounded-full transition-all duration-500 ${isOverFunded ? 'bg-gradient-to-r from-amber-400 via-white to-pink-300 shadow-[0_0_10px_rgba(255,255,255,0.8)]' : 'bg-gradient-to-r from-amber-500 via-yellow-400 to-amber-200'}`}
+              className={`h-full rounded-full transition-all duration-500 ${isBlocked ? 'bg-red-500/50' : isOverFunded ? 'bg-gradient-to-r from-amber-400 via-white to-pink-300' : 'bg-gradient-to-r from-amber-500 via-yellow-400 to-amber-200'}`}
               style={{ width: `${Math.min(100, progress)}%` }}
             />
           </div>
@@ -105,7 +128,7 @@ export function CardFront({
 
         <div className="text-center pt-0.5">
           <p className="text-[11px] text-zinc-400 group-hover:text-amber-300 transition-colors flex items-center justify-center gap-1 font-medium">
-            <RotateCw className="w-3 h-3 text-amber-400/80" /> 點擊卡片翻面查閱
+            <RotateCw className="w-3 h-3 text-amber-400/80" /> 點擊卡片翻面查閱詳細資訊
           </p>
         </div>
       </div>

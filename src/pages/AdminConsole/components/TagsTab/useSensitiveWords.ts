@@ -1,6 +1,10 @@
 // src/pages/AdminConsole/components/TagsTab/useSensitiveWords.ts
 import { useState, useEffect, useCallback } from 'react';
-import { supabase } from '@/lib/supabaseClient';
+import {
+  getCustomSensitiveWords,
+  addSensitiveWord,
+  deleteSensitiveWord,
+} from '@/services/complianceService';
 import type { SensitiveWord } from '@/types/wish';
 
 export function useSensitiveWords() {
@@ -11,11 +15,8 @@ export function useSensitiveWords() {
 
   const loadWords = useCallback(async () => {
     setLoading(true);
-    const { data } = await supabase
-      .from('sensitive_words')
-      .select('*')
-      .order('created_at', { ascending: false });
-    if (data) setWords(data as SensitiveWord[]);
+    const list = await getCustomSensitiveWords();
+    setWords(list);
     setLoading(false);
   }, []);
 
@@ -27,33 +28,33 @@ export function useSensitiveWords() {
     async (e: React.FormEvent) => {
       e.preventDefault();
       const clean = inputWord.trim();
-      if (!clean) return alert('請輸入敏感詞名稱');
+      if (!clean) return alert('請輸入欲封禁的詞彙');
+
       setSubmitting(true);
       try {
-        const { error } = await supabase.from('sensitive_words').insert({ word: clean });
-        if (error) throw error;
+        const newWordObj = await addSensitiveWord(clean);
+        setWords((prev) => [newWordObj, ...prev]);
         setInputWord('');
-        await loadWords();
       } catch (err: unknown) {
-        alert(`新增失敗: ${err instanceof Error ? err.message : '未知錯誤'}`);
+        alert(err instanceof Error ? err.message : '新增失敗');
       } finally {
         setSubmitting(false);
       }
     },
-    [inputWord, loadWords]
+    [inputWord]
   );
 
   const handleDeleteWord = useCallback(
     async (id: string, word: string) => {
-      if (!confirm(`確定要自違禁詞庫中移除「${word}」嗎？`)) return;
+      if (!confirm(`確定要解禁詞彙「${word}」嗎？`)) return;
       try {
-        await supabase.from('sensitive_words').delete().eq('id', id);
-        await loadWords();
+        await deleteSensitiveWord(id);
+        setWords((prev) => prev.filter((w) => w.id !== id));
       } catch (err: unknown) {
-        alert(`刪除失敗: ${err instanceof Error ? err.message : '未知錯誤'}`);
+        alert(err instanceof Error ? err.message : '移除失敗');
       }
     },
-    [loadWords]
+    []
   );
 
   return {

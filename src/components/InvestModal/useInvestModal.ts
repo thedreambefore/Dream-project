@@ -2,6 +2,7 @@
 import { useState, useMemo, useCallback } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { OFFICIAL_SPONSOR_ID } from '@/lib/backend';
+import { checkTextViolations } from '@/services/complianceService';
 import {
   calculateServiceFee,
   executeStarInvestment,
@@ -26,8 +27,6 @@ export function useInvestModal(story: Wish, onClose: (addedAmount?: number) => v
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [successPaidAmount, setSuccessPaidAmount] = useState<number | null>(null);
-
-  // 🌟 付款前信箱強驗證彈窗開關
   const [showEmailVerify, setShowEmailVerify] = useState(false);
 
   const feeDetails: FeeCalculation = useMemo(() => {
@@ -59,7 +58,6 @@ export function useInvestModal(story: Wish, onClose: (addedAmount?: number) => v
       return;
     }
 
-    // 🌟 核心防線：未驗證信箱者，禁止付款並立刻觸發認證視窗
     if (!profile?.is_phone_verified) {
       setShowEmailVerify(true);
       return;
@@ -76,6 +74,15 @@ export function useInvestModal(story: Wish, onClose: (addedAmount?: number) => v
     if (message.length > 50) {
       setError('互動留言不得超過 50 字');
       return;
+    }
+
+    // 🌟 核心封禁：加油留言違禁詞即時阻斷
+    if (message.trim()) {
+      const violation = await checkTextViolations([message]);
+      if (violation.hasBlocked) {
+        setError(`留言內容包含封禁詞 [ ${violation.blockedWord} ]，請修正後再提交！`);
+        return;
+      }
     }
 
     setLoading(true);

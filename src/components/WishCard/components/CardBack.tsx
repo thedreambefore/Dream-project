@@ -11,6 +11,7 @@ import {
   MailCheck,
   Sparkles,
   Coins,
+  AlertTriangle,
 } from 'lucide-react';
 import type { Wish } from '@/types/wish';
 import type { WishCardVariant } from '../types';
@@ -51,9 +52,13 @@ export function CardBack({
   onOpenEditModal,
 }: Props) {
   const isNearComplete = progress >= 90 && progress < 100;
+  const isOwner = userId === wish.user_id;
+  const isBlocked = wish.status === 'blocked';
 
   return (
-    <div className="absolute inset-0 w-full h-full rounded-2xl glass-strong glow-border p-5 flex flex-col justify-between backface-hidden rotate-y-180 bg-zinc-950 border border-amber-400/30 shadow-2xl">
+    <div className={`absolute inset-0 w-full h-full rounded-2xl glass-strong glow-border p-5 flex flex-col justify-between backface-hidden rotate-y-180 bg-zinc-950 border shadow-2xl ${
+      isBlocked ? 'border-red-500/50' : 'border-amber-400/30'
+    }`}>
       <div className="border-b border-white/10 pb-2.5">
         <div className="flex items-center justify-between text-xs text-zinc-400 mb-1">
           <span className="flex items-center gap-1 text-amber-300 truncate max-w-[200px]">
@@ -91,18 +96,38 @@ export function CardBack({
         <h4 className="font-bold text-amber-100 text-sm truncate">{wish.product_name}</h4>
       </div>
 
-      <div className="relative my-2 flex-1 overflow-hidden">
-        <p className="text-xs text-zinc-300 leading-relaxed text-justify line-clamp-4">
-          {wish.story_text}
-        </p>
-      </div>
+      {/* 🌟 核心增強：原許願人下架駁回理由醒目提示 */}
+      {isBlocked ? (
+        <div className="my-2 p-3 rounded-xl bg-red-950/40 border border-red-500/40 space-y-1.5">
+          <div className="flex items-center gap-1.5 text-red-300 font-bold text-xs">
+            <AlertTriangle className="w-4 h-4 text-red-400 flex-shrink-0" />
+            <span>【此活動已被管理員下架】</span>
+          </div>
+          <p className="text-[11px] text-red-200/90 leading-relaxed bg-black/40 p-2 rounded-lg border border-red-500/20">
+            下架理由：{wish.block_reason || '未符合社群交流規範或商品資訊有誤'}
+          </p>
+          {isOwner && onOpenEditModal && (
+            <p className="text-[10px] text-amber-300 pt-0.5">
+              提示：您可以點擊下方「編輯修改」修正問題後重新送審。
+            </p>
+          )}
+        </div>
+      ) : (
+        <div className="relative my-2 flex-1 overflow-hidden">
+          <p className="text-xs text-zinc-300 leading-relaxed text-justify line-clamp-4">
+            {wish.story_text}
+          </p>
+        </div>
+      )}
 
-      <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl px-3 py-2 mb-2">
-        <p className="text-[11px] text-amber-200/90 leading-tight">
-          <span className="font-bold text-amber-300">終章承諾：</span>
-          {wish.promise_text || '心願達成後公開開箱感謝信與成果！'}
-        </p>
-      </div>
+      {!isBlocked && (
+        <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl px-3 py-2 mb-2">
+          <p className="text-[11px] text-amber-200/90 leading-tight">
+            <span className="font-bold text-amber-300">終章承諾：</span>
+            {wish.promise_text || '心願達成後公開開箱感謝信與成果！'}
+          </p>
+        </div>
+      )}
 
       <div className="flex justify-between items-center text-xs text-zinc-400 mb-2.5 px-0.5 font-mono">
         <div className="flex items-center gap-2">
@@ -126,28 +151,12 @@ export function CardBack({
               type="button"
               onClick={onOpenDriftModal}
               className={`text-[10px] px-2.5 py-1 rounded-md border flex items-center gap-1 transition-all ${
-                isOfficial || isFulfilled || userId === wish.user_id
+                isOfficial || isFulfilled || isOwner
                   ? 'bg-amber-500/15 border-amber-400/30 text-amber-200 hover:bg-amber-500/25'
                   : 'bg-white/5 border-white/10 text-zinc-400 hover:text-zinc-200'
               }`}
             >
-              {isOfficial ? (
-                <>
-                  <MessageCircle className="w-3 h-3 text-amber-400" /> 意見交流板
-                </>
-              ) : isFulfilled ? (
-                <>
-                  <MessageCircle className="w-3 h-3 text-amber-300" /> 加油牆 (已解鎖)
-                </>
-              ) : userId === wish.user_id ? (
-                <>
-                  <MessageCircle className="w-3 h-3 text-amber-300" /> 查看實時加油
-                </>
-              ) : (
-                <>
-                  <MessageCircle className="w-3 h-3 text-zinc-400" /> 數位加油室
-                </>
-              )}
+              <MessageCircle className="w-3 h-3 text-amber-400" /> 加油室
             </button>
           )}
 
@@ -157,15 +166,7 @@ export function CardBack({
               onClick={onOpenActionModal}
               className="text-[10px] px-2 py-0.5 rounded-md bg-white/5 border border-white/10 text-zinc-400 hover:text-white flex items-center gap-1 transition-all"
             >
-              {isAdmin ? (
-                <>
-                  <ShieldAlert className="w-3 h-3 text-red-400" /> 下架
-                </>
-              ) : (
-                <>
-                  <Flag className="w-3 h-3 text-amber-400" /> 檢舉
-                </>
-              )}
+              {isAdmin ? <><ShieldAlert className="w-3 h-3 text-red-400" /> 下架</> : <><Flag className="w-3 h-3 text-amber-400" /> 檢舉</>}
             </button>
           )}
         </div>
@@ -173,18 +174,23 @@ export function CardBack({
 
       {/* 變體操作按鈕列 */}
       <div className="space-y-1.5">
-        {variant === 'myWishes' && (
+        {(variant === 'myWishes' || (isOwner && isBlocked)) && (
           <div className="flex gap-2">
-            {onOpenEditModal && wish.status !== 'fulfilled' && (
+            {onOpenEditModal && (
               <button
                 type="button"
                 onClick={(e) => {
                   e.stopPropagation();
                   onOpenEditModal(wish);
                 }}
-                className="flex-1 py-2.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-xs font-bold rounded-xl flex items-center justify-center gap-1 cursor-pointer"
+                className={`flex-1 py-2.5 text-xs font-bold rounded-xl flex items-center justify-center gap-1 cursor-pointer transition-all ${
+                  isBlocked
+                    ? 'bg-amber-500 hover:bg-amber-400 text-zinc-950 font-black shadow-lg shadow-amber-500/20'
+                    : 'bg-zinc-800 hover:bg-zinc-700 text-zinc-200'
+                }`}
               >
-                <FileEdit className="w-3.5 h-3.5" /> 編輯送審
+                <FileEdit className="w-3.5 h-3.5" />
+                {isBlocked ? '修改內容重新送審' : '編輯送審'}
               </button>
             )}
             {(isFulfilled || progress >= 100) && onOpenLetterModal && (
@@ -203,7 +209,7 @@ export function CardBack({
           </div>
         )}
 
-        {variant === 'tracked' && (
+        {variant === 'tracked' && !isOwner && (
           <button
             type="button"
             onClick={onOpenDriftModal}
@@ -214,7 +220,7 @@ export function CardBack({
           </button>
         )}
 
-        {variant === 'market' && (
+        {variant === 'market' && !isBlocked && (
           <button
             type="button"
             onClick={onOpenInvestModal}

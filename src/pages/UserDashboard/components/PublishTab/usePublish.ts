@@ -2,10 +2,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 import { useAuth } from '@/context/AuthContext';
-import {
-  fetchSensitiveWords,
-  checkCanPublishNewWish,
-} from '@/services/complianceService';
+import { checkCanPublishNewWish, checkTextViolations } from '@/services/complianceService';
 import type { Tag, Wish } from '@/types/wish';
 
 export function usePublish(onRequireVerify: () => void) {
@@ -14,32 +11,25 @@ export function usePublish(onRequireVerify: () => void) {
   const [title, setTitle] = useState('');
   const [story, setStory] = useState('');
   const [promise, setPromise] = useState('');
-
-  // 運費快捷選項：商品原價 + 勾選超商運費 (+NT$ 60)
   const [basePrice, setBasePrice] = useState<number>(500);
   const [hasShippingFee, setHasShippingFee] = useState<boolean>(false);
 
-  const finalPrice = useMemo(() => {
-    return basePrice + (hasShippingFee ? 60 : 0);
-  }, [basePrice, hasShippingFee]);
+  const finalPrice = useMemo(() => basePrice + (hasShippingFee ? 60 : 0), [basePrice, hasShippingFee]);
 
   const [productUrl, setProductUrl] = useState('');
   const [tags, setTags] = useState<Tag[]>([]);
   const [tagName, setTagName] = useState('');
   const [coverEmoji, setCoverEmoji] = useState('Sparkles');
-
   const [imageBase64, setImageBase64] = useState<string | null>(null);
   const [compressing, setCompressing] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
 
-  // 🌟 單一心願約束狀態
   const [isCheckingConstraint, setIsCheckingConstraint] = useState(true);
   const [publishBlockedReason, setPublishBlockedReason] = useState<string | null>(null);
   const [blockingWish, setBlockingWish] = useState<Wish | null>(null);
 
-  // 檢查是否符合發布條件
   const verifyEligibility = useCallback(async () => {
     if (!session?.user?.id) return;
     setIsCheckingConstraint(true);
@@ -73,12 +63,7 @@ export function usePublish(onRequireVerify: () => void) {
 
   const handleImageChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file) return;
-
-    if (!file.type.startsWith('image/')) {
-      alert('請上傳圖片格式檔案 (JPG / PNG / WebP)');
-      return;
-    }
+    if (!file || !file.type.startsWith('image/')) return;
 
     setCompressing(true);
     const reader = new FileReader();
@@ -88,20 +73,17 @@ export function usePublish(onRequireVerify: () => void) {
         const maxWidth = 800;
         let width = img.width;
         let height = img.height;
-
         if (width > maxWidth) {
           height = Math.round((height * maxWidth) / width);
           width = maxWidth;
         }
-
         const canvas = document.createElement('canvas');
         canvas.width = width;
         canvas.height = height;
         const ctx = canvas.getContext('2d');
         if (ctx) {
           ctx.drawImage(img, 0, 0, width, height);
-          const compressedDataUrl = canvas.toDataURL('image/jpeg', 0.7);
-          setImageBase64(compressedDataUrl);
+          setImageBase64(canvas.toDataURL('image/jpeg', 0.7));
         }
         setCompressing(false);
       };
@@ -115,52 +97,21 @@ export function usePublish(onRequireVerify: () => void) {
       e.preventDefault();
       setError('');
 
-      if (isBanned) {
-        setError('🚫 您的帳號已被停權，無法發布任何心願。');
-        return;
+      if (isBanned) return setError('🚫 您的帳號已被停權，無法發布任何心願。');
+      if (!profile?.is_phone_verified) return onRequireVerify();
+      if (publishBlockedReason) return setError(publishBlockedReason);
+      if (!tagName.trim()) return setError('請選擇分類標籤');
+
+      // 🌟 違禁詞綜合檢驗
+      const violation = await checkTextViolations([title, story, promise]);
+      if (violation.hasBlocked) {
+        return setError(`內容包含封禁詞 [ ${violation.blockedWord} ]，請修正後再提交。`);
       }
 
-      if (!profile?.is_phone_verified) {
-        onRequireVerify();
-        return;
-      }
-
-      // 再次進行發布資格閘門校驗
-      if (publishBlockedReason) {
-        setError(publishBlockedReason);
-        return;
-      }
-
-      if (!tagName.trim()) {
-        setError('請選擇分類標籤（如無標籤請聯絡管理員設定）');
-        return;
-      }
-
-      // 🌟 動態違禁詞校驗
-      const currentSensitiveWords = await fetchSensitiveWords();
-      for (const word of currentSensitiveWords) {
-        if (title.includes(word) || story.includes(word) || promise.includes(word)) {
-          setError(`防護盾牌提示：內容包含敏感詞 [ ${word} ]，請修正後再提交。`);
-          return;
-        }
-      }
-
-      if (title.length > 20) {
-        setError('標題不能超過 20 字');
-        return;
-      }
-      if (story.length > 200) {
-        setError('故事內文不能超過 200 字');
-        return;
-      }
-      if (finalPrice < 50 || finalPrice > 20000) {
-        setError('心願星塵數額限定在 50 ~ 20,000 顆之間（依合規防止機會中獎稅門檻）');
-        return;
-      }
-      if (!productUrl.trim()) {
-        setError('電商商品連結不可為空，請填寫外部 B2C 電商之商品網址以供審核');
-        return;
-      }
+      if (title.length > 20) return setError('標題不能超過 20 字');
+      if (story.length > 200) return setError('故事內文不能超過 200 字');
+      if (finalPrice < 50 || finalPrice > 20000) return setError('心願星塵數額限定在 50 ~ 20,000 顆之間');
+      if (!productUrl.trim()) return setError('請填寫外部電商商品網址');
 
       setSubmitting(true);
       try {
@@ -195,60 +146,21 @@ export function usePublish(onRequireVerify: () => void) {
         setHasShippingFee(false);
         verifyEligibility();
       } catch (err: unknown) {
-        setError(`發布失敗: ${err instanceof Error ? err.message : '請確認網路狀態'}`);
+        setError(`發布失敗: ${err instanceof Error ? err.message : '連線異常'}`);
       } finally {
         setSubmitting(false);
       }
     },
-    [
-      isBanned,
-      profile?.is_phone_verified,
-      onRequireVerify,
-      publishBlockedReason,
-      tagName,
-      title,
-      story,
-      promise,
-      finalPrice,
-      productUrl,
-      session?.user?.id,
-      coverEmoji,
-      imageBase64,
-      verifyEligibility,
-    ]
+    [isBanned, profile?.is_phone_verified, onRequireVerify, publishBlockedReason, tagName, title, story, promise, finalPrice, productUrl, session?.user?.id, coverEmoji, imageBase64, verifyEligibility]
   );
 
   return {
-    title,
-    setTitle,
-    story,
-    setStory,
-    promise,
-    setPromise,
-    basePrice,
-    setBasePrice,
-    hasShippingFee,
-    setHasShippingFee,
-    finalPrice,
-    productUrl,
-    setProductUrl,
-    tags,
-    tagName,
-    setTagName,
-    coverEmoji,
-    setCoverEmoji,
-    imageBase64,
-    setImageBase64,
-    compressing,
-    submitting,
-    error,
-    success,
-    setSuccess,
-    isCheckingConstraint,
-    publishBlockedReason,
-    blockingWish,
-    handleImageChange,
-    handlePublishClick,
-    verifyEligibility,
+    title, setTitle, story, setStory, promise, setPromise,
+    basePrice, setBasePrice, hasShippingFee, setHasShippingFee, finalPrice,
+    productUrl, setProductUrl, tags, tagName, setTagName,
+    coverEmoji, setCoverEmoji, imageBase64, setImageBase64,
+    compressing, submitting, error, success, setSuccess,
+    isCheckingConstraint, publishBlockedReason, blockingWish,
+    handleImageChange, handlePublishClick, verifyEligibility,
   };
 }

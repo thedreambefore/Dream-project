@@ -1,5 +1,5 @@
 // src/pages/AdminConsole/components/TagsTab/components/SensitiveWordsSection.tsx
-import { ShieldAlert, Trash2, Plus } from 'lucide-react';
+import { ShieldBan, Trash2, Plus, Loader2 } from 'lucide-react';
 import type { SensitiveWord } from '@/types/wish';
 
 interface Props {
@@ -24,11 +24,11 @@ export function SensitiveWordsSection({
   return (
     <div className="space-y-3 pt-6 border-t border-white/10">
       <div>
-        <h3 className="text-sm font-bold text-amber-200 flex items-center gap-1.5">
-          <ShieldAlert className="w-4 h-4 text-amber-400" /> 全站自訂敏感詞 / 違禁詞庫
+        <h3 className="text-sm font-bold text-red-300 flex items-center gap-1.5">
+          <ShieldBan className="w-4 h-4 text-red-400" /> 全站違禁詞封禁庫（即時封殺心願與留言）
         </h3>
         <p className="text-[11px] text-zinc-400 mt-0.5">
-          發布願望時系統將即時比對，阻斷任何包含以下關鍵字的標題、故事與承諾。
+          在此加入的詞彙將直接阻斷所有新心願提交與投星加油留言。
         </p>
       </div>
 
@@ -37,38 +37,39 @@ export function SensitiveWordsSection({
           type="text"
           value={inputWord}
           onChange={(e) => setInputWord(e.target.value)}
-          placeholder="輸入欲封鎖的違禁詞 (如：借款、合資、保證獲利)"
-          className="flex-1 bg-zinc-950 border border-white/10 rounded-xl px-3.5 py-2 text-xs text-white focus:outline-none focus:border-amber-400/50"
+          placeholder="輸入欲封禁的詞彙 (例如：加賴、私訊、返利、借款)..."
+          className="flex-1 bg-zinc-950 border border-white/10 rounded-xl px-3.5 py-2 text-xs text-white focus:outline-none focus:border-red-400/50"
           required
         />
         <button
           type="submit"
           disabled={submitting}
-          className="px-4 py-2 bg-red-500/20 hover:bg-red-500/30 border border-red-500/40 text-red-200 font-bold rounded-xl text-xs flex items-center gap-1 cursor-pointer disabled:opacity-50"
+          className="px-4 py-2 bg-red-500/20 hover:bg-red-500/30 border border-red-500/40 text-red-200 font-bold rounded-xl text-xs flex items-center gap-1 cursor-pointer disabled:opacity-50 transition-all flex-shrink-0"
         >
-          <Plus className="w-3.5 h-3.5" /> 新增封鎖詞
+          {submitting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Plus className="w-3.5 h-3.5" />}
+          <span>封禁此詞</span>
         </button>
       </form>
 
       {loading ? (
-        <div className="text-center py-4 text-xs text-zinc-500">同步詞庫中...</div>
+        <div className="text-center py-4 text-xs text-zinc-500">載入封禁清單中...</div>
       ) : words.length === 0 ? (
         <div className="text-center py-6 border border-white/5 rounded-xl bg-zinc-900/20 text-zinc-500 text-xs">
-          目前使用系統內建核心違禁詞（代購、眾籌、募資、詐騙等）。
+          目前暫無自訂封禁詞，請由上方輸入欄封禁指定詞彙。
         </div>
       ) : (
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap gap-2 pt-1">
           {words.map((w) => (
             <div
               key={w.id}
-              className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-red-950/30 border border-red-500/30 text-red-300 text-xs font-mono"
+              className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-red-950/40 border border-red-500/30 text-red-300 text-xs font-mono shadow-sm"
             >
               <span>{w.word}</span>
               <button
                 type="button"
                 onClick={() => onDelete(w.id, w.word)}
                 className="text-red-400 hover:text-white p-0.5 rounded cursor-pointer transition-colors"
-                title="移除此敏感詞"
+                title="解除此封禁詞"
               >
                 <Trash2 className="w-3 h-3" />
               </button>
