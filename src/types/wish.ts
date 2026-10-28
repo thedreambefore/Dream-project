@@ -98,14 +98,14 @@ export interface Tag {
   created_at?: string;
 }
 
-// 🌟 新增：自訂違禁詞實體
+// 🌟 自訂違禁詞實體
 export interface SensitiveWord {
   id: string;
   word: string;
   created_at: string;
 }
 
-// 🌟 新增：贈禮所得稅申報留存紀錄實體
+// 🌟 贈禮所得稅免扣繳申報快照實體
 export interface TaxDeclarationRecord {
   id?: string;
   wish_id: string;

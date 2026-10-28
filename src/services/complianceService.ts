@@ -56,11 +56,8 @@ export async function checkTextViolations(texts: (string | null | undefined)[]):
   hasBlocked: boolean;
   blockedWord?: string;
 }> {
-  // 1. 抓取所有資料庫中的封禁詞
   const customList = await getCustomSensitiveWords();
   const allBlocked = Array.from(new Set([...FALLBACK_BLOCKED_WORDS, ...customList.map((i) => i.word)]));
-
-  // 2. 比對所有傳入的字串
   const combinedText = texts.filter(Boolean).join(' ');
 
   for (const word of allBlocked) {
@@ -72,7 +69,9 @@ export async function checkTextViolations(texts: (string | null | undefined)[]):
 }
 
 /**
- * 檢查使用者是否滿足發布新規範
+ * 檢查使用者是否滿足發布新規範：
+ * 每帳號同時只能存在「一個」進行中的活動。
+ * 前一個活動必須已送達（fulfilled）且開箱感謝信已由官方核准（approved）。
  */
 export async function checkCanPublishNewWish(userId: string): Promise<{
   canPublish: boolean;
@@ -92,6 +91,7 @@ export async function checkCanPublishNewWish(userId: string): Promise<{
     const wishes = data as Wish[];
 
     for (const w of wishes) {
+      // 情況 A：進行中、審核中或排定出貨中
       if (w.status === 'pending' || w.status === 'approved' || w.status === 'full_funded') {
         return {
           canPublish: false,
@@ -99,11 +99,13 @@ export async function checkCanPublishNewWish(userId: string): Promise<{
           reason: `您目前已有進行中的心願「${w.product_name}」。每位星旅人同時僅能開啟一個活動！`,
         };
       }
+
+      // 情況 B：贈禮已出貨，但開箱感謝信尚未通過審查
       if (w.status === 'fulfilled' && w.letter_status !== 'approved') {
         return {
           canPublish: false,
           blockingWish: w,
-          reason: `您的心願「${w.product_name}」贈禮已送達，請先完成開箱感謝信並待審核通過後，方可開啟下一個心願！`,
+          reason: `您的心願「${w.product_name}」贈禮已送達，請先前往「我的心願」撰寫開箱感謝信並待審核通過後，方可開啟下一個心願！`,
         };
       }
     }
@@ -115,11 +117,11 @@ export async function checkCanPublishNewWish(userId: string): Promise<{
 }
 
 /**
- * 儲存所得稅免扣繳申報快照
+ * 儲存所得稅免扣繳申報快照（贈禮價值 >= NT$ 1,000）
  */
-export async function recordTaxDeclarationSnapshot(record: TaxDeclarationRecord): Promise<void> {
+export async function recordTaxDeclarationSnapshot(record: TaxDeclarationRecord): Promise<boolean> {
   try {
-    await supabase.from('tax_declarations').insert([
+    const { error } = await supabase.from('tax_declarations').insert([
       {
         wish_id: record.wish_id,
         user_id: record.user_id,
@@ -132,7 +134,16 @@ export async function recordTaxDeclarationSnapshot(record: TaxDeclarationRecord)
         shipping_address: record.shipping_address || null,
       },
     ]);
+
+    if (error) {
+      console.error('❌ 稅務申報存檔資料庫回報錯誤:', error.message);
+      return false;
+    }
+
+    console.log('✅ 所得稅申報快照已安全封存至 tax_declarations 表:', record.product_name);
+    return true;
   } catch (err) {
-    console.warn('稅務申報存檔略過或表不存在:', err);
+    console.error('❌ 稅務申報連線異常:', err);
+    return false;
   }
 }

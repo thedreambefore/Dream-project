@@ -1,5 +1,5 @@
 // src/components/WishCard/components/CardFront.tsx
-import { Sparkles, CheckCircle2, Coins, Crown, RotateCw, ShieldAlert } from 'lucide-react';
+import { Sparkles, CheckCircle2, Coins, Crown, RotateCw, ShieldAlert, MailX } from 'lucide-react';
 import { ConstellationBackground } from './ConstellationBackground';
 import { CardIcon } from './CardIcon';
 import type { Wish } from '@/types/wish';
@@ -23,11 +23,14 @@ export function CardFront({
 }: Props) {
   const hasImage = Boolean(wish.image_url);
   const isBlocked = wish.status === 'blocked';
+  const isLetterRejected = wish.letter_status === 'rejected';
 
   return (
     <div className={`absolute inset-0 w-full h-full rounded-2xl glass overflow-hidden backface-hidden flex flex-col justify-between p-5 bg-zinc-950/90 shadow-2xl border transition-all ${
       isBlocked
         ? 'border-red-500/60 shadow-red-950/40'
+        : isLetterRejected
+        ? 'border-purple-500/60 shadow-purple-950/40'
         : tier
         ? tier.cardClass
         : isCardShining
@@ -35,8 +38,8 @@ export function CardFront({
         : 'border-white/10'
     }`}>
       <ConstellationBackground wishId={wish.id} hasImage={hasImage} />
-      {isCardShining && !isBlocked && <div className="trainer-gallery-shine" />}
-      {tier && !isBlocked && <div className={`absolute inset-0 rounded-inherit pointer-events-none z-30 ${tier.glimmerClass}`} />}
+      {isCardShining && !isBlocked && !isLetterRejected && <div className="trainer-gallery-shine" />}
+      {tier && !isBlocked && !isLetterRejected && <div className={`absolute inset-0 rounded-inherit pointer-events-none z-30 ${tier.glimmerClass}`} />}
 
       {hasImage && (
         <div className="absolute inset-0 pointer-events-none overflow-hidden -z-10">
@@ -50,7 +53,11 @@ export function CardFront({
         <div className="flex items-center justify-between mb-3">
           {isBlocked ? (
             <span className="text-xs px-2.5 py-0.5 rounded-full bg-red-500/20 border border-red-500/50 text-red-300 font-bold flex items-center gap-1 backdrop-blur-md">
-              <ShieldAlert className="w-3.5 h-3.5" /> 已下架駁回
+              <ShieldAlert className="w-3.5 h-3.5" /> 提案已被下架
+            </span>
+          ) : isLetterRejected ? (
+            <span className="text-xs px-2.5 py-0.5 rounded-full bg-purple-500/20 border border-purple-500/50 text-purple-300 font-bold flex items-center gap-1 backdrop-blur-md">
+              <MailX className="w-3.5 h-3.5" /> 開箱信待修正
             </span>
           ) : tier ? (
             <span className={`text-[11px] px-2.5 py-0.5 rounded-full border font-mono flex items-center gap-1 backdrop-blur-md ${tier.badgeClass}`}>
@@ -71,6 +78,10 @@ export function CardFront({
           ) : isBlocked ? (
             <span className="text-[10px] font-mono text-red-400 bg-red-950/60 px-2 py-0.5 rounded-md border border-red-500/30">
               審核未過
+            </span>
+          ) : isLetterRejected ? (
+            <span className="text-[10px] font-mono text-purple-300 bg-purple-950/60 px-2 py-0.5 rounded-md border border-purple-500/30">
+              感謝信駁回
             </span>
           ) : isOverFunded ? (
             <span className="text-[10px] px-2.5 py-0.5 rounded-full badge-prismatic-white flex items-center gap-1">
@@ -98,7 +109,11 @@ export function CardFront({
           <p className="text-[11px] text-zinc-300 line-clamp-1 leading-relaxed">
             {isBlocked ? (
               <span className="text-red-300 font-bold flex items-center gap-1">
-                <ShieldAlert className="w-3.5 h-3.5" /> 此心願已被暫時下架，點擊翻面查閱原因
+                <ShieldAlert className="w-3.5 h-3.5" /> 此活動已被下架，點擊翻面查閱原因
+              </span>
+            ) : isLetterRejected ? (
+              <span className="text-purple-300 font-bold flex items-center gap-1">
+                <MailX className="w-3.5 h-3.5" /> 開箱信曾被駁回，點擊翻面重新修正
               </span>
             ) : (
               <>
@@ -120,7 +135,7 @@ export function CardFront({
 
           <div className="w-full h-2 rounded-full bg-white/10 overflow-hidden">
             <div
-              className={`h-full rounded-full transition-all duration-500 ${isBlocked ? 'bg-red-500/50' : isOverFunded ? 'bg-gradient-to-r from-amber-400 via-white to-pink-300' : 'bg-gradient-to-r from-amber-500 via-yellow-400 to-amber-200'}`}
+              className={`h-full rounded-full transition-all duration-500 ${isBlocked ? 'bg-red-500/50' : isLetterRejected ? 'bg-purple-500/50' : isOverFunded ? 'bg-gradient-to-r from-amber-400 via-white to-pink-300' : 'bg-gradient-to-r from-amber-500 via-yellow-400 to-amber-200'}`}
               style={{ width: `${Math.min(100, progress)}%` }}
             />
           </div>

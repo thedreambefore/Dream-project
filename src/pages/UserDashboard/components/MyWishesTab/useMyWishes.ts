@@ -43,7 +43,7 @@ export function useMyWishes() {
 
   useEffect(() => {
     loadMyWishes();
-    refreshProfile(); // 確保切換進心願追蹤館時取得最新 profile 稅務資訊
+    refreshProfile();
   }, [loadMyWishes, refreshProfile]);
 
   const handleStartEdit = useCallback((w: Wish) => {
@@ -74,7 +74,7 @@ export function useMyWishes() {
         .eq('id', editingWish.id);
 
       if (error) throw error;
-      alert('已重新提交！請等待管理員審核。');
+      alert('已重新提交！請等待管理團隊審核。');
       setEditingWish(null);
       loadMyWishes();
     } catch (e: unknown) {
@@ -147,28 +147,31 @@ export function useMyWishes() {
     }
   }, [letterWish, thankYouLetter, unboxingPhoto, loadMyWishes]);
 
+  // 🌟 核心增強：被駁回（blocked）或開箱信被駁回（rejected）一律強制置頂！
   const filteredList = useMemo(() => {
-    return myWishes.filter((w) => {
+    const list = myWishes.filter((w) => {
       if (filterTag === 'all') return true;
       if (filterTag === 'approved') return w.status === 'approved';
       if (filterTag === 'pending') return w.status === 'pending';
-      if (filterTag === 'blocked') return w.status === 'blocked';
+      if (filterTag === 'blocked') return w.status === 'blocked' || w.letter_status === 'rejected';
       if (filterTag === 'fulfilled') return w.status === 'fulfilled' || w.status === 'full_funded';
       return true;
     });
+
+    return list.sort((a, b) => {
+      const aNeedAction = a.status === 'blocked' || a.letter_status === 'rejected';
+      const bNeedAction = b.status === 'blocked' || b.letter_status === 'rejected';
+      if (aNeedAction && !bNeedAction) return -1;
+      if (!aNeedAction && bNeedAction) return 1;
+      return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+    });
   }, [myWishes, filterTag]);
 
-  // 🌟 核心防線：只要身分證號與戶籍地址皆已完備（非空），taxDeclarationWish 必為 undefined，100% 隱藏提醒橫幅！
   const taxDeclarationWish = useMemo(() => {
     const hasValidId = Boolean(profile?.id_number && profile.id_number.trim().length > 0);
     const hasValidDomicile = Boolean(profile?.domicile_address && profile.domicile_address.trim().length > 0);
+    if (hasValidId && hasValidDomicile) return undefined;
 
-    // 資料已齊全，直接放行，不顯示提醒橫幅
-    if (hasValidId && hasValidDomicile) {
-      return undefined;
-    }
-
-    // 只有在資料未齊備、且存在滿千達成的心願時才顯示
     return myWishes.find((w) => {
       const isFunded =
         w.status === 'full_funded' ||
