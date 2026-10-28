@@ -30,9 +30,16 @@ export function ShippingModal({ shippingStory, investmentsList, loadingInvestmen
         {s.isTaxThresholdReached && (
           <div className={`p-3.5 rounded-2xl border text-xs space-y-1.5 ${s.isShippingFrozen ? 'bg-red-950/30 border-red-500/40 text-red-200' : 'bg-emerald-950/20 border-emerald-500/40 text-emerald-200'}`}>
             <div className="flex items-center gap-1.5 font-bold">
-              {s.isShippingFrozen ? <><ShieldAlert className="w-4 h-4 text-red-400" /><span>【合規警戒 · 贈禮寄送已凍結】所得稅免扣繳申報資料未齊</span></> : <><CheckCircle2 className="w-4 h-4 text-emerald-400" /><span>【稅務合規審驗通過】提案人已完備資料</span></>}
+              {s.isShippingFrozen ? (
+                <><ShieldAlert className="w-4 h-4 text-red-400" /><span>【贈禮寄送凍結】提案人尚未補齊所得稅法申報資料</span></>
+              ) : (
+                <><CheckCircle2 className="w-4 h-4 text-emerald-400" /><span>【稅務合規審驗通過】提案人申報身分資料已由資料庫安全封存</span></>
+              )}
             </div>
-            <p className="text-[11px] opacity-90">總額 NT$ {shippingStory.product_price.toLocaleString()}（已逾千元申報門檻）。{s.isShippingFrozen ? '提案人未齊身分證或戶籍地址。' : `身分證：${s.creatorTaxInfo?.id_number?.substring(0, 4)}**** · 戶籍：${s.creatorTaxInfo?.domicile_address}`}</p>
+            <p className="text-[11px] opacity-90 leading-relaxed">
+              贈禮價值 NT$ {shippingStory.product_price.toLocaleString()}（已達千元免扣繳申報門檻）。
+              {s.isShippingFrozen ? '提案人個資尚未齊備，系統禁止出貨以防稅務違規。' : '確認出貨後，系統將直接在資料庫完成所得稅扣繳憑單建檔備查，前端不展示任何機敏個資。'}
+            </p>
           </div>
         )}
 

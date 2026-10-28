@@ -1,5 +1,5 @@
 // src/pages/UserDashboard/components/PublishTab/components/PublishConstraintBanner.tsx
-import { ShieldAlert, BookOpen, ArrowRight } from 'lucide-react';
+import { ShieldAlert, BookOpen, ArrowRight, CheckCircle2 } from 'lucide-react';
 import type { Wish } from '@/types/wish';
 
 interface Props {
@@ -9,6 +9,15 @@ interface Props {
 }
 
 export function PublishConstraintBanner({ reason, blockingWish, onSwitchToMyWishes }: Props) {
+  // 純資料呈現輔助
+  const getStatusText = (wish: Wish) => {
+    if (wish.letter_status === 'approved') return '✓ 開箱感謝信已審核通過（若贈禮寄送排定中，請待官方出貨完成結算）';
+    if (wish.letter_status === 'pending') return '⏳ 開箱感謝信審核中（官方審查通過後即刻解鎖）';
+    if (wish.letter_status === 'rejected') return '⚠️ 感謝信曾被駁回，請修正後重新送審';
+    if (wish.status === 'fulfilled') return '贈禮已送達，請撰寫開箱感謝信並待審核通過';
+    return '活動進行中，尚未撰寫開箱信';
+  };
+
   return (
     <div className="glass rounded-2xl p-6 glow-border bg-zinc-950 border border-amber-400/40 space-y-4">
       <div className="flex items-start gap-3">
@@ -22,15 +31,13 @@ export function PublishConstraintBanner({ reason, blockingWish, onSwitchToMyWish
       </div>
 
       {blockingWish && (
-        <div className="bg-black/50 border border-white/10 rounded-xl p-3 text-xs space-y-1 font-mono">
-          <div className="text-amber-300 font-bold">當前心願：{blockingWish.product_name}</div>
-          <div className="text-zinc-400">
-            感謝信狀態：
-            {blockingWish.letter_status === 'pending'
-              ? '⏳ 官方審核中（通過後即刻解鎖）'
-              : blockingWish.letter_status === 'rejected'
-              ? '⚠️ 感謝信曾被駁回，請修正後重新送審'
-              : '未撰寫開箱信'}
+        <div className="bg-black/50 border border-white/10 rounded-xl p-3 text-xs space-y-1.5 font-mono">
+          <div className="text-amber-300 font-bold">當前活動：{blockingWish.product_name}</div>
+          <div className="text-zinc-300 flex items-center gap-1.5">
+            {blockingWish.letter_status === 'approved' ? (
+              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 flex-shrink-0" />
+            ) : null}
+            <span>感謝信狀態：{getStatusText(blockingWish)}</span>
           </div>
         </div>
       )}

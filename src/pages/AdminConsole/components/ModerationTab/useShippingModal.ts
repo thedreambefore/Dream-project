@@ -14,37 +14,38 @@ export function useShippingModal(
   const [adminBlessing, setAdminBlessing] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [loadingCreator, setLoadingCreator] = useState(true);
-  const [creatorTaxInfo, setCreatorTaxInfo] = useState<{
-    real_name: string | null;
-    id_number: string | null;
-    domicile_address: string | null;
-  } | null>(null);
+
+  // 🌟 前端資安強化：只保留布林合規狀態，不儲存任何身分證與戶籍地址明文字串
+  const [hasCompletedTaxInfo, setHasCompletedTaxInfo] = useState(false);
 
   const isTaxThresholdReached = Number(shippingStory.product_price || 0) >= 1000;
 
   useEffect(() => {
-    async function loadTax() {
+    async function checkTaxReadiness() {
       setLoadingCreator(true);
       const { data } = await supabase
         .from('users')
-        .select('real_name, id_number, domicile_address')
+        .select('id_number, domicile_address, real_name')
         .eq('id', shippingStory.user_id)
         .maybeSingle();
 
-      if (data) setCreatorTaxInfo(data);
+      // 僅在記憶體內部確認三項資料皆非空，隨即轉化為純布林值
+      const isComplete = Boolean(
+        data?.id_number &&
+        data?.domicile_address &&
+        data?.real_name &&
+        data.id_number.trim().length > 0 &&
+        data.domicile_address.trim().length > 0
+      );
+      setHasCompletedTaxInfo(isComplete);
       setLoadingCreator(false);
     }
-    loadTax();
+    checkTaxReadiness();
   }, [shippingStory.user_id]);
 
   const isShippingFrozen = useMemo(() => {
-    return (
-      isTaxThresholdReached &&
-      (!creatorTaxInfo?.id_number ||
-        !creatorTaxInfo?.domicile_address ||
-        !creatorTaxInfo?.real_name)
-    );
-  }, [isTaxThresholdReached, creatorTaxInfo]);
+    return isTaxThresholdReached && !hasCompletedTaxInfo;
+  }, [isTaxThresholdReached, hasCompletedTaxInfo]);
 
   const handleToggleHide = useCallback(async (invId: string, currentHidden: boolean) => {
     await supabase.from('investments').update({ is_hidden: !currentHidden }).eq('id', invId);
@@ -55,13 +56,13 @@ export function useShippingModal(
 
   const handleConfirmShipment = useCallback(async () => {
     if (isShippingFrozen) {
-      alert('【寄送凍結】提案人尚未補齊所得稅申報所需之真實姓名、身分證字號與戶籍地址！');
+      alert('【寄送凍結】提案人尚未於系統完備所得稅申報所需之身分資料！');
       return;
     }
     setSubmitting(true);
     try {
       await fulfillWishAndSettleHonor(shippingStory, adminBlessing);
-      alert('已完成活動贈禮寄送審核！支持者榮譽點數已全數結算，所得稅申報資料已存檔。');
+      alert('已完成活動贈禮寄送審核！支持者榮譽點數已全數結算，申報快照已安全加密存檔至資料庫。');
       onSuccess();
     } catch (e: unknown) {
       alert(`出貨失敗: ${e instanceof Error ? e.message : '未知錯誤'}`);
@@ -76,7 +77,7 @@ export function useShippingModal(
     setAdminBlessing,
     submitting,
     loadingCreator,
-    creatorTaxInfo,
+    hasCompletedTaxInfo,
     isTaxThresholdReached,
     isShippingFrozen,
     handleToggleHide,

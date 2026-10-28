@@ -11,8 +11,8 @@ import { TagsTab } from './components/TagsTab';
 import { useAdminConsole } from './useAdminConsole';
 import type { AdminConsoleProps } from './types';
 
-export function AdminConsole({ onClose, onGoHome }: AdminConsoleProps) {
-  const { isAdmin, activeTab, setActiveTab, handleSignOut } = useAdminConsole(onClose);
+export function AdminConsole({ initialTab = 'pending', onClose, onGoHome }: AdminConsoleProps) {
+  const { isAdmin, activeTab, setActiveTab, handleSignOut } = useAdminConsole(initialTab, onClose);
 
   if (!isAdmin) {
     return (

@@ -4,6 +4,7 @@ import { Starfield } from '@/components/Starfield';
 import { Navbar } from '@/components/Navbar';
 import { AuthModal } from '@/components/AuthModal';
 import { SafeShield } from '@/components/SafeShield';
+import { AdminFloatingAlert } from '@/components/AdminFloatingAlert';
 import { HomePage } from '@/pages/HomePage';
 import { UserDashboard } from '@/pages/UserDashboard';
 import { AdminConsole } from '@/pages/AdminConsole';
@@ -28,7 +29,12 @@ function AppContent() {
       )}
 
       {app.view === 'admin' && app.session && (
-        <AdminConsole onClose={() => app.setView('home')} onGoHome={() => app.setView('home')} />
+        <AdminConsole initialTab={app.adminInitialTab} onClose={() => app.setView('home')} onGoHome={() => app.setView('home')} />
+      )}
+
+      {/* 🌟 管理員全域審核懸浮提醒器 */}
+      {app.isAdmin && app.view !== 'admin' && (
+        <AdminFloatingAlert onOpenAdminWithTab={app.handleOpenAdminWithTab} />
       )}
 
       {app.isAuthModalOpen && <AuthModal onClose={app.closeAuthModal} />}

@@ -1,10 +1,15 @@
-import { useState, useCallback } from 'react';
+// src/pages/AdminConsole/useAdminConsole.ts
+import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import type { AdminTab } from './types';
 
-export function useAdminConsole(onClose: () => void) {
+export function useAdminConsole(initialTab: AdminTab = 'pending', onClose: () => void) {
   const { profile, logout } = useAuth();
-  const [activeTab, setActiveTab] = useState<AdminTab>('pending');
+  const [activeTab, setActiveTab] = useState<AdminTab>(initialTab);
+
+  useEffect(() => {
+    setActiveTab(initialTab);
+  }, [initialTab]);
 
   const handleSignOut = useCallback(async () => {
     await logout();

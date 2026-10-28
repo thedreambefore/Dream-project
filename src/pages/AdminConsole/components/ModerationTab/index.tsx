@@ -1,5 +1,5 @@
 // src/pages/AdminConsole/components/ModerationTab/index.tsx
-import { PackageCheck, Flag, Mail, Package, Globe, Loader2 } from 'lucide-react';
+import { PackageCheck, Flag, Mail, Package, Loader2 } from 'lucide-react';
 import { useModeration, type ModerationSubTab } from './useModeration';
 import { ShippingModal } from './ShippingModal';
 import { LetterReviewList } from './components/LetterReviewList';

@@ -4,6 +4,7 @@ import type { Wish, Tag, Announcement } from '@/types/wish';
 export type AdminTab = 'pending' | 'moderation' | 'users' | 'allCards' | 'announcements' | 'tags';
 
 export interface AdminConsoleProps {
+  initialTab?: AdminTab; // 🌟 支援跳轉指定審核分頁
   onClose: () => void;
   onGoHome: () => void;
 }

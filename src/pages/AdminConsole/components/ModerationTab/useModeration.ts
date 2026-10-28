@@ -1,3 +1,4 @@
+// src/pages/AdminConsole/components/ModerationTab/useModeration.ts
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   fetchAllWishesForAdmin,
@@ -10,7 +11,7 @@ import { fetchWishInvestments } from '../../services/adminService';
 import type { Wish } from '@/types/wish';
 import type { InvestmentWithUser } from '../../types';
 
-export type ModerationSubTab = 'reported' | 'letters' | 'fulfilled' | 'all';
+export type ModerationSubTab = 'reported' | 'letters' | 'fulfilled';
 
 export function useModeration() {
   const [stories, setStories] = useState<Wish[]>([]);
@@ -101,14 +102,6 @@ export function useModeration() {
     [loadStories]
   );
 
-  const handleUnblock = useCallback(
-    async (id: string) => {
-      await unblockWish(id);
-      loadStories();
-    },
-    [loadStories]
-  );
-
   return {
     stories,
     loading,
@@ -127,6 +120,5 @@ export function useModeration() {
     handleOpenShippingModal,
     handleDismissReport,
     handleConfirmBlock,
-    handleUnblock,
   };
 }
